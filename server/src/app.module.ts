@@ -7,17 +7,15 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { LoansModule } from './loans/loans.module';
 import { BorrowersModule } from './borrowers/borrowers.module';
+import { SavingsModule } from './savings/savings.module';
+import { SeederModule } from './seeds/seeder.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: process.env.DB_host,
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
+      url: process.env.DATABASE_URL,
       autoLoadEntities: true,
       synchronize: true,
     }),
@@ -25,6 +23,8 @@ import { BorrowersModule } from './borrowers/borrowers.module';
     AuthModule,
     LoansModule,
     BorrowersModule,
+    SavingsModule,
+    SeederModule,
   ],
   controllers: [AppController],
   providers: [AppService],

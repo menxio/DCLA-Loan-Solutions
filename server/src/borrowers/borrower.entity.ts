@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Loan } from '../loans/loan.entity';
+import { Savings } from '../savings/savings.entity';
 
 @Entity()
 export class Borrower {
@@ -33,6 +34,9 @@ export class Borrower {
 
   @OneToMany(() => Loan, (loan) => loan.borrower)
   loans: Loan[];
+
+  @OneToMany(() => Savings, (savings) => savings.borrower)
+  savings: Savings[];
 
   @CreateDateColumn()
   createdAt: Date;
