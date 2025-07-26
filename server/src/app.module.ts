@@ -9,6 +9,7 @@ import { LoansModule } from './loans/loans.module';
 import { BorrowersModule } from './borrowers/borrowers.module';
 import { SavingsModule } from './savings/savings.module';
 import { SeederModule } from './seeds/seeder.module';
+import { GroupsModule } from './groups/groups.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SeederModule } from './seeds/seeder.module';
     BorrowersModule,
     SavingsModule,
     SeederModule,
+    GroupsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

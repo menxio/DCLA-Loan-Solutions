@@ -23,10 +23,10 @@ export default function DashboardLayout({ children }: LayoutProps) {
           p: 3,
           width: "100%",
           minHeight: "100vh",
-          backgroundColor: "grey.50",
+          background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
         }}
       >
-        <Toolbar />
+        <Toolbar sx={{ minHeight: "70px !important" }} />
         {children}
       </Box>
     </Box>

@@ -35,7 +35,7 @@ export default function LoginPage() {
         ...prev,
         [field]: e.target.value,
       }));
-      if (error) setError("");
+      if (error) setError(""); // Clear error when user starts typing
     };
 
   const validateForm = (): boolean => {
@@ -91,39 +91,65 @@ export default function LoginPage() {
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box
-        sx={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        p: 2,
+      }}
+    >
+      <Container maxWidth="sm">
         <Paper
-          elevation={3}
+          elevation={0}
           sx={{
-            p: 4,
-            width: "100%",
-            borderRadius: 2,
+            p: { xs: 3, sm: 5 },
+            borderRadius: 3,
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            boxShadow: "0 25px 50px rgba(0, 0, 0, 0.1)",
           }}
         >
-          <Box sx={{ textAlign: "center", mb: 3 }}>
+          <Box sx={{ textAlign: "center", mb: 4 }}>
             <Typography
-              variant="h4"
+              variant="h3"
               component="h1"
               gutterBottom
-              color="primary"
+              sx={{
+                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                backgroundClip: "text",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                fontWeight: 700,
+                mb: 1,
+              }}
             >
               Welcome Back
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography
+              variant="body1"
+              color="text.secondary"
+              sx={{ fontSize: "1.1rem" }}
+            >
               Sign in to your DCLA Loan Solutions account
             </Typography>
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert
+              severity="error"
+              sx={{
+                mb: 3,
+                borderRadius: 2,
+                "& .MuiAlert-icon": {
+                  color: "#ef4444",
+                },
+              }}
+            >
               {error}
             </Alert>
           )}
@@ -140,11 +166,16 @@ export default function LoginPage() {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Email color="action" />
+                    <Email sx={{ color: "#64748b" }} />
                   </InputAdornment>
                 ),
               }}
-              sx={{ mb: 2 }}
+              sx={{
+                mb: 2,
+                "& .MuiInputLabel-root": {
+                  fontWeight: 500,
+                },
+              }}
             />
 
             <TextField
@@ -158,7 +189,7 @@ export default function LoginPage() {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Lock color="action" />
+                    <Lock sx={{ color: "#64748b" }} />
                   </InputAdornment>
                 ),
                 endAdornment: (
@@ -167,13 +198,19 @@ export default function LoginPage() {
                       aria-label="toggle password visibility"
                       onClick={togglePasswordVisibility}
                       edge="end"
+                      sx={{ color: "#64748b" }}
                     >
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
                 ),
               }}
-              sx={{ mb: 3 }}
+              sx={{
+                mb: 4,
+                "& .MuiInputLabel-root": {
+                  fontWeight: 500,
+                },
+              }}
             />
 
             <Button
@@ -183,20 +220,34 @@ export default function LoginPage() {
               size="large"
               disabled={loading}
               sx={{
-                py: 1.5,
+                py: 1.8,
                 fontSize: "1.1rem",
-                textTransform: "none",
+                fontWeight: 600,
+                borderRadius: 2,
+                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                boxShadow: "0 4px 15px rgba(30, 58, 138, 0.3)",
+                "&:hover": {
+                  background:
+                    "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
+                  boxShadow: "0 6px 20px rgba(30, 58, 138, 0.4)",
+                  transform: "translateY(-1px)",
+                },
+                "&:disabled": {
+                  background: "#94a3b8",
+                  boxShadow: "none",
+                },
+                transition: "all 0.2s ease-in-out",
               }}
             >
               {loading ? (
-                <CircularProgress size={24} color="inherit" />
+                <CircularProgress size={24} sx={{ color: "white" }} />
               ) : (
                 "Sign In"
               )}
             </Button>
           </Box>
         </Paper>
-      </Box>
-    </Container>
+      </Container>
+    </Box>
   );
 }

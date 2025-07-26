@@ -44,27 +44,53 @@ export default function Header({
   return (
     <AppBar
       position="fixed"
-      sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
+      sx={{
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+        background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)",
+        backdropFilter: "blur(10px)",
+        borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+      }}
     >
-      <Toolbar>
+      <Toolbar sx={{ minHeight: "70px !important" }}>
         <IconButton
           color="inherit"
           aria-label="open drawer"
           onClick={onMenuClick}
           edge="start"
-          sx={{ mr: 2 }}
+          sx={{
+            mr: 2,
+            "&:hover": {
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+            },
+          }}
         >
           <MenuIcon />
         </IconButton>
 
-        <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+        <Typography
+          variant="h5"
+          noWrap
+          component="div"
+          sx={{
+            flexGrow: 1,
+            fontWeight: 700,
+            background: "linear-gradient(45deg, #ffffff 30%, #e2e8f0 90%)",
+            backgroundClip: "text",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
           {title}
         </Typography>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
           <Typography
             variant="body2"
-            sx={{ display: { xs: "none", sm: "block" } }}
+            sx={{
+              display: { xs: "none", sm: "block" },
+              color: "rgba(255, 255, 255, 0.9)",
+              fontWeight: 500,
+            }}
           >
             {user?.email}
           </Typography>
@@ -75,9 +101,20 @@ export default function Header({
             aria-controls="menu-appbar"
             aria-haspopup="true"
             onClick={handleMenu}
-            color="inherit"
+            sx={{
+              "&:hover": {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+              },
+            }}
           >
-            <Avatar sx={{ width: 32, height: 32 }}>
+            <Avatar
+              sx={{
+                width: 36,
+                height: 36,
+                background: "linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)",
+                border: "2px solid rgba(255, 255, 255, 0.2)",
+              }}
+            >
               <AccountCircle />
             </Avatar>
           </IconButton>

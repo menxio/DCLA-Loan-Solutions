@@ -100,15 +100,23 @@ export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {
             selected={isActive}
             sx={{
               pl: 2 + level * 2,
+              borderRadius: 2,
+              mb: 0.5,
+              mx: 1,
               "&.Mui-selected": {
-                backgroundColor: "primary.main",
-                color: "primary.contrastText",
+                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                color: "white",
                 "&:hover": {
-                  backgroundColor: "primary.dark",
+                  background:
+                    "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
                 },
                 "& .MuiListItemIcon-root": {
-                  color: "primary.contrastText",
+                  color: "white",
                 },
+              },
+              "&:hover": {
+                backgroundColor: "#f1f5f9",
+                borderRadius: 2,
               },
             }}
           >
@@ -147,13 +155,17 @@ export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {
         "& .MuiDrawer-paper": {
           width: width,
           boxSizing: "border-box",
+          background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+          borderRight: "1px solid #e2e8f0",
         },
       }}
     >
-      <Toolbar />
-      <Box sx={{ overflow: "auto" }}>
-        <List>{sidebarItems.map((item) => renderSidebarItem(item))}</List>
-        <Divider />
+      <Toolbar sx={{ minHeight: "70px !important" }} />
+      <Box sx={{ overflow: "auto", p: 1 }}>
+        <List sx={{ px: 1 }}>
+          {sidebarItems.map((item) => renderSidebarItem(item))}
+        </List>
+        <Divider sx={{ mx: 2, my: 1, borderColor: "#e2e8f0" }} />
       </Box>
     </Drawer>
   );
