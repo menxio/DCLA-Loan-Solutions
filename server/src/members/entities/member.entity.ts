@@ -6,11 +6,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Loan } from '../loans/loan.entity';
-import { Savings } from '../savings/savings.entity';
+import { Loan } from '../../loans/loan.entity';
+import { Savings } from '../../savings/savings.entity';
 
 @Entity()
-export class Borrower {
+export class Member {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
