@@ -6,15 +6,15 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Borrower } from '../borrowers/borrower.entity';
+import { Member } from '../members/entities/member.entity';
 
 @Entity()
 export class Savings {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Borrower, (borrower) => borrower.savings)
-  borrower: Borrower;
+  @ManyToOne(() => Member, (borrower) => borrower.savings)
+  borrower: Member;
 
   @Column('decimal', { precision: 12, scale: 2 })
   amount: number;
