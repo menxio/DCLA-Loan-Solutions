@@ -4,7 +4,7 @@ import Header from "@components/header/Header";
 import Sidebar from "@components/sidebar/Sidebar";
 import type { LayoutProps } from "../../types/common";
 
-export default function DashboardLayout({ children }: LayoutProps) {
+export default function PrivateLayout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleSidebarToggle = () => {

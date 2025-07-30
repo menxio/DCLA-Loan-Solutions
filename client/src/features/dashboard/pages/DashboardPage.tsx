@@ -15,7 +15,7 @@ import {
   People,
   Assessment,
 } from "@mui/icons-material";
-import DashboardLayout from "@components/layout/DashboardLayout";
+import PrivateLayout from "@components/layout/PrivateLayout";
 import { useAuthStore } from "@features/auth/authStore";
 
 interface StatCardProps {
@@ -126,7 +126,7 @@ export default function DashboardPage() {
     },
     {
       title: "Revenue",
-      value: "$125,430",
+      value: "₱125,430",
       icon: <TrendingUp />,
       color: "warning" as const,
       trend: "+15% from last month",
@@ -134,7 +134,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <DashboardLayout>
+    <PrivateLayout>
       <Box sx={{ mb: 4 }}>
         <Typography
           variant="h3"
@@ -247,6 +247,6 @@ export default function DashboardPage() {
           </Paper>
         </Grid>
       </Grid>
-    </DashboardLayout>
+    </PrivateLayout>
   );
 }

@@ -16,6 +16,7 @@ import {
   ExpandLess,
   ExpandMore,
   Person,
+  Groups,
   Settings,
 } from "@mui/icons-material";
 import { useState } from "react";
@@ -54,6 +55,12 @@ const sidebarItems: SidebarItem[] = [
         path: "/loans/management",
       },
     ],
+  },
+  {
+    id: "centers",
+    label: "Centers",
+    icon: Groups,
+    path: "/centers",
   },
   {
     id: "settings",
