@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Drawer,
   List,
@@ -87,7 +89,10 @@ export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {
       toggleExpanded(item.id);
     } else {
       navigate(item.path);
-      onClose();
+      // Don't close sidebar on desktop - only on mobile
+      if (window.innerWidth < 768) {
+        onClose();
+      }
     }
   };
 
@@ -156,31 +161,62 @@ export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {
   };
 
   return (
-    <Drawer
-      variant="temporary"
-      open={open}
-      onClose={onClose}
-      ModalProps={{
-        keepMounted: true,
-      }}
-      sx={{
-        width: width,
-        flexShrink: 0,
-        "& .MuiDrawer-paper": {
+    <>
+      {/* Mobile Drawer */}
+      <Drawer
+        variant="temporary"
+        open={open}
+        onClose={onClose}
+        ModalProps={{
+          keepMounted: true,
+        }}
+        sx={{
+          display: { xs: "block", md: "none" },
           width: width,
-          boxSizing: "border-box",
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
-          borderRight: "1px solid #e2e8f0",
-        },
-      }}
-    >
-      <Toolbar sx={{ minHeight: "70px !important" }} />
-      <Box sx={{ overflow: "auto", p: 1 }}>
-        <List sx={{ px: 1 }}>
-          {sidebarItems.map((item) => renderSidebarItem(item))}
-        </List>
-        <Divider sx={{ mx: 2, my: 1, borderColor: "#e2e8f0" }} />
-      </Box>
-    </Drawer>
+          flexShrink: 0,
+          "& .MuiDrawer-paper": {
+            width: width,
+            boxSizing: "border-box",
+            background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+            borderRight: "1px solid #e2e8f0",
+          },
+        }}
+      >
+        <Toolbar sx={{ minHeight: "70px !important" }} />
+        <Box sx={{ overflow: "auto", p: 1 }}>
+          <List sx={{ px: 1 }}>
+            {sidebarItems.map((item) => renderSidebarItem(item))}
+          </List>
+          <Divider sx={{ mx: 2, my: 1, borderColor: "#e2e8f0" }} />
+        </Box>
+      </Drawer>
+
+      {/* Desktop Drawer */}
+      <Drawer
+        variant="persistent"
+        anchor="left"
+        open={open}
+        sx={{
+          display: { xs: "none", md: "block" },
+          width: open ? width : 0,
+          flexShrink: 0,
+          "& .MuiDrawer-paper": {
+            width: width,
+            boxSizing: "border-box",
+            background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+            borderRight: "1px solid #e2e8f0",
+            transition: "width 0.3s ease-in-out",
+          },
+        }}
+      >
+        <Toolbar sx={{ minHeight: "70px !important" }} />
+        <Box sx={{ overflow: "auto", p: 1 }}>
+          <List sx={{ px: 1 }}>
+            {sidebarItems.map((item) => renderSidebarItem(item))}
+          </List>
+          <Divider sx={{ mx: 2, my: 1, borderColor: "#e2e8f0" }} />
+        </Box>
+      </Drawer>
+    </>
   );
 }
