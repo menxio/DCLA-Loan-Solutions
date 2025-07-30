@@ -1,3 +1,17 @@
+export interface Borrower {
+  id: string;
+  firstName: string;
+  lastName: string;
+  middleName: string;
+  contactNumber: string;
+  address: string;
+  birthDate?: Date;
+  loans: Loan[];
+  savings: Savings[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Loan {
   id: string;
   applicantId: string;
@@ -23,6 +37,15 @@ export interface Loan {
   firstName?: string;
   lastName?: string;
   email?: string;
+}
+
+export interface Savings {
+  id: string;
+  borrowerId: string;
+  amount: number;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateLoanData {

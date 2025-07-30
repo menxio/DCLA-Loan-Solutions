@@ -6,10 +6,11 @@ import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { LoansModule } from './loans/loans.module';
-import { BorrowersModule } from './borrowers/borrowers.module';
 import { SavingsModule } from './savings/savings.module';
 import { SeederModule } from './seeds/seeder.module';
 import { CentersModule } from './centers/centers.module';
+import { MembersController } from './members/members.controller';
+import { MembersModule } from './members/members.module';
 
 @Module({
   imports: [
@@ -23,12 +24,13 @@ import { CentersModule } from './centers/centers.module';
     UsersModule,
     AuthModule,
     LoansModule,
-    BorrowersModule,
+    MembersModule,
     SavingsModule,
     SeederModule,
     CentersModule,
+    MembersModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, MembersController],
   providers: [AppService],
 })
 export class AppModule {}

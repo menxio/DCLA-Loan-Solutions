@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "@features/auth/pages/LoginPage";
 import DashboardPage from "@features/dashboard/pages/DashboardPage";
-// import CentersPage from "@features/centers/pages/CentersPage";
+import MemberManagementPage from "@features/member/MemberManagementPage";
 import { useAuthStore } from "@features/auth/authStore";
 
 export default function AppRouter() {
@@ -14,6 +14,10 @@ export default function AppRouter() {
       <Route
         path="/dashboard"
         element={token ? <DashboardPage /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/member-management"
+        element={token ? <MemberManagementPage /> : <Navigate to="/login" />}
       />
     </Routes>
   );
