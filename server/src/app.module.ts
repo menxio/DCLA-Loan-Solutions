@@ -30,7 +30,7 @@ import { MembersModule } from './members/members.module';
     CentersModule,
     MembersModule,
   ],
-  controllers: [AppController, MembersController],
+  controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}

@@ -17,7 +17,6 @@ export default function MemberManagementPage() {
 
   return (
     <MemberManagementLayout>
-      <h2>Member Management</h2>
       <MemberManagementTable members={members} />
       {loading && <p>Loading...</p>}
     </MemberManagementLayout>
