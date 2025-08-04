@@ -1,27 +1,26 @@
 import api from "@utils/api";
-import type { Member } from "./types";
+import type { MemberFormData } from "./types";
 
-export const MemberHTTP = {
-    createMember: async (data: Member): Promise<Member> => {
+export const MembersAPI = {
+    getAll: async () => {
+        const res = await api.get("/members");
+        return res.data;
+    },
+    
+    create: async (data: MemberFormData) => {
         const response = await api.post("/members/", data);
         return response.data;
     },
 
-    updateMember: async (data: Member): Promise<Member> => {
-        const response = await api.put(`/members/${data.id}`, data);
+    update: async (id: string, data: MemberFormData) => {
+        const response = await api.put(`/members/${id}`, data);
         return response.data;
     },
     
-    deleteMember: async (id: string): Promise<void> => {
+    remove: async (id: string) => {
         const response = await api.delete(`/members/${id}`);
-
         return response.data;
     },
-
-    getAllMembers: async (): Promise<Member[]> => {
-        const response = await api.get("/members");
-        return response.data;
-    }
 }
 
 

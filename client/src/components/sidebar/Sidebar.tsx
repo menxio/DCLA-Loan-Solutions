@@ -41,7 +41,7 @@ const sidebarItems: SidebarItem[] = [
   },
   {
     id: "member-management",
-    label: "Member Management",
+    label: "Members",
     icon: Person4,
     path: "/member-management",
   },

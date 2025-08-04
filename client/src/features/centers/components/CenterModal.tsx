@@ -106,7 +106,7 @@ export default function CenterModal({
       if (submitError) {
         setSubmitError(null);
       }
-    };
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

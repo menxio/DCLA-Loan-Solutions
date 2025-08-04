@@ -4,7 +4,7 @@ import Header from "@components/header/Header";
 import Sidebar from "@components/sidebar/Sidebar";
 import type { LayoutProps } from "../../types/common";
 
-export default function MemberManagementLayout({ children }: LayoutProps) {
+export default function MemberLayout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleSidebarToggle = () => {
