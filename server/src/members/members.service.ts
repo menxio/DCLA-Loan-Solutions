@@ -28,6 +28,9 @@ export class MembersService {
   }
 
   async update(id: string, updateMemberDto: UpdateMemberDto): Promise<Member> {
+    console.log("ID: ", id);
+    console.log("Update Data: ", updateMemberDto);
+
     const member = await this.memberRepository.preload({
       id,
       ...updateMemberDto,
