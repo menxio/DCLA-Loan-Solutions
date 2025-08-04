@@ -13,8 +13,8 @@ export class Savings {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // @ManyToOne(() => Member, (borrower) => borrower.savings)
-  // borrower: Member;
+  @ManyToOne(() => Member, (borrower) => borrower.savings)
+  borrower: Member;
 
   @Column('decimal', { precision: 12, scale: 2 })
   amount: number;
