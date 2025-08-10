@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Alert, Snackbar, Button, Paper, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+import { Box, Typography, Alert, Snackbar, Button, Paper, FormControl, InputLabel, Select, MenuItem, TextField } from "@mui/material";
 import { Add, Group, FilterList } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import MemberModal from "./components/MemberModal";
@@ -29,6 +29,7 @@ export default function MembersPage() {
   const [loadingCenters, setLoadingCenters] = useState(false);
   const [loanModalOpen, setLoanModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [searchMember, setSearchMember] = useState("");
 
   const showSnackbar = (message: string, severity: "success" | "error" = "success") => {
     setSnackbar({ open: true, message, severity });
@@ -63,6 +64,8 @@ export default function MembersPage() {
     setEditingMember(member);
     setModalOpen(true);
   };
+
+  
 
   const handleDelete = async (id: string) => {
     try {
@@ -110,9 +113,17 @@ export default function MembersPage() {
   }, []);
 
   // Filter members based on selected center
-  const filteredMembers = selectedCenterId
-    ? members.filter((member) => member.center?.id === selectedCenterId)
-    : members;
+  const filteredMembers = members
+  .filter((member) =>
+    selectedCenterId ? member.center?.id === selectedCenterId : true
+  )
+  .filter((member) => {
+    if (!searchMember) return true;
+    const fullName = `${member.firstName} ${member.middleName || ""} ${member.lastName}`
+      .toLowerCase()
+      .trim();
+    return fullName.includes(searchMember.toLowerCase().trim());
+  });
 
   return (
     <DashboardLayout>
@@ -173,10 +184,13 @@ export default function MembersPage() {
             {/* Filter Section */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <FilterList sx={{ color: "#64748b", fontSize: 18 }} />
-              <Typography variant="body2" sx={{ fontWeight: 500, color: "#374151", mr: 1 }}>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 500, color: "#374151", mr: 1 }}
+              >
                 Center:
               </Typography>
-              <FormControl sx={{ minWidth: 180 }} disabled={loadingCenters}>
+              <FormControl sx={{ minWidth: 180}} disabled={loadingCenters}>
                 <InputLabel>Select Center</InputLabel>
                 <Select
                   value={selectedCenterId}
@@ -185,9 +199,7 @@ export default function MembersPage() {
                   size="small"
                   MenuProps={{
                     PaperProps: {
-                      style: {
-                        maxHeight: 200,
-                      },
+                      style: { maxHeight: 200 },
                     },
                   }}
                 >
@@ -202,6 +214,18 @@ export default function MembersPage() {
                 </Select>
               </FormControl>
             </Box>
+
+            {/* Search Section */}
+            <TextField
+              size="small"
+              label="Search by name"
+              variant="outlined"
+              value={searchMember}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setSearchMember(e.target.value)
+              }
+              sx={{ minWidth: 200 }}
+            />
 
             <Button
               variant="contained"

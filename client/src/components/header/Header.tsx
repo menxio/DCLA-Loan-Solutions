@@ -52,7 +52,7 @@ export default function Header({
       }}
     >
       <Toolbar sx={{ minHeight: "70px !important" }}>
-        <IconButton
+        {/* <IconButton
           color="inherit"
           aria-label="open drawer"
           onClick={onMenuClick}
@@ -65,7 +65,7 @@ export default function Header({
           }}
         >
           <MenuIcon />
-        </IconButton>
+        </IconButton> */}
 
         <Typography
           variant="h5"

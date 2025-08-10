@@ -85,24 +85,34 @@ export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {
   const location = useLocation();
 
   const handleItemClick = (item: SidebarItem) => {
+    // if (item.children) {
+    //   toggleExpanded(item.id);
+    // } else {
+    //   navigate(item.path);
+    //   // Don't close sidebar on desktop - only on mobile
+    //   if (window.innerWidth < 768) {
+    //     onClose();
+    //   }
+    // }
+
     if (item.children) {
-      toggleExpanded(item.id);
-    } else {
-      navigate(item.path);
-      // Don't close sidebar on desktop - only on mobile
-      if (window.innerWidth < 768) {
-        onClose();
-      }
+      return;
+    }
+
+    navigate(item.path);
+
+    if (window.innerWidth < 768) {
+      onClose();
     }
   };
 
-  const toggleExpanded = (itemId: string) => {
-    setExpandedItems((prev) =>
-      prev.includes(itemId)
-        ? prev.filter((id) => id !== itemId)
-        : [...prev, itemId]
-    );
-  };
+  // const toggleExpanded = (itemId: string) => {
+  //   setExpandedItems((prev) =>
+  //     prev.includes(itemId)
+  //       ? prev.filter((id) => id !== itemId)
+  //       : [...prev, itemId]
+  //   );
+  // };
 
   const isItemActive = (path: string) => location.pathname === path;
 
