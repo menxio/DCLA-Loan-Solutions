@@ -14,29 +14,27 @@ export interface Borrower {
 
 export interface Loan {
   id: string;
-  applicantId: string;
-  loanType: "personal" | "business" | "mortgage" | "auto";
-  amount: number;
-  term: number;
+  borrowerId: string;
+  borrower: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    middleName: string;
+  };
+  principalAmount: number;
+  termWeeks: number;
   interestRate: number;
-  status: "pending" | "approved" | "rejected";
-  purpose: string;
-  monthlyIncome: number;
-  employmentStatus: "employed" | "self-employed" | "unemployed" | "retired";
-  creditScore: number;
-  collateral?: string;
-  notes?: string;
-  approvedBy?: string;
-  approvedAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  // Computed fields
-  monthlyPayment?: number;
-  totalInterest?: number;
-  // User info from join
-  firstName?: string;
-  lastName?: string;
-  email?: string;
+  totalAmount: number;
+  weeklyPaymentAmount: number;
+  amountPaid: number;
+  balance: number;
+  savingsRequired: number;
+  savingsPaid: number;
+  savingsStatus: 'pending' | 'partial' | 'paid';
+  weeksPaid: number;
+  status: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Savings {
@@ -49,25 +47,30 @@ export interface Savings {
 }
 
 export interface CreateLoanData {
-  loanType: "personal" | "business" | "mortgage" | "auto";
-  amount: number;
-  term: number;
-  purpose: string;
-  monthlyIncome: number;
-  employmentStatus: "employed" | "self-employed" | "unemployed" | "retired";
-  creditScore: number;
-  collateral?: string;
+  borrowerId: string;
+  principalAmount: number;
+  termWeeks: 8 | 12;
 }
 
-export interface UpdateLoanData {
-  loanType?: "personal" | "business" | "mortgage" | "auto";
-  amount?: number;
-  term?: number;
-  purpose?: string;
-  monthlyIncome?: number;
-  employmentStatus?: "employed" | "self-employed" | "unemployed" | "retired";
-  creditScore?: number;
-  collateral?: string;
+export interface LoanFormData {
+  principalAmount: number;
+  termWeeks: 8 | 12;
+}
+
+export interface LoanCalculation {
+  principalAmount: number;
+  termWeeks: 8 | 12;
+  interestRate: number;
+  totalInterest: number;
+  totalAmount: number;
+  weeklyPaymentAmount: number;
+  savingsRequired: number;
+}
+
+export interface ReloanEligibility {
+  eligible: boolean;
+  reason?: string;
+  activeLoan?: Loan;
 }
 
 export interface LoanFilters {

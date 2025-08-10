@@ -1,11 +1,14 @@
-import { useState } from "react";
-import { Box, Typography, Alert, Snackbar, Button, Paper } from "@mui/material";
-import { Add, Group } from "@mui/icons-material";
+import { useState, useEffect } from "react";
+import { Box, Typography, Alert, Snackbar, Button, Paper, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+import { Add, Group, FilterList } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import MemberModal from "./components/MemberModal";
-import MemberTable from "./components/MemberTable";
+import MemberCards from "./components/MemberCards";
+import LoanModal from "@features/loans/components/LoanModal";
 import { useMembers } from "./hooks/useMember";
 import type { Member, MemberFormData } from "./types";
+import type { Center } from "@features/centers/types";
+import { CentersAPI } from "@features/centers/api";
 
 export default function MembersPage() {
   const { members, loading, error, createMember, updateMember, deleteMember } = useMembers();
@@ -21,6 +24,11 @@ export default function MembersPage() {
     message: "",
     severity: "success",
   });
+  const [centers, setCenters] = useState<Center[]>([]);
+  const [selectedCenterId, setSelectedCenterId] = useState<string>("");
+  const [loadingCenters, setLoadingCenters] = useState(false);
+  const [loanModalOpen, setLoanModalOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
   const showSnackbar = (message: string, severity: "success" | "error" = "success") => {
     setSnackbar({ open: true, message, severity });
@@ -69,6 +77,42 @@ export default function MembersPage() {
   const handleCloseSnackbar = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
   };
+
+  const handleViewLoan = (member: Member) => {
+    setSelectedMember(member);
+    setLoanModalOpen(true);
+  };
+
+  const handleCloseLoanModal = () => {
+    setLoanModalOpen(false);
+    setSelectedMember(null);
+  };
+
+  const handleLoanCreated = () => {
+    showSnackbar("Loan created successfully!");
+  };
+
+  // Load centers on component mount
+  useEffect(() => {
+    const loadCenters = async () => {
+      try {
+        setLoadingCenters(true);
+        const centersData = await CentersAPI.getAll();
+        setCenters(centersData);
+      } catch (error) {
+        console.error("Failed to load centers:", error);
+      } finally {
+        setLoadingCenters(false);
+      }
+    };
+
+    loadCenters();
+  }, []);
+
+  // Filter members based on selected center
+  const filteredMembers = selectedCenterId
+    ? members.filter((member) => member.center?.id === selectedCenterId)
+    : members;
 
   return (
     <DashboardLayout>
@@ -120,34 +164,70 @@ export default function MembersPage() {
                 Members
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {members.length} member{members.length !== 1 ? "s" : ""} registered
+                {filteredMembers.length} of {members.length} member{members.length !== 1 ? "s" : ""} registered
               </Typography>
             </Box>
           </Box>
 
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={handleOpenModal}
-            sx={{
-              background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-              "&:hover": {
-                background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-              },
-              px: 3,
-              py: 1.5,
-              fontWeight: 600,
-            }}
-          >
-            Add Member
-          </Button>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {/* Filter Section */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <FilterList sx={{ color: "#64748b", fontSize: 18 }} />
+              <Typography variant="body2" sx={{ fontWeight: 500, color: "#374151", mr: 1 }}>
+                Center:
+              </Typography>
+              <FormControl sx={{ minWidth: 180 }} disabled={loadingCenters}>
+                <InputLabel>Select Center</InputLabel>
+                <Select
+                  value={selectedCenterId}
+                  onChange={(e) => setSelectedCenterId(e.target.value)}
+                  label="Select Center"
+                  size="small"
+                  MenuProps={{
+                    PaperProps: {
+                      style: {
+                        maxHeight: 200,
+                      },
+                    },
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>All Centers</em>
+                  </MenuItem>
+                  {centers.map((center) => (
+                    <MenuItem key={center.id} value={center.id}>
+                      {center.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={handleOpenModal}
+              sx={{
+                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
+                },
+                px: 3,
+                py: 1.5,
+                fontWeight: 600,
+              }}
+            >
+              Add Member
+            </Button>
+          </Box>
         </Paper>
 
-        {/* Members Table */}
-        <MemberTable 
-        members={members} 
+        {/* Members Cards */}
+        <MemberCards 
+        members={filteredMembers} 
         onEdit={handleEdit} 
         onDelete={handleDelete} 
+        onViewLoan={handleViewLoan}
         loading={loading} 
         />
 
@@ -159,6 +239,16 @@ export default function MembersPage() {
           onSubmit={handleFormSubmit}
           loading={loading}
         />
+
+        {/* Loan Modal */}
+        {selectedMember && (
+          <LoanModal
+            open={loanModalOpen}
+            member={selectedMember}
+            onClose={handleCloseLoanModal}
+            onLoanCreated={handleLoanCreated}
+          />
+        )}
 
         {/* Success/Error Snackbar */}
         <Snackbar

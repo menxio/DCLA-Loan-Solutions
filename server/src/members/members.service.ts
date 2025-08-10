@@ -2,6 +2,7 @@ import { Injectable, NotFoundException} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Member } from './entities/member.entity';
+import { Center } from '../centers/entities/center.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 
@@ -10,15 +11,30 @@ export class MembersService {
   constructor(
     @InjectRepository(Member)
     private readonly memberRepository: Repository<Member>,
+    @InjectRepository(Center)
+    private readonly centerRepository: Repository<Center>,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
-    const member = this.memberRepository.create(createMemberDto);
+    const { centerId, ...memberData } = createMemberDto;
+    
+    let center: Center | undefined = undefined;
+    if (centerId) {
+      center = await this.centerRepository.findOne({ where: { id: centerId } }) || undefined;
+      if (!center) throw new NotFoundException(`Center #${centerId} not found`);
+    }
+
+    const member = this.memberRepository.create({
+      ...memberData,
+      center,
+    });
     return this.memberRepository.save(member);
   }
 
   async findAll(): Promise<Member[]> {
-    return this.memberRepository.find();
+    return this.memberRepository.find({
+      relations: ['center'],
+    });
   }
 
   async findOne(id: string): Promise<Member> {
@@ -28,12 +44,18 @@ export class MembersService {
   }
 
   async update(id: string, updateMemberDto: UpdateMemberDto): Promise<Member> {
-    console.log("ID: ", id);
-    console.log("Update Data: ", updateMemberDto);
+    const { centerId, ...memberData } = updateMemberDto;
+    
+    let center: Center | undefined = undefined;
+    if (centerId) {
+      center = await this.centerRepository.findOne({ where: { id: centerId } }) || undefined;
+      if (!center) throw new NotFoundException(`Center #${centerId} not found`);
+    }
 
     const member = await this.memberRepository.preload({
       id,
-      ...updateMemberDto,
+      ...memberData,
+      center,
     });
     if (!member) throw new NotFoundException(`Member #${id} not found`);
     return this.memberRepository.save(member);

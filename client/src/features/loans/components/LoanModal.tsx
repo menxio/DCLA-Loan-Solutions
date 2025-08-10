@@ -1,0 +1,371 @@
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  Box,
+  IconButton,
+  Alert,
+  CircularProgress,
+  Paper,
+  Grid,
+  Chip,
+} from "@mui/material";
+import {
+  Close,
+  Add,
+  AccountBalance,
+  TrendingUp,
+  Savings,
+  Schedule,
+} from "@mui/icons-material";
+import type { Loan } from "../types";
+import type { Member } from "@features/member/types";
+import { LoansAPI } from "../api";
+import LoanForm from "./LoanForm";
+import { formatCurrency } from "../utils/loanCalculations";
+
+interface LoanModalProps {
+  open: boolean;
+  member: Member;
+  onClose: () => void;
+  onLoanCreated?: () => void;
+}
+
+export default function LoanModal({
+  open,
+  member,
+  onClose,
+  onLoanCreated,
+}: LoanModalProps) {
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [creatingLoan, setCreatingLoan] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Get the active loan (should be only one)
+  const activeLoan = loans.find(loan => loan.status === 'active');
+  const hasActiveLoan = Boolean(activeLoan);
+
+  // Load member's loans when modal opens
+  useEffect(() => {
+    if (open) {
+      loadLoans();
+    }
+  }, [open, member.id]);
+
+  const loadLoans = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const memberLoans = await LoansAPI.getByMember(member.id);
+      setLoans(memberLoans);
+    } catch (err) {
+      setError("Failed to load loans");
+      console.error("Error loading loans:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateLoan = async (formData: any) => {
+    try {
+      setLoading(true);
+      await LoansAPI.create({
+        borrowerId: member.id,
+        ...formData,
+      });
+      await loadLoans(); // Reload loans
+      setCreatingLoan(false);
+      onLoanCreated?.();
+    } catch (err) {
+      throw err; // Let LoanForm handle the error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!loading) {
+      setCreatingLoan(false);
+      setError(null);
+      onClose();
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "primary";
+      case "paid":
+        return "success";
+      case "defaulted":
+        return "error";
+      case "netoff":
+        return "warning";
+      case "payoff":
+        return "info";
+      default:
+        return "default";
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "active":
+        return "Active";
+      case "paid":
+        return "Paid";
+      case "defaulted":
+        return "Defaulted";
+      case "netoff":
+        return "Net Off";
+      case "payoff":
+        return "Pay Off";
+      default:
+        return status;
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      fullWidth
+      maxWidth="md"
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          fontWeight: 600,
+          color: "#1e293b",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          pb: 1,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <AccountBalance sx={{ color: "#3b82f6" }} />
+          <Typography variant="h6" fontWeight={600}>
+            {creatingLoan ? "Create Loan" : "Loan"} - {member.firstName} {member.lastName}
+          </Typography>
+        </Box>
+        <IconButton onClick={handleClose} disabled={loading} size="small">
+          <Close />
+        </IconButton>
+      </DialogTitle>
+
+      <DialogContent>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        {loading && !creatingLoan ? (
+          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : creatingLoan ? (
+          <LoanForm
+            memberId={member.id}
+            memberName={`${member.firstName} ${member.lastName}`}
+            onSubmit={handleCreateLoan}
+            onCancel={() => setCreatingLoan(false)}
+            loading={loading}
+          />
+        ) : !hasActiveLoan ? (
+          // No active loan - show create loan option
+          <Paper
+            sx={{
+              p: 4,
+              textAlign: "center",
+              background: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+              border: "2px dashed #cbd5e1",
+            }}
+          >
+            <AccountBalance sx={{ fontSize: 64, color: "#64748b", mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              No Active Loan
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              This member doesn't have an active loan. Create a new loan to get started.
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => setCreatingLoan(true)}
+              sx={{
+                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
+                },
+                px: 3,
+                py: 1.5,
+                fontWeight: 600,
+              }}
+            >
+              Create New Loan
+            </Button>
+          </Paper>
+        ) : (
+          // Show active loan
+          <Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                Current Loan
+              </Typography>
+              <Chip
+                label={getStatusLabel(activeLoan!.status)}
+                color={getStatusColor(activeLoan!.status) as any}
+                size="small"
+              />
+            </Box>
+
+            <Paper
+              sx={{
+                p: 3,
+                background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                border: "1px solid #e2e8f0",
+                "&:hover": {
+                  borderColor: "#3b82f6",
+                  boxShadow: "0 4px 12px rgba(59, 130, 246, 0.1)",
+                },
+              }}
+            >
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                  Loan #{activeLoan!.id.slice(0, 8)}...
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Created {new Date(activeLoan!.createdAt).toLocaleDateString()}
+                </Typography>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={2.4}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <TrendingUp sx={{ fontSize: 16, color: "#64748b" }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Principal
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                    {formatCurrency(activeLoan!.principalAmount)}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={2.4}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <AccountBalance sx={{ fontSize: 16, color: "#64748b" }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Total Amount
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                    {formatCurrency(activeLoan!.totalAmount)}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={2.4}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <Schedule sx={{ fontSize: 16, color: "#64748b" }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Weekly Payment
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                    {formatCurrency(activeLoan!.weeklyPaymentAmount)}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={2.4}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <Schedule sx={{ fontSize: 16, color: "#64748b" }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Progress
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                    {activeLoan!.weeksPaid}/{activeLoan!.termWeeks} weeks
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={2.4}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <Savings sx={{ fontSize: 16, color: "#64748b" }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Savings
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                    {formatCurrency(activeLoan!.savingsPaid)}/{formatCurrency(activeLoan!.savingsRequired)}
+                  </Typography>
+                </Grid>
+              </Grid>
+
+
+            </Paper>
+
+            {/* Show loan history if there are past loans */}
+            {loans.filter(loan => loan.status !== 'active').length > 0 && (
+              <Box sx={{ mt: 4 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b", mb: 2 }}>
+                  Loan History
+                </Typography>
+                <Grid container spacing={2}>
+                  {loans
+                    .filter(loan => loan.status !== 'active')
+                    .map((loan) => (
+                    <Grid item xs={12} key={loan.id}>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          background: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+                          border: "1px solid #cbd5e1",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Box>
+                            <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                              Loan #{loan.id.slice(0, 8)}... - {getStatusLabel(loan.status)}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {formatCurrency(loan.principalAmount)} • {loan.termWeeks} weeks • {new Date(loan.createdAt).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                          <Chip
+                            label={getStatusLabel(loan.status)}
+                            color={getStatusColor(loan.status) as any}
+                            size="small"
+                          />
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
+          </Box>
+        )}
+      </DialogContent>
+
+      {!creatingLoan && hasActiveLoan && (
+        <DialogActions sx={{ p: 3, pt: 0 }}>
+          <Button onClick={handleClose} sx={{ color: "#64748b" }}>
+            Close
+          </Button>
+        </DialogActions>
+      )}
+    </Dialog>
+  );
+} 

@@ -37,8 +37,20 @@ export class Loan {
   @Column('decimal', { precision: 12, scale: 2 })
   balance: number;
 
-  @Column({ nullable: true })
-  remarks: string;
+  @Column('decimal', { precision: 12, scale: 2 })
+  totalAmount: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  savingsRequired: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  savingsPaid: number;
+
+  @Column({ default: 'pending' })
+  savingsStatus: 'pending' | 'partial' | 'paid';
+
+  @Column('int', { default: 0 })
+  weeksPaid: number;
 
   @CreateDateColumn()
   createdAt: Date;

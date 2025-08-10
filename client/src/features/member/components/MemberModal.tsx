@@ -13,6 +13,10 @@ import {
   IconButton,
   Box,
   Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import {
   Add,
@@ -20,6 +24,8 @@ import {
   Close,
 } from "@mui/icons-material";
 import type { Member, MemberFormData } from "../types";
+import type { Center } from "@features/centers/types";
+import { CentersAPI } from "@features/centers/api";
 
 interface MemberModalProps {
   open: boolean;
@@ -43,12 +49,34 @@ export default function MemberModal({
     contactNumber: "",
     address: "",
     birthDate: null,
+    centerId: "",
   });
 
   const [errors, setErrors] = useState<Partial<MemberFormData>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [centers, setCenters] = useState<Center[]>([]);
+  const [loadingCenters, setLoadingCenters] = useState(false);
 
   const isEditing = Boolean(member);
+
+  // Load centers when modal opens
+  useEffect(() => {
+    if (open) {
+      const loadCenters = async () => {
+        try {
+          setLoadingCenters(true);
+          const centersData = await CentersAPI.getAll();
+          setCenters(centersData);
+        } catch (error) {
+          console.error("Failed to load centers:", error);
+        } finally {
+          setLoadingCenters(false);
+        }
+      };
+
+      loadCenters();
+    }
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -60,6 +88,7 @@ export default function MemberModal({
           contactNumber: member.contactNumber || "",
           address: member.address || "",
           birthDate: member.birthDate ? new Date(member.birthDate) : null,
+          centerId: member.center?.id || "",
         });
       } else {
         setFormData({
@@ -69,6 +98,7 @@ export default function MemberModal({
           contactNumber: "",
           address: "",
           birthDate: null,
+          centerId: "",
         });
       }
       setErrors({});
@@ -98,6 +128,26 @@ export default function MemberModal({
         setSubmitError(null);
       }
     };
+
+  const handleSelectChange = (field: keyof MemberFormData) => (e: any) => {
+    const value = e.target.value;
+
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    if (errors[field]) {
+      setErrors((prev) => ({
+        ...prev,
+        [field]: undefined,
+      }));
+    }
+
+    if (submitError) {
+      setSubmitError(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,6 +272,33 @@ export default function MemberModal({
                 required
                 InputLabelProps={{ shrink: true }}
               />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth disabled={loading || loadingCenters}>
+                <InputLabel>Center</InputLabel>
+                <Select
+                  value={formData.centerId || ""}
+                  onChange={handleSelectChange("centerId")}
+                  label="Center"
+                  error={Boolean(errors.centerId)}
+                  MenuProps={{
+                    PaperProps: {
+                      style: {
+                        maxHeight: 200,
+                      },
+                    },
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>No center assigned</em>
+                  </MenuItem>
+                  {centers.map((center) => (
+                    <MenuItem key={center.id} value={center.id}>
+                      {center.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
           </Grid>
 
