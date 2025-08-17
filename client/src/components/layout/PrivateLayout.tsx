@@ -1,12 +1,12 @@
 import { Box, Toolbar } from "@mui/material";
 import { useState, useEffect } from "react";
-import Header from "@components/header/Header";
-import Sidebar from "@components/sidebar/Sidebar";
+import Header from "../header/Header";
+import Sidebar from "../sidebar/Sidebar";
 import type { LayoutProps } from "../../types/common";
 
 const SIDEBAR_WIDTH = 240;
 
-export default function PrivateLayout({ children }: LayoutProps) {
+export default function DashboardLayout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true); // Default open
   const [isMobile, setIsMobile] = useState(false);
 
@@ -54,7 +54,8 @@ export default function PrivateLayout({ children }: LayoutProps) {
           flexGrow: 1,
           p: 3,
           width: "100%",
-          minHeight: "100vh",
+          height: "100vh", // Full viewport height
+          overflow: "auto", // Enable scrolling
           background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
           marginLeft: {
             xs: 0,
@@ -64,7 +65,11 @@ export default function PrivateLayout({ children }: LayoutProps) {
         }}
       >
         <Toolbar sx={{ minHeight: "70px !important" }} />
-        {children}
+        <Box sx={{ pb: 3 }}>
+          {" "}
+          {/* Add padding bottom for better spacing */}
+          {children}
+        </Box>
       </Box>
     </Box>
   );

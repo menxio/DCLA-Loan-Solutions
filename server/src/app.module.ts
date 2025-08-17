@@ -9,8 +9,8 @@ import { LoansModule } from './loans/loans.module';
 import { SavingsModule } from './savings/savings.module';
 import { SeederModule } from './seeds/seeder.module';
 import { CentersModule } from './centers/centers.module';
-import { MembersController } from './members/members.controller';
 import { MembersModule } from './members/members.module';
+import { CollectionsModule } from './collections/collections.module';
 
 @Module({
   imports: [
@@ -29,6 +29,7 @@ import { MembersModule } from './members/members.module';
     SeederModule,
     CentersModule,
     MembersModule,
+    CollectionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

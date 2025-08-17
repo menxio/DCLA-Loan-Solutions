@@ -72,6 +72,12 @@ const sidebarItems: SidebarItem[] = [
     path: "/centers",
   },
   {
+    id: "collections",
+    label: "Collections",
+    icon: Groups,
+    path: "/collections",
+  },
+  {
     id: "settings",
     label: "Settings",
     icon: Settings,

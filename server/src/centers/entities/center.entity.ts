@@ -4,7 +4,9 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { Collection } from '../../collections/entities/collection.entity';
 
 @Entity()
 export class Center {
@@ -16,6 +18,9 @@ export class Center {
 
   @Column()
   collectionDay: string;
+
+  @OneToMany(() => Collection, (collection) => collection.center)
+  collections: Collection[];
 
   @Column({ nullable: true })
   address: string;
