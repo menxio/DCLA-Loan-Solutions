@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import collectionsService from "../api";
+import collectionsService from "../api.ts";
 import type {
   DailyCollectionGroup,
   Collection,

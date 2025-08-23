@@ -4,49 +4,34 @@ import {
   CardContent,
   Typography,
   Grid,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
-  IconButton,
-  Paper,
+  Button,
+  Avatar,
 } from "@mui/material";
 import {
-  Edit,
   CalendarToday,
   LocationOn,
   People,
   CheckCircle,
   Schedule,
   Warning,
+  Visibility,
 } from "@mui/icons-material";
 import CollectionStatsCard from "./CollectionStatsCard";
-import type { DailyCollectionGroup, Collection } from "../types";
+import type { DailyCollectionGroup } from "../types";
 
 interface DailyCollectionsViewProps {
   data: DailyCollectionGroup[];
-  onEditCollection: (collection: Collection) => void;
+  onViewDetails: (group: DailyCollectionGroup) => void;
   loading?: boolean;
 }
 
 export default function DailyCollectionsView({
   data,
-  onEditCollection,
+  onViewDetails,
   loading,
 }: DailyCollectionsViewProps) {
-  const getStatusColor = (collection: Collection) => {
-    if (collection.paymentReceived >= collection.amount) return "success";
-    if (collection.paymentReceived > 0) return "warning";
-    return "error";
-  };
-
-  const getStatusLabel = (collection: Collection) => {
-    if (collection.paymentReceived >= collection.amount) return "PAID";
-    if (collection.paymentReceived > 0) return "PARTIAL";
-    return "PENDING";
+  const formatCurrency = (amount: number) => {
+    return `₱${amount.toLocaleString()}`;
   };
 
   if (data.length === 0) {
@@ -81,6 +66,11 @@ export default function DailyCollectionsView({
             background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
             border: "1px solid #e2e8f0",
             overflow: "hidden",
+            transition: "all 0.3s ease-in-out",
+            "&:hover": {
+              transform: "translateY(-2px)",
+              boxShadow: "0 8px 25px rgba(0, 0, 0, 0.1)",
+            },
           }}
         >
           {/* Center Header */}
@@ -121,10 +111,10 @@ export default function DailyCollectionsView({
               <Grid item xs={12} md={4}>
                 <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    ₱{group.totalAmount.toLocaleString()}
+                    {formatCurrency(group.totalAmount)}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Received: ₱{group.totalReceived.toLocaleString()}
+                    Received: {formatCurrency(group.totalReceived)}
                   </Typography>
                 </Box>
               </Grid>
@@ -177,126 +167,159 @@ export default function DailyCollectionsView({
               </Grid>
             </Grid>
 
-            {/* Collections Table */}
-            <TableContainer
-              component={Paper}
+            {/* Collection Progress */}
+            <Box
               sx={{
+                p: 3,
+                backgroundColor: "#f8fafc",
                 borderRadius: 2,
                 border: "1px solid #e2e8f0",
+                mb: 3,
               }}
             >
-              <Table>
-                <TableHead sx={{ backgroundColor: "#f8fafc" }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                      Member
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                      Amount
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                      Received
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                      Balance
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                      Status
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                      Notes
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{ fontWeight: 600, color: "#1e293b" }}
-                    >
-                      Actions
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {group.collections.map((collection, index) => (
-                    <TableRow
-                      key={collection.id}
+              <Grid container spacing={3} alignItems="center">
+                <Grid item xs={12} md={8}>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 600, color: "#1e293b", mb: 1 }}
+                  >
+                    Collection Progress
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {
+                      group.collections.filter(
+                        (c) => c.paymentReceived >= c.amount
+                      ).length
+                    }{" "}
+                    of {group.totalMembers} members have completed their
+                    payments
+                  </Typography>
+
+                  {/* Progress Bar */}
+                  <Box sx={{ mt: 2, mb: 1 }}>
+                    <Box
                       sx={{
-                        "&:hover": { backgroundColor: "#f8fafc" },
-                        backgroundColor:
-                          index % 2 === 0 ? "#ffffff" : "#fafbfc",
+                        width: "100%",
+                        height: 8,
+                        backgroundColor: "#e2e8f0",
+                        borderRadius: 4,
+                        overflow: "hidden",
                       }}
                     >
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {collection.member?.firstName}{" "}
-                          {collection.member?.lastName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          ₱{collection.amount.toLocaleString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          ₱{collection.paymentReceived.toLocaleString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontWeight: 600,
-                            color:
-                              collection.paymentReceived >= collection.amount
-                                ? "#10b981"
-                                : "#ef4444",
-                          }}
-                        >
-                          ₱
-                          {(
-                            collection.amount - collection.paymentReceived
-                          ).toLocaleString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={getStatusLabel(collection)}
-                          color={getStatusColor(collection)}
-                          size="small"
-                          sx={{ fontWeight: 600 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            maxWidth: 150,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {collection.notes || "-"}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <IconButton
-                          onClick={() => onEditCollection(collection)}
-                          size="small"
-                          sx={{
-                            color: "#3b82f6",
-                            "&:hover": {
-                              backgroundColor: "#dbeafe",
-                            },
-                          }}
-                        >
-                          <Edit fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                      <Box
+                        sx={{
+                          width: `${
+                            (group.totalReceived / group.totalAmount) * 100
+                          }%`,
+                          height: "100%",
+                          background:
+                            "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
+                          transition: "width 0.3s ease-in-out",
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    {((group.totalReceived / group.totalAmount) * 100).toFixed(
+                      1
+                    )}
+                    % collected
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Visibility />}
+                      onClick={() => onViewDetails(group)}
+                      sx={{
+                        background:
+                          "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                        "&:hover": {
+                          background:
+                            "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
+                        },
+                        px: 3,
+                        py: 1.5,
+                        fontWeight: 600,
+                        borderRadius: 2,
+                      }}
+                    >
+                      View Details
+                    </Button>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Quick Summary */}
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    p: 2,
+                    backgroundColor: "#f0f9ff",
+                    borderRadius: 2,
+                  }}
+                >
+                  <Avatar sx={{ bgcolor: "#3b82f6", width: 40, height: 40 }}>
+                    <People />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Members with Outstanding Balance
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 600, color: "#1e293b" }}
+                    >
+                      {
+                        group.collections.filter(
+                          (c) => c.paymentReceived < c.amount
+                        ).length
+                      }
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    p: 2,
+                    backgroundColor: "#f0fdf4",
+                    borderRadius: 2,
+                  }}
+                >
+                  <Avatar sx={{ bgcolor: "#10b981", width: 40, height: 40 }}>
+                    <CheckCircle />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Collection Efficiency
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 600, color: "#1e293b" }}
+                    >
+                      {(
+                        (group.collections.filter(
+                          (c) => c.paymentReceived >= c.amount
+                        ).length /
+                          group.totalMembers) *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
           </CardContent>
         </Card>
       ))}

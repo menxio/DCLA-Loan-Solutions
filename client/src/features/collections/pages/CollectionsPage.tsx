@@ -1,4 +1,5 @@
 import type React from "react";
+
 import { useState } from "react";
 import {
   Box,
@@ -21,9 +22,10 @@ import {
 import { Refresh, Assessment } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import DailyCollectionsView from "../components/DailyCollectionsView";
+import CollectionDetailsModal from "../components/CollectionDetailsModal";
 import CollectionUpdateModal from "../components/CollectionUpdateModal";
 import { useCollections } from "../hooks/useCollections";
-import type { Collection } from "../types";
+import type { Collection, DailyCollectionGroup } from "../types";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -57,7 +59,11 @@ export default function CollectionsPage() {
     refetchAll,
   } = useCollections();
   const [tabValue, setTabValue] = useState(0);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [selectedCollectionGroup, setSelectedCollectionGroup] = useState<
+    DailyCollectionGroup | undefined
+  >(undefined);
   const [selectedCollection, setSelectedCollection] = useState<
     Collection | undefined
   >(undefined);
@@ -86,13 +92,23 @@ export default function CollectionsPage() {
     setTabValue(newValue);
   };
 
-  const handleEditCollection = (collection: Collection) => {
-    setSelectedCollection(collection);
-    setModalOpen(true);
+  const handleViewDetails = (group: DailyCollectionGroup) => {
+    setSelectedCollectionGroup(group);
+    setDetailsModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setModalOpen(false);
+  const handleCloseDetailsModal = () => {
+    setDetailsModalOpen(false);
+    setSelectedCollectionGroup(undefined);
+  };
+
+  const handleEditCollection = (collection: Collection) => {
+    setSelectedCollection(collection);
+    setUpdateModalOpen(true);
+  };
+
+  const handleCloseUpdateModal = () => {
+    setUpdateModalOpen(false);
     setSelectedCollection(undefined);
   };
 
@@ -282,7 +298,7 @@ export default function CollectionsPage() {
             <Box sx={{ p: 3 }}>
               <DailyCollectionsView
                 data={dailyCollections}
-                onEditCollection={handleEditCollection}
+                onViewDetails={handleViewDetails}
                 loading={loading}
               />
             </Box>
@@ -396,11 +412,19 @@ export default function CollectionsPage() {
           </TabPanel>
         </Paper>
 
+        {/* Collection Details Modal */}
+        <CollectionDetailsModal
+          open={detailsModalOpen}
+          collectionGroup={selectedCollectionGroup}
+          onClose={handleCloseDetailsModal}
+          onEditCollection={handleEditCollection}
+        />
+
         {/* Collection Update Modal */}
         <CollectionUpdateModal
-          open={modalOpen}
+          open={updateModalOpen}
           collection={selectedCollection}
-          onClose={handleCloseModal}
+          onClose={handleCloseUpdateModal}
           onSubmit={handleUpdateCollection}
           loading={loading}
         />

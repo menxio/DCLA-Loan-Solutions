@@ -64,6 +64,14 @@ export const collectionsService = {
     return response.data;
   },
 
+  // Get center members with loan information
+  getCenterMembers: async (centerId: string): Promise<any[]> => {
+    const response = await axios.get(
+      `${API_BASE_URL}/members/center/${centerId}`
+    );
+    return response.data;
+  },
+
   // Create new collection
   createCollection: async (data: CreateCollectionData): Promise<Collection> => {
     const response = await collectionsApi.post("/", data);
