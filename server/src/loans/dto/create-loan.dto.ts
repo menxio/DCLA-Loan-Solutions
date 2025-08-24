@@ -7,6 +7,6 @@ export class CreateLoanDto {
   @IsNumber()
   principalAmount: number;
 
-  @IsIn([8, 12])
+  @IsIn([4, 8, 12])
   termWeeks: number;
 } 

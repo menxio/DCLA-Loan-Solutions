@@ -249,7 +249,10 @@ export class CollectionsService {
     const newPaymentReceived =
       Number(collection.paymentReceived) + paymentAmount;
 
+    // const newNumberOfPayments = (collection.numberOfPayments || 0) + 1;
+
     const updateData: UpdateCollectionDto = {
+      
       paymentReceived: newPaymentReceived,
       notes: notes || collection.notes,
     };

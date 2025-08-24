@@ -106,7 +106,7 @@ export class MembersService {
 
         // Calculate total savings (sum of all loans' savings)
         const totalSavings = loans.reduce(
-          (sum, loan) => sum + Number(loan.savingsRequired),
+          (sum, loan) => sum + Number(loan.savings),
           0,
         );
 

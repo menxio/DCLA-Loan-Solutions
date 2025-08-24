@@ -41,13 +41,7 @@ export class Loan {
   totalAmount: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
-  savingsRequired: number;
-
-  @Column('decimal', { precision: 12, scale: 2, default: 0 })
-  savingsPaid: number;
-
-  @Column({ default: 'pending' })
-  savingsStatus: 'pending' | 'partial' | 'paid';
+  savings: number;
 
   @Column('int', { default: 0 })
   weeksPaid: number;

@@ -21,7 +21,7 @@ export class LoansService {
   }
 
   // Calculate savings required (10% of principal)
-  private getSavingsRequired(principalAmount: number): number {
+  private getSavings(principalAmount: number): number {
     return principalAmount * 0.10;
   }
 
@@ -31,14 +31,14 @@ export class LoansService {
     const totalInterest = principalAmount * interestRate;
     const totalAmount = principalAmount + totalInterest;
     const weeklyPaymentAmount = totalAmount / termWeeks;
-    const savingsRequired = this.getSavingsRequired(principalAmount);
+    const savings = this.getSavings(principalAmount);
 
     return {
       interestRate,
       totalInterest,
       totalAmount,
       weeklyPaymentAmount,
-      savingsRequired,
+      savings,
     };
   }
 
@@ -64,7 +64,7 @@ export class LoansService {
       interestRate,
       totalAmount,
       weeklyPaymentAmount,
-      savingsRequired,
+      savings,
     } = this.calculateLoanDetails(principalAmount, termWeeks);
 
     // Create loan
@@ -76,11 +76,9 @@ export class LoansService {
       totalAmount,
       weeklyPaymentAmount,
       balance: totalAmount,
-      savingsRequired,
-      savingsStatus: 'pending',
+      savings,
       weeksPaid: 0,
       amountPaid: 0,
-      savingsPaid: 0,
       status: 'active',
     });
 
@@ -146,14 +144,6 @@ export class LoansService {
       return {
         eligible: false,
         reason: `Need at least ${minWeeks} weeks paid (currently ${activeLoan.weeksPaid})`,
-        activeLoan,
-      };
-    }
-
-    if (activeLoan.savingsStatus !== 'paid') {
-      return {
-        eligible: false,
-        reason: 'Savings requirement not met',
         activeLoan,
       };
     }
