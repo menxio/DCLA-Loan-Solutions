@@ -30,7 +30,9 @@ export class LoansService {
     const interestRate = this.getInterestRate(termWeeks);
     const totalInterest = principalAmount * interestRate;
     const totalAmount = principalAmount + totalInterest;
-    const weeklyPaymentAmount = totalAmount / termWeeks;
+    const baseWeeklyPayment = totalAmount / termWeeks;
+    const roundedWeeklyPayment = Math.floor(baseWeeklyPayment / 10) * 10;
+    const weeklyPaymentAmount = termWeeks === 12 ? roundedWeeklyPayment + 10 : roundedWeeklyPayment;
     const savings = this.getSavings(principalAmount);
 
     return {
