@@ -65,11 +65,7 @@ export class CollectionsController {
     @Param('id') id: string,
     @Body() body: { paymentAmount: number; notes?: string },
   ) {
-    return this.collectionService.updatePayment(
-      id,
-      body.paymentAmount,
-      body.notes,
-    );
+    return this.collectionService.updatePayment(id, body);
   }
 
   @Get(':id')
