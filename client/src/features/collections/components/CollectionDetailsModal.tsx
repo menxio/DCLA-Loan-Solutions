@@ -56,7 +56,9 @@ interface MemberWithLoans extends Member {
   loans: Loan[];
   totalLoanAmount: number;
   totalBalance: number;
+  overallAmount: number; // Loan amount + interest
   weeklyPaymentAmount: number;
+  totalTermWeeks: number;
   totalSavings: number;
   collection?: Collection;
 }
@@ -140,7 +142,9 @@ export default function CollectionDetailsModal({
           ],
           totalLoanAmount: 50000,
           totalBalance: 25000,
+          overallAmount: 55000,
           weeklyPaymentAmount: 2500,
+          totalTermWeeks: 22,
           totalSavings: 5000,
           collection: collectionGroup.collections.find(
             (c) => c.memberId === "1"
@@ -174,7 +178,9 @@ export default function CollectionDetailsModal({
           ],
           totalLoanAmount: 30000,
           totalBalance: 15000,
+          overallAmount: 33000,
           weeklyPaymentAmount: 1500,
+          totalTermWeeks: 20,
           totalSavings: 3000,
           collection: collectionGroup.collections.find(
             (c) => c.memberId === "2"
@@ -447,33 +453,73 @@ export default function CollectionDetailsModal({
                 border: "1px solid #e2e8f0",
               }}
             >
-              <Grid container spacing={3} alignItems="center">
-                <Grid item xs={12} md={6}>
-                  <Typography
-                    variant="h6"
-                    sx={{ fontWeight: 600, color: "#1e293b", mb: 1 }}
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 600, color: "#1e293b", mb: 2 }}
+              >
+                Financial Summary
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={4}>
+                  <Card
+                    sx={{ textAlign: "center", border: "1px solid #e2e8f0" }}
                   >
-                    Collection Summary
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total expected vs received amounts for this collection day
-                  </Typography>
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography
+                        variant="h5"
+                        sx={{ fontWeight: 700, color: "#1e3a8a", mb: 0.5 }}
+                      >
+                        {formatCurrency(
+                          members.reduce(
+                            (sum, member) => sum + (member.overallAmount || 0),
+                            0
+                          )
+                        )}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Overall Amount
+                      </Typography>
+                    </CardContent>
+                  </Card>
                 </Grid>
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
-                    <Typography
-                      variant="h4"
-                      sx={{ fontWeight: 700, color: "#1e3a8a", mb: 0.5 }}
-                    >
-                      {formatCurrency(collectionGroup.totalAmount)}
-                    </Typography>
-                    <Typography
-                      variant="body1"
-                      sx={{ color: "#10b981", fontWeight: 600 }}
-                    >
-                      Received: {formatCurrency(collectionGroup.totalReceived)}
-                    </Typography>
-                  </Box>
+                <Grid item xs={12} md={4}>
+                  <Card
+                    sx={{ textAlign: "center", border: "1px solid #e2e8f0" }}
+                  >
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography
+                        variant="h5"
+                        sx={{ fontWeight: 700, color: "#10b981", mb: 0.5 }}
+                      >
+                        {formatCurrency(collectionGroup.totalReceived)}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Payment Received
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Card
+                    sx={{ textAlign: "center", border: "1px solid #e2e8f0" }}
+                  >
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography
+                        variant="h5"
+                        sx={{ fontWeight: 700, color: "#ef4444", mb: 0.5 }}
+                      >
+                        {formatCurrency(
+                          members.reduce(
+                            (sum, member) => sum + (member.totalBalance || 0),
+                            0
+                          )
+                        )}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Remaining Balance
+                      </Typography>
+                    </CardContent>
+                  </Card>
                 </Grid>
               </Grid>
             </Box>
@@ -522,6 +568,24 @@ export default function CollectionDetailsModal({
                         }}
                       >
                         Loan Amount (Total Loans)
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          fontWeight: 600,
+                          color: "#1e293b",
+                          minWidth: 120,
+                        }}
+                      >
+                        Overall Amount (Principal + Interest)
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          fontWeight: 600,
+                          color: "#1e293b",
+                          minWidth: 120,
+                        }}
+                      >
+                        Term Weeks
                       </TableCell>
                       <TableCell
                         sx={{
@@ -618,6 +682,22 @@ export default function CollectionDetailsModal({
                         <TableCell>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             {formatCurrency(member.totalLoanAmount)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 600, color: "#8b5cf6" }}
+                          >
+                            {formatCurrency(member.overallAmount || 0)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 600, color: "#06b6d4" }}
+                          >
+                            {member.totalTermWeeks || 0} weeks
                           </Typography>
                         </TableCell>
                         <TableCell>

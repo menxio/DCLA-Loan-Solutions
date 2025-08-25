@@ -19,7 +19,7 @@ import { CollectionsModule } from './collections/collections.module';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       autoLoadEntities: true,
-      synchronize: false,
+      synchronize: true, // Temporarily enabled for development
     }),
     UsersModule,
     AuthModule,
