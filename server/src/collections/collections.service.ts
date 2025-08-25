@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Collection } from './entities/collection.entity';
@@ -6,6 +11,8 @@ import { CreateCollectionDto } from './dto/create-collection.dto';
 import { UpdateCollectionDto } from './dto/update-collection.dto';
 import { Center } from '../centers/entities/center.entity';
 import { Member } from '../members/entities/member.entity';
+import { CollectionsRepository } from './collections.repository';
+import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
 
 @Injectable()
 export class CollectionsService {
@@ -18,18 +25,19 @@ export class CollectionsService {
     private readonly centerRepo: Repository<Center>,
     @InjectRepository(Member)
     private readonly memberRepo: Repository<Member>,
+    private readonly collectionsRepository: CollectionsRepository,
   ) {}
 
   async create(createCollectionDto: CreateCollectionDto) {
     const center = await this.centerRepo.findOneBy({
       id: createCollectionDto.centerId,
     });
-    if (!center) throw new Error('Center not found');
+    if (!center) throw new NotFoundException('Center not found');
 
     const member = await this.memberRepo.findOneBy({
       id: createCollectionDto.memberId,
     });
-    if (!member) throw new Error('Member not found');
+    if (!member) throw new NotFoundException('Member not found');
 
     const collection = this.collectionRepo.create({
       ...createCollectionDto,
@@ -39,11 +47,34 @@ export class CollectionsService {
     return this.collectionRepo.save(collection);
   }
 
-  findAll() {
-    return this.collectionRepo.find({
-      relations: ['center', 'member'],
-      order: { collectionDate: 'DESC' },
-    });
+  async findAll(query: FindCollectionsQueryDto) {
+    try {
+      // Log the query for debugging
+      this.logger.debug(
+        `Searching collections with query: ${JSON.stringify(query)}`,
+      );
+
+      // Validate search parameter
+      if (query.search && query.search.trim().length < 2) {
+        throw new BadRequestException(
+          'Search term must be at least 2 characters long',
+        );
+      }
+
+      return await this.collectionsRepository.findAllWithQuery(query);
+    } catch (err: any) {
+      this.logger.error('Failed to fetch collections', err?.stack || err);
+
+      // Re-throw BadRequestException with specific message
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+
+      // Generic error for other issues
+      throw new BadRequestException(
+        'Invalid query parameters: ' + (err.message || 'Unknown error'),
+      );
+    }
   }
 
   findOne(id: string) {
@@ -93,12 +124,11 @@ export class CollectionsService {
    */
   async getTodayCollections() {
     const today = new Date();
-    const weekday = today.toLocaleString('en-US', { weekday: 'long' }); // e.g. "Monday"
+    const weekday = today.toLocaleString('en-US', { weekday: 'long' });
     const dateString = today.toISOString().split('T')[0];
 
     this.logger.log(`Getting collections for ${weekday} (${dateString})`);
 
-    // Find centers that collect on this day
     const centers = await this.centerRepo.find({
       where: { collectionDay: weekday },
     });
@@ -106,7 +136,6 @@ export class CollectionsService {
     const dailyCollections: any[] = [];
 
     for (const center of centers) {
-      // Get existing collections for today
       const existingCollections = await this.collectionRepo.find({
         where: {
           centerId: center.id,
@@ -115,12 +144,10 @@ export class CollectionsService {
         relations: ['member'],
       });
 
-      // Get all members for this center
       const centerMembers = await this.memberRepo.find({
         where: { center: { id: center.id } },
       });
 
-      // Create collection list for today
       const centerCollectionList = {
         centerId: center.id,
         centerName: center.name,
@@ -154,30 +181,26 @@ export class CollectionsService {
     });
 
     if (!center) {
-      throw new Error('Center not found');
+      throw new NotFoundException('Center not found');
     }
 
-    // Check if collections already exist for this date
     const existingCollections = await this.collectionRepo.find({
       where: { centerId, collectionDate: date },
     });
 
     if (existingCollections.length > 0) {
-      throw new Error(
+      throw new BadRequestException(
         `Collections already exist for ${date} in center ${center.name}`,
       );
     }
 
-    // Get all members for this center
     const centerMembers = await this.memberRepo.find({
       where: { center: { id: centerId } },
     });
 
-    // Generate collections for each member
     const collections: any[] = [];
     for (const member of centerMembers) {
-      // You can customize the default amount based on your business logic
-      const defaultAmount = 100; // Default collection amount
+      const defaultAmount = 100;
 
       const collection = this.collectionRepo.create({
         centerId,
@@ -196,7 +219,6 @@ export class CollectionsService {
       collections.push(collection);
     }
 
-    // Save all collections
     const savedCollections = await this.collectionRepo.save(collections);
 
     this.logger.log(
@@ -249,13 +271,11 @@ export class CollectionsService {
   ) {
     const collection = await this.findOne(id);
     if (!collection) {
-      throw new Error('Collection not found');
+      throw new NotFoundException('Collection not found');
     }
 
     const newPaymentReceived =
       Number(collection.paymentReceived) + paymentData.paymentAmount;
-
-    // const newNumberOfPayments = (collection.numberOfPayments || 0) + 1;
 
     const updateData: UpdateCollectionDto = {
       paymentReceived: newPaymentReceived,

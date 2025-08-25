@@ -37,6 +37,9 @@ export class Loan {
   @Column('decimal', { precision: 12, scale: 2 })
   balance: number;
 
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  advancePaymentBuffer: number;
+
   @Column('decimal', { precision: 12, scale: 2 })
   totalAmount: number;
 

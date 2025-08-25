@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Loan } from './loan.entity';
@@ -17,12 +21,12 @@ export class LoansService {
 
   // Business logic for interest rates
   private getInterestRate(termWeeks: number): number {
-    return termWeeks === 8 ? 0.20 : 0.30;
+    return termWeeks === 8 ? 0.2 : 0.3;
   }
 
   // Calculate savings required (10% of principal)
   private getSavings(principalAmount: number): number {
-    return principalAmount * 0.10;
+    return principalAmount * 0.1;
   }
 
   // Calculate loan details
@@ -32,7 +36,8 @@ export class LoansService {
     const totalAmount = principalAmount + totalInterest;
     const baseWeeklyPayment = totalAmount / termWeeks;
     const roundedWeeklyPayment = Math.floor(baseWeeklyPayment / 10) * 10;
-    const weeklyPaymentAmount = termWeeks === 12 ? roundedWeeklyPayment + 10 : roundedWeeklyPayment;
+    const weeklyPaymentAmount =
+      termWeeks === 12 ? roundedWeeklyPayment + 10 : roundedWeeklyPayment;
     const savings = this.getSavings(principalAmount);
 
     return {
@@ -48,7 +53,9 @@ export class LoansService {
     const { borrowerId, principalAmount, termWeeks } = createLoanDto;
 
     // Check if borrower exists
-    const borrower = await this.memberRepository.findOne({ where: { id: borrowerId } });
+    const borrower = await this.memberRepository.findOne({
+      where: { id: borrowerId },
+    });
     if (!borrower) {
       throw new NotFoundException(`Member #${borrowerId} not found`);
     }
@@ -62,12 +69,8 @@ export class LoansService {
     }
 
     // Calculate loan details
-    const {
-      interestRate,
-      totalAmount,
-      weeklyPaymentAmount,
-      savings,
-    } = this.calculateLoanDetails(principalAmount, termWeeks);
+    const { interestRate, totalAmount, weeklyPaymentAmount, savings } =
+      this.calculateLoanDetails(principalAmount, termWeeks);
 
     // Create loan
     const loan = this.loanRepository.create({
@@ -81,8 +84,41 @@ export class LoansService {
       savings,
       weeksPaid: 0,
       amountPaid: 0,
+      advancePaymentBuffer: 0,
       status: 'active',
     });
+
+    return this.loanRepository.save(loan);
+  }
+
+  /**
+   * Apply a repayment amount to a loan. Handles weekly payment counting and advance buffer.
+   */
+  async applyRepayment(loanId: string, amount: number): Promise<Loan> {
+    if (amount <= 0) {
+      throw new BadRequestException('Payment amount must be greater than zero');
+    }
+
+    const loan = await this.findOne(loanId);
+    if (loan.status !== 'active') {
+      throw new BadRequestException('Cannot pay a non-active loan');
+    }
+
+    const weekly = Number(loan.weeklyPaymentAmount);
+    const currentBuffer = Number(loan.advancePaymentBuffer || 0);
+    const newBuffer = currentBuffer + amount;
+
+    const newWeeksPaid = Math.floor(newBuffer / weekly);
+    const remainingBuffer = newBuffer % weekly;
+
+    loan.weeksPaid = Number(loan.weeksPaid) + newWeeksPaid;
+    loan.advancePaymentBuffer = remainingBuffer;
+    loan.amountPaid = Number(loan.amountPaid) + amount;
+    loan.balance = Math.max(0, Number(loan.balance) - amount);
+
+    if (loan.balance === 0) {
+      loan.status = 'paid';
+    }
 
     return this.loanRepository.save(loan);
   }
@@ -114,7 +150,7 @@ export class LoansService {
 
   async update(id: string, updateLoanDto: UpdateLoanDto): Promise<Loan> {
     const loan = await this.findOne(id);
-    
+
     // Currently no updatable fields
     return this.loanRepository.save(loan);
   }
@@ -141,7 +177,7 @@ export class LoansService {
     }
 
     const minWeeks = activeLoan.termWeeks === 8 ? 5 : 8;
-    
+
     if (activeLoan.weeksPaid < minWeeks) {
       return {
         eligible: false,

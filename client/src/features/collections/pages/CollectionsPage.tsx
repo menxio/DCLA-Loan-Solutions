@@ -18,8 +18,13 @@ import {
   TableHead,
   TableRow,
   Chip,
+  TextField,
+  InputAdornment,
+  Select,
+  MenuItem,
+  Pagination,
 } from "@mui/material";
-import { Refresh, Assessment } from "@mui/icons-material";
+import { Refresh, Assessment, Search } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import DailyCollectionsView from "../components/DailyCollectionsView";
 import CollectionDetailsModal from "../components/CollectionDetailsModal";
@@ -51,12 +56,21 @@ function TabPanel(props: TabPanelProps) {
 export default function CollectionsPage() {
   const {
     dailyCollections,
-    allCollections,
+    items,
     loading,
     error,
     updateCollection,
     refetchDaily,
     refetchAll,
+    // pagination/filter state
+    page,
+    limit,
+    total,
+    totalPages,
+    setPage,
+    setLimit,
+    search,
+    setSearch,
   } = useCollections();
   const [tabValue, setTabValue] = useState(0);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -154,7 +168,11 @@ export default function CollectionsPage() {
     return "PENDING";
   };
 
-  if (loading && dailyCollections.length === 0 && allCollections.length === 0) {
+  if (
+    loading &&
+    (dailyCollections?.length ?? 0) === 0 &&
+    (items?.length ?? 0) === 0
+  ) {
     return (
       <DashboardLayout>
         <Box
@@ -225,6 +243,8 @@ export default function CollectionsPage() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            gap: 2,
+            flexWrap: "wrap",
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -242,22 +262,46 @@ export default function CollectionsPage() {
             </Box>
           </Box>
 
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={handleRefresh}
-            disabled={loading}
-            sx={{
-              borderColor: "#1e3a8a",
-              color: "#1e3a8a",
-              "&:hover": {
-                borderColor: "#1e40af",
-                backgroundColor: "#f0f9ff",
-              },
-            }}
-          >
-            Refresh
-          </Button>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <TextField
+              size="small"
+              placeholder="Search notes/member"
+              value={search || ""}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Select
+              size="small"
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value))}
+            >
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={25}>25</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+            </Select>
+            <Button
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={handleRefresh}
+              disabled={loading}
+              sx={{
+                borderColor: "#1e3a8a",
+                color: "#1e3a8a",
+                "&:hover": {
+                  borderColor: "#1e40af",
+                  backgroundColor: "#f0f9ff",
+                },
+              }}
+            >
+              Refresh
+            </Button>
+          </Box>
         </Paper>
 
         {/* Tabs */}
@@ -279,9 +323,7 @@ export default function CollectionsPage() {
                   textTransform: "none",
                   fontSize: "1rem",
                 },
-                "& .Mui-selected": {
-                  color: "#1e3a8a",
-                },
+                "& .Mui-selected": { color: "#1e3a8a" },
                 "& .MuiTabs-indicator": {
                   backgroundColor: "#1e3a8a",
                   height: 3,
@@ -297,7 +339,7 @@ export default function CollectionsPage() {
           <TabPanel value={tabValue} index={0}>
             <Box sx={{ p: 3 }}>
               <DailyCollectionsView
-                data={dailyCollections}
+                data={dailyCollections ?? []}
                 onViewDetails={handleViewDetails}
                 loading={loading}
               />
@@ -338,7 +380,7 @@ export default function CollectionsPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {allCollections.map((collection, index) => (
+                    {(items ?? []).map((collection, index) => (
                       <TableRow
                         key={collection.id}
                         sx={{
@@ -408,6 +450,24 @@ export default function CollectionsPage() {
                   </TableBody>
                 </Table>
               </TableContainer>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mt: 2,
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Showing {items?.length ?? 0} of {total} records
+                </Typography>
+                <Pagination
+                  page={page}
+                  count={totalPages}
+                  onChange={(_, p) => setPage(p)}
+                  color="primary"
+                />
+              </Box>
             </Box>
           </TabPanel>
         </Paper>

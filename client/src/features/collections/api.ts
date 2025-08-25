@@ -23,15 +23,85 @@ const collectionsApi = axios.create({
 collectionsApi.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    (config.headers as any).Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
+// Add response interceptor for better error handling
+collectionsApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.data?.message) {
+      console.error("API Error:", error.response.data.message);
+    }
+    return Promise.reject(error);
+  }
+);
+
+export type CollectionsQuery = {
+  page?: number;
+  limit?: number;
+  centerId?: string;
+  memberId?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: "ASC" | "DESC";
+};
+
+export type PaginatedCollections = {
+  items: Collection[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+const repaymentsApi = axios.create({
+  baseURL: `${API_BASE_URL}/repayments`,
+  headers: { "Content-Type": "application/json" },
+});
+
+repaymentsApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    (config.headers as any).Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Helper function to clean query parameters
+const cleanQuery = (query: CollectionsQuery): CollectionsQuery => {
+  const cleaned: CollectionsQuery = {};
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      // For search, ensure minimum length
+      if (key === "search" && typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed.length >= 2) {
+          (cleaned as any)[key] = trimmed;
+        }
+      } else {
+        (cleaned as any)[key] = value;
+      }
+    }
+  });
+
+  return cleaned;
+};
+
 export const collectionsService = {
-  // Get all collections
-  getAllCollections: async (): Promise<Collection[]> => {
-    const response = await collectionsApi.get("/");
+  // Get all collections (paginated)
+  getAllCollections: async (
+    query: CollectionsQuery = {}
+  ): Promise<PaginatedCollections> => {
+    const cleanedQuery = cleanQuery(query);
+    console.log("Making API request with cleaned query:", cleanedQuery);
+
+    const response = await collectionsApi.get("/", { params: cleanedQuery });
     return response.data;
   },
 
@@ -118,6 +188,18 @@ export const collectionsService = {
     const response = await collectionsApi.get(
       `/stats?startDate=${startDate}&endDate=${endDate}`
     );
+    return response.data;
+  },
+
+  // Create repayment
+  createRepayment: async (data: {
+    loanId: string;
+    memberId: string;
+    centerId: string;
+    amount: number;
+    notes?: string;
+  }): Promise<any> => {
+    const response = await repaymentsApi.post("/", data);
     return response.data;
   },
 };

@@ -5,11 +5,12 @@ import { CollectionsController } from './collections.controller';
 import { Collection } from './entities/collection.entity';
 import { Center } from '../centers/entities/center.entity';
 import { Member } from '../members/entities/member.entity';
+import { CollectionsRepository } from './collections.repository';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Collection, Center, Member])],
   controllers: [CollectionsController],
-  providers: [CollectionsService],
-  exports: [TypeOrmModule],
+  providers: [CollectionsService, CollectionsRepository],
+  exports: [TypeOrmModule, CollectionsRepository],
 })
 export class CollectionsModule {}

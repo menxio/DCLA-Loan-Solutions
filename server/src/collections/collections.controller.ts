@@ -11,6 +11,7 @@ import {
 import { CollectionsService } from './collections.service';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { UpdateCollectionDto } from './dto/update-collection.dto';
+import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
 
 @Controller('collection')
 export class CollectionsController {
@@ -22,8 +23,8 @@ export class CollectionsController {
   }
 
   @Get()
-  findAll() {
-    return this.collectionService.findAll();
+  findAll(@Query() query: FindCollectionsQueryDto) {
+    return this.collectionService.findAll(query);
   }
 
   @Get('daily')

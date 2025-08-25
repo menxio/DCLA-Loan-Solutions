@@ -11,6 +11,7 @@ import { SeederModule } from './seeds/seeder.module';
 import { CentersModule } from './centers/centers.module';
 import { MembersModule } from './members/members.module';
 import { CollectionsModule } from './collections/collections.module';
+import { RepaymentsModule } from './repayments/repayments.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { CollectionsModule } from './collections/collections.module';
     CentersModule,
     MembersModule,
     CollectionsModule,
+    RepaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
