@@ -265,7 +265,7 @@ export default function CollectionsPage() {
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
             <TextField
               size="small"
-              placeholder="Search notes/member"
+              placeholder={tabValue === 0 ? "Search centers..." : "Search centers/members..."}
               value={search || ""}
               onChange={(e) => setSearch(e.target.value)}
               InputProps={{
@@ -275,6 +275,7 @@ export default function CollectionsPage() {
                   </InputAdornment>
                 ),
               }}
+              sx={{ minWidth: 200 }}
             />
             <Select
               size="small"
@@ -330,144 +331,184 @@ export default function CollectionsPage() {
                 },
               }}
             >
-              <Tab label="Daily Collections" />
-              <Tab label="All Collections" />
+              <Tab label={`Daily Collections ${dailyCollections?.length > 0 ? `(${dailyCollections.length})` : ''}`} />
+              <Tab label={`All Collections ${total > 0 ? `(${total})` : ''}`} />
             </Tabs>
           </Box>
 
           {/* Daily Collections Tab */}
           <TabPanel value={tabValue} index={0}>
             <Box sx={{ p: 3 }}>
-              <DailyCollectionsView
-                data={dailyCollections ?? []}
-                onViewDetails={handleViewDetails}
-                loading={loading}
-              />
+              {dailyCollections?.length === 0 && search ? (
+                <Paper
+                  sx={{
+                    textAlign: "center",
+                    py: 6,
+                    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No centers found matching "{search}"
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Try adjusting your search terms or check for typos.
+                  </Typography>
+                </Paper>
+              ) : (
+                <DailyCollectionsView
+                  data={dailyCollections ?? []}
+                  onViewDetails={handleViewDetails}
+                  loading={loading}
+                />
+              )}
             </Box>
           </TabPanel>
 
           {/* All Collections Tab */}
           <TabPanel value={tabValue} index={1}>
             <Box sx={{ p: 3 }}>
-              <TableContainer>
-                <Table>
-                  <TableHead sx={{ backgroundColor: "#f8fafc" }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Date
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Center
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Member
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Amount
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Received
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Balance
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Status
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Notes
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(items ?? []).map((collection, index) => (
-                      <TableRow
-                        key={collection.id}
-                        sx={{
-                          "&:hover": { backgroundColor: "#f8fafc" },
-                          backgroundColor:
-                            index % 2 === 0 ? "#ffffff" : "#fafbfc",
-                        }}
-                      >
-                        <TableCell>{collection.collectionDate}</TableCell>
-                        <TableCell>{collection.center?.name}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            {collection.member?.firstName}{" "}
-                            {collection.member?.lastName}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            ₱{collection.amount.toLocaleString()}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            ₱{collection.paymentReceived.toLocaleString()}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
+              {(items ?? []).length === 0 && search ? (
+                <Paper
+                  sx={{
+                    textAlign: "center",
+                    py: 6,
+                    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No collections found matching "{search}"
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Try adjusting your search terms or check for typos.
+                  </Typography>
+                </Paper>
+              ) : (
+                <>
+                  <TableContainer>
+                    <Table>
+                      <TableHead sx={{ backgroundColor: "#f8fafc" }}>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
+                            Date
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
+                            Center
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
+                            Member
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
+                            Amount
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
+                            Received
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
+                            Balance
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
+                            Status
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: "#1e293b" }}>
+                            Notes
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(items ?? []).map((collection, index) => (
+                          <TableRow
+                            key={collection.id}
                             sx={{
-                              fontWeight: 600,
-                              color:
-                                collection.paymentReceived >= collection.amount
-                                  ? "#10b981"
-                                  : "#ef4444",
+                              "&:hover": { backgroundColor: "#f8fafc" },
+                              backgroundColor:
+                                index % 2 === 0 ? "#ffffff" : "#fafbfc",
                             }}
                           >
-                            ₱
-                            {(
-                              collection.amount - collection.paymentReceived
-                            ).toLocaleString()}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={getStatusLabel(collection)}
-                            color={getStatusColor(collection)}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              maxWidth: 150,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {collection.notes || "-"}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  mt: 2,
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Showing {items?.length ?? 0} of {total} records
-                </Typography>
-                <Pagination
-                  page={page}
-                  count={totalPages}
-                  onChange={(_, p) => setPage(p)}
-                  color="primary"
-                />
-              </Box>
+                            <TableCell>{collection.collectionDate}</TableCell>
+                            <TableCell>{collection.center?.name}</TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                {collection.member?.firstName}{" "}
+                                {collection.member?.lastName}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                ₱{collection.amount.toLocaleString()}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                ₱{collection.paymentReceived.toLocaleString()}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 600,
+                                  color:
+                                    collection.paymentReceived >= collection.amount
+                                      ? "#10b981"
+                                      : "#ef4444",
+                                }}
+                              >
+                                ₱
+                                {(
+                                  collection.amount - collection.paymentReceived
+                                ).toLocaleString()}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={getStatusLabel(collection)}
+                                color={getStatusColor(collection)}
+                                size="small"
+                                sx={{ fontWeight: 600 }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  maxWidth: 150,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {collection.notes || "-"}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      mt: 2,
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      Showing {items?.length ?? 0} of {total} records
+                    </Typography>
+                    <Pagination
+                      page={page}
+                      count={totalPages}
+                      onChange={(_, p) => setPage(p)}
+                      color="primary"
+                    />
+                  </Box>
+                </>
+              )}
             </Box>
           </TabPanel>
         </Paper>

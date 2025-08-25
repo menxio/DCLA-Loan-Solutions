@@ -49,11 +49,11 @@ export class CollectionsRepository {
       );
     }
 
-    // Enhanced search functionality
+    // Enhanced search functionality - focus on center names primarily
     if (search && search.trim().length > 0) {
       const searchTerm = `%${search.trim()}%`;
       queryBuilder.andWhere(
-        '(member.firstName ILIKE :searchTerm OR member.lastName ILIKE :searchTerm OR member.fullName ILIKE :searchTerm OR collection.notes ILIKE :searchTerm OR center.name ILIKE :searchTerm)',
+        '(center.name ILIKE :searchTerm OR member.firstName ILIKE :searchTerm OR member.lastName ILIKE :searchTerm OR collection.notes ILIKE :searchTerm)',
         { searchTerm },
       );
     }

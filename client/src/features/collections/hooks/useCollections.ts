@@ -46,12 +46,21 @@ export function useCollections() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Validate and clean search parameter
+  // Validate and clean search parameter - focus on center names
   const validatedSearch = useMemo(() => {
     const trimmed = debouncedSearch.trim();
     // Only include search if it's at least 2 characters long
     return trimmed.length >= 2 ? trimmed : undefined;
   }, [debouncedSearch]);
+
+  // Filter daily collections based on search
+  const filteredDailyCollections = useMemo(() => {
+    if (!validatedSearch) return dailyCollections;
+
+    return dailyCollections.filter((group) =>
+      group.centerName.toLowerCase().includes(validatedSearch.toLowerCase())
+    );
+  }, [dailyCollections, validatedSearch]);
 
   const fetchDailyCollections = useCallback(async () => {
     try {
@@ -141,7 +150,7 @@ export function useCollections() {
 
   return {
     // daily
-    dailyCollections,
+    dailyCollections: filteredDailyCollections, // Return filtered daily collections
     refetchDaily: fetchDailyCollections,
 
     // paginated list
