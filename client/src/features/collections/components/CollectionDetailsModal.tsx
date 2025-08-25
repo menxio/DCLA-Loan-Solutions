@@ -373,9 +373,11 @@ export default function CollectionDetailsModal({
                       sx={{ fontWeight: 700, color: "#1e293b" }}
                     >
                       {
-                        collectionGroup.collections.filter(
-                          (c) => c.paymentReceived >= c.amount
-                        ).length
+                        collectionGroup.collections.filter((collection) => {
+                          const member = members.find((m) => m.id === collection.memberId);
+                          // If a member is found, compare paymentReceived to the member's weeklyPaymentAmount
+                          return member ? collection.paymentReceived >= member.weeklyPaymentAmount : false;
+                        }).length
                       }
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -429,11 +431,11 @@ export default function CollectionDetailsModal({
                       sx={{ fontWeight: 700, color: "#1e293b" }}
                     >
                       {
-                        collectionGroup.collections.filter(
-                          (c) =>
-                            c.paymentReceived < c.amount &&
-                            c.paymentReceived > 0
-                        ).length
+                        collectionGroup.collections.filter((collection) => {
+                          const member = members.find((m) => m.id === collection.memberId);
+                          // If a member is found, compare paymentReceived to the member's weeklyPaymentAmount
+                          return member ? collection.paymentReceived <= 0 : false
+                        }).length
                       }
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
