@@ -242,15 +242,16 @@ export default function CollectionDetailsModal({
 
   const getStatusColor = (member: MemberWithLoans) => {
     if (!member.collection) return "default";
-    if (member.collection.paymentReceived >= member.collection.amount)
+    if (member.collection.paymentReceived >= member.weeklyPaymentAmount)
       return "success";
     if (member.collection.paymentReceived > 0) return "warning";
     return "error";
   };
 
   const getStatusLabel = (member: MemberWithLoans) => {
+
     if (!member.collection) return "NO COLLECTION";
-    if (member.collection.paymentReceived >= member.collection.amount)
+    if (member.collection.paymentReceived >= member.weeklyPaymentAmount)
       return "PAID";
     if (member.collection.paymentReceived > 0) return "PARTIAL";
     return "UNPAID";
@@ -509,10 +510,7 @@ export default function CollectionDetailsModal({
                         sx={{ fontWeight: 700, color: "#ef4444", mb: 0.5 }}
                       >
                         {formatCurrency(
-                          members.reduce(
-                            (sum, member) => sum + (member.totalBalance || 0),
-                            0
-                          )
+                          members.reduce((sum, member) => sum + (member.totalBalance || 0), 0) - collectionGroup.totalReceived
                         )}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
