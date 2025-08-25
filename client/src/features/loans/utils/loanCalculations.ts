@@ -2,7 +2,7 @@ import type { LoanCalculation } from "../types";
 
 // Business logic for interest rates
 export const getInterestRate = (termWeeks: number): number => {
-  return termWeeks === 8 ? 0.20 : 0.30;
+  return termWeeks === 4 ? 0.10 : termWeeks === 8 ? 0.20 : 0.30;
 };
 
 // Calculate savings required (10% of principal)
@@ -13,13 +13,18 @@ export const getSavingsRequired = (principalAmount: number): number => {
 // Calculate all loan details
 export const calculateLoanDetails = (
   principalAmount: number,
-  termWeeks: 8 | 12
+  termWeeks: 4 | 8 | 12
 ): LoanCalculation => {
   const interestRate = getInterestRate(termWeeks);
   const totalInterest = principalAmount * interestRate;
   const totalAmount = principalAmount + totalInterest;
-  const weeklyPaymentAmount = totalAmount / termWeeks;
-  const savingsRequired = getSavingsRequired(principalAmount);
+   // Compute base weekly payment
+  const baseWeeklyPayment = totalAmount / termWeeks;
+  // Round down to the nearest tens
+  const roundedWeeklyPayment = Math.floor(baseWeeklyPayment / 10) * 10;
+  // If term is 12 weeks, add 10 to the rounded weekly payment
+  const weeklyPaymentAmount = termWeeks === 12 ? roundedWeeklyPayment + 10 : roundedWeeklyPayment;
+  const savings = getSavingsRequired(principalAmount);
 
   return {
     principalAmount,
@@ -28,7 +33,7 @@ export const calculateLoanDetails = (
     totalInterest,
     totalAmount,
     weeklyPaymentAmount,
-    savingsRequired,
+    savings,
   };
 };
 

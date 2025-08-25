@@ -27,7 +27,6 @@ interface LoanFormProps {
 }
 
 export default function LoanForm({
-  memberId,
   memberName,
   onSubmit,
   onCancel,
@@ -81,9 +80,9 @@ export default function LoanForm({
 
     // Validation
     const newErrors: Partial<LoanFormData> = {};
-    if (!formData.principalAmount || formData.principalAmount <= 0) {
-      newErrors.principalAmount = "Principal amount must be greater than 0";
-    }
+    // if (!formData.principalAmount || formData.principalAmount <= 0) {
+    //   newErrors.principalAmount = "Principal amount must be greater than 0";
+    // }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -154,11 +153,12 @@ export default function LoanForm({
                 onChange={(e) => {
                   setFormData((prev) => ({
                     ...prev,
-                    termWeeks: e.target.value as 8 | 12,
+                    termWeeks: e.target.value as 4 | 8 | 12,
                   }));
                 }}
                 label="Term"
               >
+                <MenuItem value={4}>4 weeks (10% interest)</MenuItem>
                 <MenuItem value={8}>8 weeks (20% interest)</MenuItem>
                 <MenuItem value={12}>12 weeks (30% interest)</MenuItem>
               </Select>
@@ -258,7 +258,7 @@ export default function LoanForm({
                     Savings Required (10% of principal)
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e3a8a" }}>
-                    {formatCurrency(calculation.savingsRequired)}
+                    {formatCurrency(calculation.savings)}
                   </Typography>
                 </Paper>
               </Grid>

@@ -308,7 +308,7 @@ export default function LoanModal({
                     </Typography>
                   </Box>
                   <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                    {formatCurrency(activeLoan!.savingsPaid)}/{formatCurrency(activeLoan!.savingsRequired)}
+                    {formatCurrency(activeLoan!.savings)}
                   </Typography>
                 </Grid>
               </Grid>

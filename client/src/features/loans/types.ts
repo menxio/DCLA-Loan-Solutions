@@ -28,9 +28,7 @@ export interface Loan {
   weeklyPaymentAmount: number;
   amountPaid: number;
   balance: number;
-  savingsRequired: number;
-  savingsPaid: number;
-  savingsStatus: 'pending' | 'partial' | 'paid';
+  savings: number;
   weeksPaid: number;
   status: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
   createdAt: Date;
@@ -49,22 +47,22 @@ export interface Savings {
 export interface CreateLoanData {
   borrowerId: string;
   principalAmount: number;
-  termWeeks: 8 | 12;
+  termWeeks: 4 | 8 | 12;
 }
 
 export interface LoanFormData {
   principalAmount: number;
-  termWeeks: 8 | 12;
+  termWeeks: 4 | 8 | 12;
 }
 
 export interface LoanCalculation {
   principalAmount: number;
-  termWeeks: 8 | 12;
+  termWeeks: 4 | 8 | 12;
   interestRate: number;
   totalInterest: number;
   totalAmount: number;
   weeklyPaymentAmount: number;
-  savingsRequired: number;
+  savings: number;
 }
 
 export interface ReloanEligibility {
