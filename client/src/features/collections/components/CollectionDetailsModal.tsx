@@ -56,7 +56,9 @@ interface MemberWithLoans extends Member {
   loans: Loan[];
   totalLoanAmount: number;
   totalBalance: number;
+  overallAmount: number; // Loan amount + interest
   weeklyPaymentAmount: number;
+  totalTermWeeks: number;
   totalSavings: number;
   collection?: Collection;
 }
@@ -522,6 +524,24 @@ export default function CollectionDetailsModal({
                         }}
                       >
                         Loan Amount (Total Loans)
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          fontWeight: 600,
+                          color: "#1e293b",
+                          minWidth: 120,
+                        }}
+                      >
+                        Overall Amount (Principal + Interest)
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          fontWeight: 600,
+                          color: "#1e293b",
+                          minWidth: 120,
+                        }}
+                      >
+                        Term Weeks
                       </TableCell>
                       <TableCell
                         sx={{

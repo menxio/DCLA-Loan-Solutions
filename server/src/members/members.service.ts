@@ -99,10 +99,21 @@ export class MembersService {
           0,
         );
 
+        // Calculate overall amount (principal + interest)
+        const overallAmount = loans.reduce(
+          (sum, loan) => sum + Number(loan.totalAmount),
+          0,
+        );
+
         // Calculate weekly payment amount (sum of all active loans' weekly payments)
         const weeklyPaymentAmount = loans
           .filter((loan) => loan.status === 'active')
           .reduce((sum, loan) => sum + Number(loan.weeklyPaymentAmount), 0);
+
+        // Calculate total term weeks (sum of all active loans' terms)
+        const totalTermWeeks = loans
+          .filter((loan) => loan.status === 'active')
+          .reduce((sum, loan) => sum + Number(loan.termWeeks), 0);
 
         // Calculate total savings (sum of all loans' savings)
         const totalSavings = loans.reduce(
@@ -115,7 +126,9 @@ export class MembersService {
           loans,
           totalLoanAmount,
           totalBalance,
+          overallAmount,
           weeklyPaymentAmount,
+          totalTermWeeks,
           totalSavings,
         };
       }),
