@@ -265,7 +265,11 @@ export default function CollectionsPage() {
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
             <TextField
               size="small"
-              placeholder={tabValue === 0 ? "Search centers..." : "Search centers/members..."}
+              placeholder={
+                tabValue === 0
+                  ? "Search centers..."
+                  : "Search centers/members..."
+              }
               value={search || ""}
               onChange={(e) => setSearch(e.target.value)}
               InputProps={{
@@ -331,8 +335,14 @@ export default function CollectionsPage() {
                 },
               }}
             >
-              <Tab label={`Daily Collections ${dailyCollections?.length > 0 ? `(${dailyCollections.length})` : ''}`} />
-              <Tab label={`All Collections ${total > 0 ? `(${total})` : ''}`} />
+              <Tab
+                label={`Daily Collections ${
+                  dailyCollections?.length > 0
+                    ? `(${dailyCollections.length})`
+                    : ""
+                }`}
+              />
+              <Tab label={`All Collections ${total > 0 ? `(${total})` : ""}`} />
             </Tabs>
           </Box>
 
@@ -344,7 +354,8 @@ export default function CollectionsPage() {
                   sx={{
                     textAlign: "center",
                     py: 6,
-                    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                    background:
+                      "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
                     border: "1px solid #e2e8f0",
                   }}
                 >
@@ -374,7 +385,8 @@ export default function CollectionsPage() {
                   sx={{
                     textAlign: "center",
                     py: 6,
-                    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                    background:
+                      "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
                     border: "1px solid #e2e8f0",
                   }}
                 >
@@ -431,18 +443,27 @@ export default function CollectionsPage() {
                             <TableCell>{collection.collectionDate}</TableCell>
                             <TableCell>{collection.center?.name}</TableCell>
                             <TableCell>
-                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                              <Typography
+                                variant="body2"
+                                sx={{ fontWeight: 500 }}
+                              >
                                 {collection.member?.firstName}{" "}
                                 {collection.member?.lastName}
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              <Typography
+                                variant="body2"
+                                sx={{ fontWeight: 600 }}
+                              >
                                 ₱{collection.amount.toLocaleString()}
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              <Typography
+                                variant="body2"
+                                sx={{ fontWeight: 600 }}
+                              >
                                 ₱{collection.paymentReceived.toLocaleString()}
                               </Typography>
                             </TableCell>
@@ -452,7 +473,8 @@ export default function CollectionsPage() {
                                 sx={{
                                   fontWeight: 600,
                                   color:
-                                    collection.paymentReceived >= collection.amount
+                                    collection.paymentReceived >=
+                                    collection.amount
                                       ? "#10b981"
                                       : "#ef4444",
                                 }}

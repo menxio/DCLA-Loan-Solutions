@@ -11,6 +11,25 @@ export interface Member {
   updatedAt: string;
 }
 
+export interface MemberWithLoans extends Member {
+  loans: Array<{
+    id: string;
+    amount: number;
+    balance: number;
+    status: string;
+    dueDate: string;
+  }>;
+  totalLoanAmount: number;
+  totalBalance: number;
+  overallAmount?: number;
+  weeklyPaymentAmount?: number;
+  totalTermWeeks?: number;
+  totalSavings?: number;
+  netCashReleased?: number;
+  numberOfPayments?: number;
+  collection?: Collection;
+}
+
 export interface Center {
   id: string;
   name: string;
