@@ -98,7 +98,7 @@ export const generateLoanPassbookPDF = (
             {
             table: {
                 widths: ['*'],
-                body: [[{ text: 'DCLA LOAN SOLUTIONS', bold: true, alignment: 'center', fontSize: 14 }]]
+                body: [[{ text: 'DCLA LOAN SOLUTIONS', bold: true, alignment: 'center', fontSize: 16 }]]
             },
             layout: 'noBorders',
             margin: [0, 0, 0, 10],
