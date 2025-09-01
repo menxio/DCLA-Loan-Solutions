@@ -39,10 +39,17 @@ import {
   Payment,
   AccountBalance,
   CreditCard,
+  Download,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
-import type { DailyCollectionGroup, Collection, Member } from "../types";
+import type {
+  DailyCollectionGroup,
+  Collection,
+  Member,
+  MemberWithLoans,
+} from "../types";
 import collectionsService from "../api";
+import { exportToExcel } from "../utils/exportUtils";
 
 interface Loan {
   id: string;
@@ -85,6 +92,8 @@ export default function CollectionDetailsModal({
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Fetch all members for this center when modal opens
   useEffect(() => {
@@ -237,6 +246,22 @@ export default function CollectionDetailsModal({
     }
   };
 
+  const handleExport = async () => {
+    if (!collectionGroup || !members) return;
+
+    setExporting(true);
+    setExportError(null);
+
+    try {
+      await exportToExcel(collectionGroup, members);
+    } catch (error) {
+      console.error("Export failed:", error);
+      setExportError(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const getStatusColor = (member: MemberWithLoans) => {
     if (!member.collection) return "default";
     if (member.collection.paymentReceived >= member.weeklyPaymentAmount)
@@ -315,12 +340,39 @@ export default function CollectionDetailsModal({
               </Box>
             </Box>
           </Box>
-          <IconButton onClick={onClose} size="small" sx={{ color: "white" }}>
-            <Close />
-          </IconButton>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Tooltip title="Export to Excel">
+              <IconButton
+                onClick={handleExport}
+                disabled={exporting}
+                size="small"
+                sx={{ color: "white" }}
+              >
+                {exporting ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : (
+                  <Download />
+                )}
+              </IconButton>
+            </Tooltip>
+            <IconButton onClick={onClose} size="small" sx={{ color: "white" }}>
+              <Close />
+            </IconButton>
+          </Box>
         </DialogTitle>
 
         <DialogContent sx={{ p: 0 }}>
+          {/* Export Error Alert */}
+          {exportError && (
+            <Alert
+              severity="error"
+              sx={{ m: 2, borderRadius: 2 }}
+              onClose={() => setExportError(null)}
+            >
+              {exportError}
+            </Alert>
+          )}
+
           {/* Summary Cards */}
           <Box sx={{ p: 3, backgroundColor: "#f8fafc" }}>
             <Grid container spacing={3}>
@@ -831,7 +883,7 @@ export default function CollectionDetailsModal({
       >
         <PaymentDialogTitle>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Payment sx={{ color: "#1e3a8a" }} />
+            <Payment />
             Process Payment
           </Box>
         </PaymentDialogTitle>
