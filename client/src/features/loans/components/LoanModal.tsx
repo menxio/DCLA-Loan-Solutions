@@ -27,6 +27,7 @@ import type { Member } from "@features/member/types";
 import { LoansAPI } from "../api";
 import LoanForm from "./LoanForm";
 import { formatCurrency } from "../utils/loanCalculations";
+import { generateLoanPassbookPDF } from "@components/export/loanPassbookPDF";
 
 interface LoanModalProps {
   open: boolean;
@@ -45,6 +46,9 @@ export default function LoanModal({
   const [loading, setLoading] = useState(false);
   const [creatingLoan, setCreatingLoan] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [memberDataState, setMemberDataState] = useState<any>(null);
+  const [loanDataState, setLoanDataState] = useState<any>(null);
 
   // Get the active loan (should be only one)
   const activeLoan = loans.find(loan => loan.status === 'active');
@@ -94,6 +98,36 @@ export default function LoanModal({
       setError(null);
       onClose();
     }
+  };
+
+  const handleExportPassbook = async () => {
+    if (!activeLoan) return;
+
+    const releaseDate = new Date(activeLoan.createdAt);
+
+    // Map activeLoan and member data to your PDF function's expected args
+    const memberData = {
+      firstName: member.firstName,
+      lastName: member.lastName,
+      middleName: member.middleName || '',
+      contactNumber: member.contactNumber,
+      centerLeader: 'Your Center Leader', // you can pass actual data if available
+    };
+
+    const loanData = {
+      principalAmount: activeLoan.principalAmount,
+      weeklyPaymentAmount: activeLoan.weeklyPaymentAmount,
+      termWeek: activeLoan.termWeeks,
+      savings: activeLoan.savings,
+      weeksPaid: activeLoan.weeksPaid,
+      createdAt: releaseDate.toISOString(), // ensure it's in ISO format
+    };
+
+    setMemberDataState(memberData);
+    setLoanDataState(loanData);
+
+    const url = (await generateLoanPassbookPDF(memberData, loanData, true)) as string;
+    setPdfUrl(url);
   };
 
   const getStatusColor = (status: string) => {
@@ -359,12 +393,28 @@ export default function LoanModal({
         )}
       </DialogContent>
 
-      {!creatingLoan && hasActiveLoan && (
-        <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button onClick={handleClose} sx={{ color: "#64748b" }}>
-            Close
+      {pdfUrl ? (
+        <DialogActions>
+          <Button onClick={() => setPdfUrl(null)}>Back</Button>
+          <Button
+            variant="contained"
+            onClick={() => generateLoanPassbookPDF(memberDataState, loanDataState, false)}
+          >
+            Download PDF
           </Button>
         </DialogActions>
+      ) : (
+        !creatingLoan &&
+        hasActiveLoan && (
+          <DialogActions>
+            <Button onClick={handleClose} sx={{ color: "#64748b" }}>
+              Close
+            </Button>
+            <Button variant="contained" onClick={handleExportPassbook}>
+              Download Passbook
+            </Button>
+          </DialogActions>
+        )
       )}
     </Dialog>
   );
