@@ -1,5 +1,11 @@
 import type { DailyCollectionGroup, MemberWithLoans } from "../types";
 
+// Types for batch export
+export type CollectionExportBundle = {
+  group: DailyCollectionGroup;
+  members: MemberWithLoans[];
+};
+
 // Fallback CSV export function
 const exportToCSV = (
   collectionGroup: DailyCollectionGroup,
@@ -108,264 +114,219 @@ const exportToCSV = (
   }
 };
 
+// Helper: build the single-sheet data structure for a group
+const buildGroupSheetData = (
+  collectionGroup: DailyCollectionGroup,
+  members: MemberWithLoans[]
+): {
+  data: (string | number)[][];
+  merges: { s: { r: number; c: number }; e: { r: number; c: number } }[];
+} => {
+  const sheetData: (string | number)[][] = [];
+
+  // Title rows
+  sheetData.push(["DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)"]);
+  sheetData.push(["GROUP COLLECTION REPORT"]);
+  sheetData.push([""]);
+
+  // Center info block
+  sheetData.push([
+    "Center Name",
+    collectionGroup.centerName,
+    "",
+    "",
+    "Collection Day",
+    collectionGroup.collectionDay,
+    "",
+    "",
+    "Collection Date",
+    collectionGroup.collectionDate,
+  ]);
+  sheetData.push(["Number of Clients", collectionGroup.totalMembers]);
+  sheetData.push([""]);
+
+  // Daily collection table header (11 columns)
+  sheetData.push([
+    "Client Name",
+    "Contact No.",
+    "Loan Amount",
+    "Overall Amount",
+    "Term Weeks",
+    "Amount Due",
+    "Payment Received",
+    "Net Cash Released",
+    "No. of Payments",
+    "Savings",
+    "Rem. Balance",
+    "Status/Remarks",
+  ]);
+
+  // Daily collection table rows
+  members.forEach((member) => {
+    sheetData.push([
+      `${member.firstName} ${member.middleName || ""} ${member.lastName}`,
+      `${member.contactNumber ? "\n" + member.contactNumber : ""}`,
+      `₱${member.totalLoanAmount?.toLocaleString() || "0"}`,
+      `₱${member.overallAmount?.toLocaleString() || "0"}`,
+      member.totalTermWeeks || "0",
+      `₱${member.weeklyPaymentAmount?.toLocaleString() || "0"}`,
+      `₱${(member.collection?.paymentReceived || 0).toLocaleString()}`,
+      `₱${member.netCashReleased?.toLocaleString() || "0"}`,
+      member.numberOfPayments || "0",
+      `₱${member.totalSavings?.toLocaleString() || "0"}`,
+      `₱${member.totalBalance?.toLocaleString() || "0"}`,
+      (member.collection?.paymentReceived || 0) >=
+      (member.weeklyPaymentAmount || 0)
+        ? "PAID"
+        : (member.collection?.paymentReceived || 0) > 0
+        ? "PARTIAL"
+        : "UNPAID",
+    ]);
+  });
+
+  sheetData.push([""]);
+
+  // Financial summary block
+  const totalLoanAmount = members.reduce(
+    (sum, m) => sum + (m.totalLoanAmount || 0),
+    0
+  );
+  const totalOverallAmount = members.reduce(
+    (sum, m) => sum + (m.overallAmount || 0),
+    0
+  );
+  const totalWeeklyPayments = members.reduce(
+    (sum, m) => sum + (m.weeklyPaymentAmount || 0),
+    0
+  );
+  const totalNetCashReleased = members.reduce(
+    (sum, m) => sum + (m.netCashReleased || 0),
+    0
+  );
+  const totalSavings = members.reduce(
+    (sum, m) => sum + (m.totalSavings || 0),
+    0
+  );
+  const totalRemainingBalance = members.reduce(
+    (sum, m) => sum + (m.totalBalance || 0),
+    0
+  );
+  const paidMembers = members.filter(
+    (m) => (m.collection?.paymentReceived || 0) >= (m.weeklyPaymentAmount || 0)
+  ).length;
+  const partialMembers = members.filter(
+    (m) =>
+      (m.collection?.paymentReceived || 0) > 0 &&
+      (m.collection?.paymentReceived || 0) < (m.weeklyPaymentAmount || 0)
+  ).length;
+  const unpaidMembers = members.filter(
+    (m) => !m.collection || (m.collection?.paymentReceived || 0) <= 0
+  ).length;
+
+  sheetData.push(["Financial Summary"]);
+  sheetData.push([""]);
+  sheetData.push(["Total Loan Amount", `₱${totalLoanAmount.toLocaleString()}`]);
+  sheetData.push([
+    "Total Overall Amount",
+    `₱${totalOverallAmount.toLocaleString()}`,
+  ]);
+  sheetData.push([
+    "Total Weekly Payments",
+    `₱${totalWeeklyPayments.toLocaleString()}`,
+  ]);
+  sheetData.push([
+    "Total Payment Received",
+    `₱${collectionGroup.totalReceived.toLocaleString()}`,
+  ]);
+  sheetData.push([
+    "Total Net Cash Released",
+    `₱${totalNetCashReleased.toLocaleString()}`,
+  ]);
+  sheetData.push(["Total Savings", `₱${totalSavings.toLocaleString()}`]);
+  sheetData.push([
+    "Total Remaining Balance",
+    `₱${totalRemainingBalance.toLocaleString()}`,
+  ]);
+  sheetData.push([""]);
+  sheetData.push(["Payment Status Summary"]);
+  sheetData.push(["Paid Members", paidMembers]);
+  sheetData.push(["Partial Payment Members", partialMembers]);
+  sheetData.push(["Unpaid Members", unpaidMembers]);
+
+  // Merge title rows across first 12 columns (A..L)
+  const merges = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } },
+  ];
+
+  return { data: sheetData, merges };
+};
+
+// Helper: create worksheet with light styling
+const buildWorksheet = async (
+  data: (string | number)[][],
+  merges: { s: { r: number; c: number }; e: { r: number; c: number } }[],
+  sheetName: string
+) => {
+  const XLSX = await import("xlsx");
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  (ws as any)["!merges"] = merges;
+
+  // Auto-size columns
+  const maxCols = data.reduce((max, r) => Math.max(max, r.length), 0);
+  const maxColWidths = new Array(maxCols).fill(10);
+  data.forEach((row) => {
+    row.forEach((cell, idx) => {
+      const len = String(cell ?? "").length;
+      maxColWidths[idx] = Math.min(Math.max(maxColWidths[idx], len + 2), 50);
+    });
+  });
+  (ws as any)["!cols"] = maxColWidths.map((w) => ({ width: w }));
+
+  // Attempt light styling (header bold). Note: Some libraries may ignore styles on write.
+  const headerRowIndex = data.findIndex((r) => r[0] === "Client Name");
+  if (headerRowIndex >= 0) {
+    const headerRow = data[headerRowIndex];
+    for (let c = 0; c < headerRow.length; c += 1) {
+      const cellRef = XLSX.utils.encode_cell({ r: headerRowIndex, c });
+      const cell = (ws as any)[cellRef] || {};
+      (cell as any).s = { font: { bold: true } };
+      (ws as any)[cellRef] = cell;
+    }
+  }
+
+  // Bold main titles
+  [0, 1].forEach((r) => {
+    const row = data[r] || [];
+    for (let c = 0; c < (row.length || 1); c += 1) {
+      const cellRef = XLSX.utils.encode_cell({ r, c });
+      const cell = (ws as any)[cellRef] || {};
+      (cell as any).s = { font: { bold: true } };
+      (ws as any)[cellRef] = cell;
+    }
+  });
+
+  return { ws, sheetName };
+};
+
 export const exportToExcel = async (
   collectionGroup: DailyCollectionGroup,
   members: MemberWithLoans[]
 ): Promise<void> => {
   try {
-    // Try to use XLSX library first
     const XLSX = await import("xlsx");
     const FileSaver = await import("file-saver");
 
-    // Prepare data for export
-    const exportData = {
-      // Summary sheet
-      Summary: [
-        ["Collection Report Summary"],
-        [""],
-        ["Center Information"],
-        ["Center Name", collectionGroup.centerName],
-        ["Collection Day", collectionGroup.collectionDay],
-        ["Collection Date", collectionGroup.collectionDate],
-        ["Total Members", collectionGroup.totalMembers],
-        [""],
-        ["Financial Summary"],
-        [
-          "Total Amount Expected",
-          `₱${collectionGroup.totalAmount.toLocaleString()}`,
-        ],
-        [
-          "Total Amount Received",
-          `₱${collectionGroup.totalReceived.toLocaleString()}`,
-        ],
-        [
-          "Total Remaining Balance",
-          `₱${(
-            collectionGroup.totalAmount - collectionGroup.totalReceived
-          ).toLocaleString()}`,
-        ],
-        ["Pending Collections", collectionGroup.pendingCollections],
-        [""],
-        ["Status Breakdown"],
-        [
-          "Paid Collections",
-          collectionGroup.collections.filter(
-            (c) => c.paymentReceived >= c.amount
-          ).length,
-        ],
-        [
-          "Partial Collections",
-          collectionGroup.collections.filter(
-            (c) => c.paymentReceived > 0 && c.paymentReceived < c.amount
-          ).length,
-        ],
-        [
-          "Pending Collections",
-          collectionGroup.collections.filter((c) => c.paymentReceived <= 0)
-            .length,
-        ],
-      ],
+    const { data, merges } = buildGroupSheetData(collectionGroup, members);
+    const { ws } = await buildWorksheet(data, merges, "Group Report");
 
-      // Members detail sheet
-      "Members Detail": [
-        [
-          "Member Name",
-          "Contact Number",
-          "Address",
-          "Overall Amount",
-          "Term Weeks",
-          "Net Cash Released",
-          "No. of Payments",
-          "Savings",
-          "Remaining Balance",
-          "Weekly Payment",
-          "Payment Status",
-          "Notes",
-        ],
-        ...members.map((member) => [
-          `${member.firstName} ${member.lastName}`,
-          member.contactNumber || "-",
-          member.address || "-",
-          `₱${member.overallAmount?.toLocaleString() || "0"}`,
-          member.totalTermWeeks || "-",
-          `₱${member.netCashReleased?.toLocaleString() || "0"}`,
-          member.numberOfPayments || "0",
-          `₱${member.totalSavings?.toLocaleString() || "0"}`,
-          `₱${member.totalBalance?.toLocaleString() || "0"}`,
-          `₱${member.weeklyPaymentAmount?.toLocaleString() || "0"}`,
-          (member.collection?.paymentReceived || 0) >=
-          (member.weeklyPaymentAmount || 0)
-            ? "PAID"
-            : "PENDING",
-          member.collection?.notes || "-",
-        ]),
-      ],
-
-      // Collections detail sheet
-      "Collections Detail": [
-        [
-          "Member Name",
-          "Collection Date",
-          "Amount Expected",
-          "Amount Received",
-          "Balance",
-          "Status",
-          "Notes",
-          "Auto Generated",
-        ],
-        ...collectionGroup.collections.map((collection) => [
-          `${collection.member?.firstName || ""} ${
-            collection.member?.lastName || ""
-          }`,
-          collection.collectionDate,
-          `₱${collection.amount.toLocaleString()}`,
-          `₱${collection.paymentReceived.toLocaleString()}`,
-          `₱${(
-            collection.amount - collection.paymentReceived
-          ).toLocaleString()}`,
-          collection.paymentReceived >= collection.amount
-            ? "PAID"
-            : collection.paymentReceived > 0
-            ? "PARTIAL"
-            : "PENDING",
-          collection.notes || "-",
-          collection.isAutoGenerated ? "Yes" : "No",
-        ]),
-      ],
-
-      // Daily Collection Table (as shown in the image)
-      "Daily Collection Table": [
-        [
-          "Client Name",
-          "Loan Amount (Total Loans)",
-          "Overall Amount (Principal + Interest)",
-          "Term Weeks",
-          "Amount Due/Collection Amount",
-          "Payment Received",
-          "Net Cash Released",
-          "No. of Payments",
-          "Savings",
-          "Rem. Balance",
-          "Status/Remarks",
-        ],
-        ...members.map((member) => [
-          `${member.firstName} ${member.middleName} ${member.lastName}\n${
-            member.contactNumber || ""
-          }`,
-          `₱${member.totalLoanAmount?.toLocaleString() || "0"}`,
-          `₱${member.overallAmount?.toLocaleString() || "0"}`,
-          member.totalTermWeeks || "0",
-          `₱${
-            member.weeklyPaymentAmount?.toLocaleString() || "0"
-          }\nWeekly Payment`,
-          `₱${(member.collection?.paymentReceived || 0).toLocaleString()}`,
-          `₱${member.netCashReleased?.toLocaleString() || "0"}`,
-          member.numberOfPayments || "0",
-          `₱${member.totalSavings?.toLocaleString() || "0"}`,
-          `₱${member.totalBalance?.toLocaleString() || "0"}`,
-          (member.collection?.paymentReceived || 0) >=
-          (member.weeklyPaymentAmount || 0)
-            ? "PAID"
-            : (member.collection?.paymentReceived || 0) > 0
-            ? "PARTIAL"
-            : "UNPAID",
-        ]),
-      ],
-
-      // Financial Summary Table
-      "Financial Summary": [
-        ["Financial Summary"],
-        [""],
-        [
-          "Total Loan Amount",
-          `₱${members
-            .reduce((sum, m) => sum + (m.totalLoanAmount || 0), 0)
-            .toLocaleString()}`,
-        ],
-        [
-          "Total Overall Amount",
-          `₱${members
-            .reduce((sum, m) => sum + (m.overallAmount || 0), 0)
-            .toLocaleString()}`,
-        ],
-        [
-          "Total Weekly Payments",
-          `₱${members
-            .reduce((sum, m) => sum + (m.weeklyPaymentAmount || 0), 0)
-            .toLocaleString()}`,
-        ],
-        [
-          "Total Payment Received",
-          `₱${collectionGroup.totalReceived.toLocaleString()}`,
-        ],
-        [
-          "Total Net Cash Released",
-          `₱${members
-            .reduce((sum, m) => sum + (m.netCashReleased || 0), 0)
-            .toLocaleString()}`,
-        ],
-        [
-          "Total Savings",
-          `₱${members
-            .reduce((sum, m) => sum + (m.totalSavings || 0), 0)
-            .toLocaleString()}`,
-        ],
-        [
-          "Total Remaining Balance",
-          `₱${members
-            .reduce((sum, m) => sum + (m.totalBalance || 0), 0)
-            .toLocaleString()}`,
-        ],
-        [""],
-        ["Payment Status Summary"],
-        [
-          "Paid Members",
-          members.filter(
-            (m) =>
-              (m.collection?.paymentReceived || 0) >=
-              (m.weeklyPaymentAmount || 0)
-          ).length,
-        ],
-        [
-          "Partial Payment Members",
-          members.filter(
-            (m) =>
-              (m.collection?.paymentReceived || 0) > 0 &&
-              (m.collection?.paymentReceived || 0) <
-                (m.weeklyPaymentAmount || 0)
-          ).length,
-        ],
-        [
-          "Unpaid Members",
-          members.filter(
-            (m) => !m.collection || (m.collection?.paymentReceived || 0) <= 0
-          ).length,
-        ],
-      ],
-    };
-
-    // Create workbook and add sheets
     const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, ws, "Group Report");
 
-    Object.entries(exportData).forEach(([sheetName, data]) => {
-      const worksheet = XLSX.utils.aoa_to_sheet(data);
-
-      // Auto-size columns
-      const maxWidth = data.reduce((max, row) => {
-        return Math.max(max, ...row.map((cell) => String(cell).length));
-      }, 0);
-
-      worksheet["!cols"] = [{ width: Math.min(maxWidth + 2, 50) }];
-
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    });
-
-    // Generate filename
     const fileName = `Collection_Report_${
       collectionGroup.centerName
     }_${collectionGroup.collectionDate.replace(/-/g, "_")}.xlsx`;
 
-    // Save file
     const excelBuffer = XLSX.write(workbook, {
       bookType: "xlsx",
       type: "array",
@@ -376,7 +337,35 @@ export const exportToExcel = async (
     FileSaver.saveAs(blob, fileName);
   } catch (error) {
     console.warn("XLSX export failed, falling back to CSV:", error);
-    // Fallback to CSV export
     exportToCSV(collectionGroup, members);
   }
+};
+
+// New: Export all collections for the day (multiple sheets, one per collection)
+export const exportAllCollectionsToExcel = async (
+  bundles: CollectionExportBundle[],
+  fileNamePrefix = "Daily_Collections"
+): Promise<void> => {
+  if (!bundles || bundles.length === 0) return;
+  const XLSX = await import("xlsx");
+  const FileSaver = await import("file-saver");
+
+  const workbook = XLSX.utils.book_new();
+
+  for (const { group, members } of bundles) {
+    const { data, merges } = buildGroupSheetData(group, members);
+    const sheetTitleBase = `${group.centerName}`.trim();
+    const sheetName = sheetTitleBase.substring(0, 31) || "Collection"; // Excel limit
+    const { ws } = await buildWorksheet(data, merges, sheetName);
+    XLSX.utils.book_append_sheet(workbook, ws, sheetName);
+  }
+
+  const firstDate = bundles[0]?.group.collectionDate?.replace(/-/g, "_") || "";
+  const fileName = `${fileNamePrefix}_${firstDate}.xlsx`;
+
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([excelBuffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  FileSaver.saveAs(blob, fileName);
 };

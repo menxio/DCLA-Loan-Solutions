@@ -6,6 +6,8 @@ import {
   Grid,
   Button,
   Avatar,
+  Alert,
+  CircularProgress,
 } from "@mui/material";
 import {
   CalendarToday,
@@ -15,9 +17,13 @@ import {
   Schedule,
   Warning,
   Visibility,
+  FileDownload,
 } from "@mui/icons-material";
+import { useState } from "react";
 import CollectionStatsCard from "./CollectionStatsCard";
-import type { DailyCollectionGroup } from "../types";
+import { exportAllCollectionsToExcel } from "../utils/exportUtils";
+import collectionsService from "../api";
+import type { DailyCollectionGroup, MemberWithLoans } from "../types";
 
 interface DailyCollectionsViewProps {
   data: DailyCollectionGroup[];
@@ -30,8 +36,94 @@ export default function DailyCollectionsView({
   onViewDetails,
   loading,
 }: DailyCollectionsViewProps) {
+  const [exportingAll, setExportingAll] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString()}`;
+  };
+
+  const handleExportAllCollections = async () => {
+    if (data.length === 0) return;
+
+    setExportingAll(true);
+    setExportError(null);
+
+    try {
+      // Fetch member details for all centers
+      const exportBundles = await Promise.all(
+        data.map(async (group) => {
+          try {
+            const centerMembers = await collectionsService.getCenterMembers(
+              group.centerId
+            );
+
+            // Map the data to include collection information
+            const membersWithCollections = centerMembers.map((member: any) => ({
+              ...member,
+              collection: group.collections.find(
+                (c) => c.memberId === member.id
+              ),
+              // Ensure required fields for export
+              netCashReleased:
+                member.netCashReleased || member.collection?.netRelease || 0,
+              numberOfPayments:
+                member.numberOfPayments ||
+                member.collection?.numberOfPayments ||
+                0,
+            }));
+
+            return {
+              group,
+              members: membersWithCollections as MemberWithLoans[],
+            };
+          } catch (error) {
+            console.error(
+              `Failed to fetch members for center ${group.centerName}:`,
+              error
+            );
+            // Return with empty members array to avoid breaking the export
+            return {
+              group,
+              members: [] as MemberWithLoans[],
+            };
+          }
+        })
+      );
+
+      // Filter out bundles with no members (failed API calls)
+      const validBundles = exportBundles.filter(
+        (bundle) => bundle.members.length > 0
+      );
+
+      if (validBundles.length === 0) {
+        throw new Error("No data available to export. Please try again.");
+      }
+
+      // Generate the multi-sheet Excel file
+      const collectionDate =
+        data[0]?.collectionDate || new Date().toISOString().split("T")[0];
+      const fileName = `Daily_Collections_Report_${collectionDate.replace(
+        /-/g,
+        "_"
+      )}`;
+
+      await exportAllCollectionsToExcel(validBundles, fileName);
+
+      // Show success feedback
+      console.log(
+        `Successfully exported ${validBundles.length} collection reports`
+      );
+    } catch (error) {
+      console.error("Failed to export all collections:", error);
+      setExportError(
+        error instanceof Error
+          ? error.message
+          : "Failed to export collections. Please try again."
+      );
+    } finally {
+      setExportingAll(false);
+    }
   };
 
   if (data.length === 0) {
@@ -58,6 +150,70 @@ export default function DailyCollectionsView({
 
   return (
     <Box>
+      {/* Export All Collections Header */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+          p: 3,
+          backgroundColor: "#f8fafc",
+          borderRadius: 2,
+          border: "1px solid #e2e8f0",
+        }}
+      >
+        <Box>
+          <Typography
+            variant="h6"
+            sx={{ fontWeight: 600, color: "#1e293b", mb: 0.5 }}
+          >
+            Daily Collections Summary
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {data.length} center{data.length !== 1 ? "s" : ""} scheduled for
+            collection today
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={
+            exportingAll ? <CircularProgress size={16} /> : <FileDownload />
+          }
+          onClick={handleExportAllCollections}
+          disabled={exportingAll || loading || data.length === 0}
+          sx={{
+            background: "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
+            "&:hover": {
+              background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
+            },
+            "&:disabled": {
+              background: "#d1d5db",
+              color: "#9ca3af",
+            },
+            px: 3,
+            py: 1.5,
+            fontWeight: 600,
+            borderRadius: 2,
+            minWidth: 180,
+          }}
+        >
+          {exportingAll ? "Exporting All..." : "Export All Collections"}
+        </Button>
+      </Box>
+
+      {/* Export Error Alert */}
+      {exportError && (
+        <Alert
+          severity="error"
+          sx={{ mb: 3, borderRadius: 2 }}
+          onClose={() => setExportError(null)}
+        >
+          {exportError}
+        </Alert>
+      )}
+
+      {/* Individual Collection Cards */}
       {data.map((group) => (
         <Card
           key={group.centerId}
