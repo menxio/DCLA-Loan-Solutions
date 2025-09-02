@@ -22,12 +22,12 @@ interface Loan {
   weeksPaid: number | string;
 }
 
-export const generateLoanPassbookPDF = (
+export const generateLoanPassbookPDF = async (
   member: Member,
   loan: Loan,
   preview = false // 👈 control whether to preview or download
 ): Promise<string | void> => {
-  return new Promise((resolve) => {
+
     // Normalize all values so we’re safe to use .toFixed(), etc.
     const principal = Number(loan.principalAmount);
     const weeklyPayment = Number(loan.weeklyPaymentAmount);
@@ -51,6 +51,7 @@ export const generateLoanPassbookPDF = (
           month: 'long',
           day: 'numeric',
         }),
+        signature: '',
         amount: `₱${weeklyPayment.toFixed(2)}`,
         paid: i < weeksPaid,
       };
@@ -66,11 +67,13 @@ export const generateLoanPassbookPDF = (
         { text: '#', bold: true },
         { text: 'Date', bold: true },
         { text: 'Amount', bold: true },
+        { text: 'BM/AO Signature', bold: true },
         { text: 'Remarks', bold: true },
         {},
         { text: '#', bold: true },
         { text: 'Date', bold: true },
         { text: 'Amount', bold: true },
+        { text: 'BM/AO Signature', bold: true },
         { text: 'Remarks', bold: true },
       ],
     ];
@@ -93,12 +96,32 @@ export const generateLoanPassbookPDF = (
     }
 
     const docDefinition: TDocumentDefinitions = {
+<<<<<<< Updated upstream
         content: [
             // HEADER
             {
             table: {
                 widths: ['*'],
                 body: [[{ text: 'DCLA LOAN SOLUTIONS', bold: true, alignment: 'center', fontSize: 14 }]]
+=======
+      pageSize: 'A4',
+      pageOrientation: 'portrait',
+      background: (currentPage, pageSize) => ({
+        image: logo,
+        width: 300,
+        opacity: 0.05,
+        absolutePosition: {
+          x: pageSize.width / 2 - 150,
+          y: pageSize.height / 2 - 150,
+        },
+      } as any),
+      content: [
+          // HEADER
+          {
+          table: {
+              widths: ['*'],
+                body: [[{ text: 'DCLA LOAN SOLUTIONS', bold: true, alignment: 'center', fontSize: 12 }]]
+>>>>>>> Stashed changes
             },
             layout: 'noBorders',
             margin: [0, 0, 0, 10],
@@ -107,9 +130,8 @@ export const generateLoanPassbookPDF = (
             // CLIENT INFO + LOAN INFO (like in the passbook photo)
             {
             table: {
-                heights: [20, 20, 20, 20],
-                widths: ['25%', '35%', '20%', '20%'],
-                body: [
+              widths: ['25%', '35%', '20%', '20%'],
+              body: [
                 [
                     { text: 'Client Name', bold: true }, 
                     { text: fullName, colSpan: 1 },
@@ -128,11 +150,7 @@ export const generateLoanPassbookPDF = (
                     { text: 'Savings', bold: true },
                     { text: `₱${savings.toFixed(2)}`, color: 'blue' },
                 ],
-                [
-                    { text: 'BM/AO Signature', bold: true }, 
-                    { text: '____________________', colSpan: 3 }, {}, {},
-                ]
-                ],
+              ],
             },
             margin: [0, 0, 0, 10],
             },
@@ -141,19 +159,20 @@ export const generateLoanPassbookPDF = (
             {
             table: {
                 headerRows: 1,
-                heights: [20, 20, 20, 20],
-                widths: ['auto', '*', '*', '*'],
+                widths: ['auto', '*', '*', '*', '*'],
                 body: [
                 [
                     { text: '#', bold: true },
                     { text: 'Date', bold: true },
                     { text: 'Amount', bold: true },
+                    { text: 'BM/AO Signature', bold: true },
                     { text: 'Remarks', bold: true },
                 ],
                 ...schedule.map(s => [
                     s.week,
                     s.date,
                     s.amount,
+                    s.signature,
                     s.paid ? 'Paid' : ''
                 ])
                 ],
@@ -162,29 +181,30 @@ export const generateLoanPassbookPDF = (
             {
             table: {
                 widths: ['*'],
-                body: [[{ text: '| Thank you for trusting DCLA Loan Solutions |', alignment: 'center', fontSize: 9, italics: true }]]
+                body: [[{ text: '| Thank you for trusting DCLA Loan Solutions |', alignment: 'center', fontSize: 8, italics: true }]]
             },
             layout: 'noBorders',
             margin: [0, 20, 0, 10],
             },
         ],
         defaultStyle: {
-            fontSize: 12,
+            fontSize: 7,
         },
         };
 
     if (preview) {
       // 👇 instead of downloading, return a blob URL for embedding
-      pdfMake.createPdf(docDefinition).getBlob((blob) => {
-        const url = URL.createObjectURL(blob);
-        resolve(url);
+      return new Promise<string>((resolve) => {
+        pdfMake.createPdf(docDefinition).getBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          resolve(url); // ✅ works here
+        });
       });
     } else {
       // 👇 default behavior: download directly
       pdfMake.createPdf(docDefinition).download(
         `loan_passbook_${member.lastName}.pdf`
       );
-      resolve();
+      return;
     }
-  });
 };
