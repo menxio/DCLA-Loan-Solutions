@@ -122,7 +122,9 @@ export default function LoanModal({
 
     console.log("Generating PDF with:", memberData, loanData);
 
-    await generateLoanPassbookPDF(memberData, loanData, false);
+    // Align schedule to the member center's collection day if available
+    const collectionDay = member.center?.collectionDay; // e.g., 'Friday'
+    await generateLoanPassbookPDF(memberData, loanData, false, collectionDay || undefined);
   };
 
   const getStatusColor = (status: string) => {
