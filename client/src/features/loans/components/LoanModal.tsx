@@ -46,9 +46,6 @@ export default function LoanModal({
   const [loading, setLoading] = useState(false);
   const [creatingLoan, setCreatingLoan] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [memberDataState, setMemberDataState] = useState<any>(null);
-  const [loanDataState, setLoanDataState] = useState<any>(null);
 
   // Get the active loan (should be only one)
   const activeLoan = loans.find(loan => loan.status === 'active');
@@ -123,11 +120,11 @@ export default function LoanModal({
       createdAt: releaseDate.toISOString(), // ensure it's in ISO format
     };
 
-    setMemberDataState(memberData);
-    setLoanDataState(loanData);
+    console.log("Generating PDF with:", memberData, loanData);
 
-    const url = (await generateLoanPassbookPDF(memberData, loanData, true)) as string;
-    setPdfUrl(url);
+    // Align schedule to the member center's collection day if available
+    const collectionDay = member.center?.collectionDay; // e.g., 'Friday'
+    await generateLoanPassbookPDF(memberData, loanData, false, collectionDay || undefined);
   };
 
   const getStatusColor = (status: string) => {
@@ -392,29 +389,15 @@ export default function LoanModal({
           </Box>
         )}
       </DialogContent>
-
-      {pdfUrl ? (
+      {!creatingLoan && hasActiveLoan && (
         <DialogActions>
-          <Button onClick={() => setPdfUrl(null)}>Back</Button>
-          <Button
-            variant="contained"
-            onClick={() => generateLoanPassbookPDF(memberDataState, loanDataState, false)}
-          >
-            Download PDF
+          <Button onClick={handleClose} sx={{ color: "#64748b" }}>
+            Close
+          </Button>
+          <Button variant="contained" onClick={handleExportPassbook}>
+            Download Passbook
           </Button>
         </DialogActions>
-      ) : (
-        !creatingLoan &&
-        hasActiveLoan && (
-          <DialogActions>
-            <Button onClick={handleClose} sx={{ color: "#64748b" }}>
-              Close
-            </Button>
-            <Button variant="contained" onClick={handleExportPassbook}>
-              Download Passbook
-            </Button>
-          </DialogActions>
-        )
       )}
     </Dialog>
   );

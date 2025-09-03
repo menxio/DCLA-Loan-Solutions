@@ -1,9 +1,4 @@
-import pdfMake from 'pdfmake/build/pdfmake';
-import pdfFonts from 'pdfmake/build/vfs_fonts';
-import type { TDocumentDefinitions } from 'pdfmake/interfaces';
-
-// Attach font files
-(pdfMake as any).vfs = pdfFonts.vfs;
+import { Document, Page, View, Text, StyleSheet, pdf } from '@react-pdf/renderer';
 
 interface Member {
   firstName: string;
@@ -14,177 +9,145 @@ interface Member {
 }
 
 interface Loan {
-  principalAmount: number | string;      // can arrive as string from backend
-  weeklyPaymentAmount: number | string;  // can arrive as string from backend
-  termWeek: number | string;             // can arrive as string
-  createdAt: string | Date;              // ISO string in JSON, Date in code
+  principalAmount: number | string;
+  weeklyPaymentAmount: number | string;
+  termWeek: number | string;
+  createdAt: string | Date;
   savings: number | string;
   weeksPaid: number | string;
 }
 
-export const generateLoanPassbookPDF = (
+const styles = StyleSheet.create({
+  page: { paddingTop: 18, paddingHorizontal: 28, paddingBottom: 18 },
+  headerText: { fontSize: 12, fontWeight: 'bold', textAlign: 'center', marginBottom: 6 },
+  grid: { display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 6 },
+  row: { display: 'flex', flexDirection: 'row' },
+  cell: { border: '0.75pt solid #000', padding: 4, fontSize: 7 },
+  cellBold: { border: '0.75pt solid #000', padding: 4, fontSize: 7, fontWeight: 'bold' },
+  footer: { marginTop: 10, textAlign: 'center', fontSize: 7, fontStyle: 'italic' },
+  // Note: React-PDF does not support percentage lengths; use absolute points
+  watermark: { position: 'absolute', opacity: 0.08 },
+  watermarkText: { position: 'absolute', opacity: 0.08, fontSize: 100, fontWeight: 'bold', color: '#000', transform: 'rotate(45deg)' },
+  passbook: { marginBottom: 10, padding: 6, border: '0pt solid transparent' },
+  divider: { marginVertical: 4 },
+});
+
+export const generateLoanPassbookPDF = async (
   member: Member,
   loan: Loan,
-  preview = false // 👈 control whether to preview or download
+  preview = false,
+  collectionDay?: number | string // 0-6 (Sun-Sat) or day name like 'Friday'
 ): Promise<string | void> => {
-  return new Promise((resolve) => {
-    // Normalize all values so we’re safe to use .toFixed(), etc.
-    const principal = Number(loan.principalAmount);
-    const weeklyPayment = Number(loan.weeklyPaymentAmount);
-    const savings = Number(loan.savings);
-    const termWeeks = Number(loan.termWeek);
-    const weeksPaid = Number(loan.weeksPaid);
-    const releaseDate = new Date(loan.createdAt);
 
-    const fullName = `${member.lastName.toUpperCase()}, ${member.firstName.toUpperCase()} ${
-      member.middleName?.[0]?.toUpperCase() || ''
-    }.`;
+  const principal = Number(loan.principalAmount);
+  const weeklyPayment = Number(loan.weeklyPaymentAmount);
+  const savings = Number(loan.savings);
+  const termWeeks = Number(loan.termWeek);
+  const weeksPaid = Number(loan.weeksPaid);
+  const releaseDate = new Date(loan.createdAt);
 
-    // Build payment schedule
-    const schedule = Array.from({ length: termWeeks }, (_, i) => {
-      const dueDate = new Date(releaseDate);
-      dueDate.setDate(releaseDate.getDate() + i * 7);
-      return {
-        week: i + 1,
-        date: dueDate.toLocaleDateString('en-PH', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        }),
-        amount: `₱${weeklyPayment.toFixed(2)}`,
-        paid: i < weeksPaid,
+  const fullName = `${member.lastName.toUpperCase()}, ${member.firstName.toUpperCase()} ${
+    member.middleName?.[0]?.toUpperCase() || ''
+  }.`;
+
+  const resolveWeekday = (day?: number | string): number | undefined => {
+    if (day === undefined || day === null) return undefined;
+    if (typeof day === 'number' && day >= 0 && day <= 6) return day;
+    if (typeof day === 'string') {
+      const map: Record<string, number> = {
+        sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
       };
-    });
-
-    // Split schedule into 2 columns
-    const leftCol = schedule.slice(0, Math.ceil(schedule.length / 2));
-    const rightCol = schedule.slice(Math.ceil(schedule.length / 2));
-
-    // Table body with headers
-    const body: any[] = [
-      [
-        { text: '#', bold: true },
-        { text: 'Date', bold: true },
-        { text: 'Amount', bold: true },
-        { text: 'Remarks', bold: true },
-        {},
-        { text: '#', bold: true },
-        { text: 'Date', bold: true },
-        { text: 'Amount', bold: true },
-        { text: 'Remarks', bold: true },
-      ],
-    ];
-
-    for (let i = 0; i < leftCol.length; i++) {
-      const left = leftCol[i];
-      const right = rightCol[i];
-
-      body.push([
-        { text: left.week.toString() },
-        { text: left.date },
-        { text: left.amount },
-        left.paid ? { text: 'Paid' } : { text: '' },
-        {},
-        right ? { text: right.week.toString() } : { text: '' },
-        right ? { text: right.date } : { text: '' },
-        right ? { text: right.amount } : { text: '' },
-        right && right.paid ? { text: 'Paid' } : { text: '' },
-      ]);
+      const key = day.trim().toLowerCase();
+      if (key in map) return map[key];
     }
+    return undefined;
+  };
 
-    const docDefinition: TDocumentDefinitions = {
-        content: [
-            // HEADER
-            {
-            table: {
-                widths: ['*'],
-                body: [[{ text: 'DCLA LOAN SOLUTIONS', bold: true, alignment: 'center', fontSize: 16 }]]
-            },
-            layout: 'noBorders',
-            margin: [0, 0, 0, 10],
-            },
+  const targetWeekday = resolveWeekday(collectionDay);
+  // First due date: next (or same) target weekday on/after release
+  const firstDueDate = new Date(releaseDate);
+  if (typeof targetWeekday === 'number') {
+    const current = releaseDate.getDay();
+    const delta = (targetWeekday - current + 7) % 7; // 0 means same day
+    firstDueDate.setDate(releaseDate.getDate() + delta + 7); // always next week's collection day
+  } else {
+    // No target weekday provided; first due is one week after release
+    firstDueDate.setDate(releaseDate.getDate() + 7);
+  }
 
-            // CLIENT INFO + LOAN INFO (like in the passbook photo)
-            {
-            table: {
-                heights: [20, 20, 20, 20],
-                widths: ['25%', '35%', '20%', '20%'],
-                body: [
-                [
-                    { text: 'Client Name', bold: true }, 
-                    { text: fullName, colSpan: 1 },
-                    { text: 'Loan Amount', bold: true }, 
-                    { text: `₱${principal.toLocaleString()}`, bold: true, color: 'red' },
-                ],
-                [
-                    { text: 'Center Leader', bold: true }, 
-                    { text: member.centerLeader }, 
-                    { text: 'Release Date', bold: true }, 
-                    { text: releaseDate.toLocaleDateString('en-PH') },
-                ],
-                [
-                    { text: 'Contact Number', bold: true },
-                    { text: member.contactNumber },
-                    { text: 'Savings', bold: true },
-                    { text: `₱${savings.toFixed(2)}`, color: 'blue' },
-                ],
-                [
-                    { text: 'BM/AO Signature', bold: true }, 
-                    { text: '____________________', colSpan: 3 }, {}, {},
-                ]
-                ],
-            },
-            margin: [0, 0, 0, 10],
-            },
-
-            // PAYMENT SCHEDULE
-            {
-            table: {
-                headerRows: 1,
-                heights: [20, 20, 20, 20],
-                widths: ['auto', '*', '*', '*'],
-                body: [
-                [
-                    { text: '#', bold: true },
-                    { text: 'Date', bold: true },
-                    { text: 'Amount', bold: true },
-                    { text: 'Remarks', bold: true },
-                ],
-                ...schedule.map(s => [
-                    s.week,
-                    s.date,
-                    s.amount,
-                    s.paid ? 'Paid' : ''
-                ])
-                ],
-            },
-            },
-            {
-            table: {
-                widths: ['*'],
-                body: [[{ text: '| Thank you for trusting DCLA Loan Solutions |', alignment: 'center', fontSize: 9, italics: true }]]
-            },
-            layout: 'noBorders',
-            margin: [0, 20, 0, 10],
-            },
-        ],
-        defaultStyle: {
-            fontSize: 12,
-        },
-        };
-
-    if (preview) {
-      // 👇 instead of downloading, return a blob URL for embedding
-      pdfMake.createPdf(docDefinition).getBlob((blob) => {
-        const url = URL.createObjectURL(blob);
-        resolve(url);
-      });
-    } else {
-      // 👇 default behavior: download directly
-      pdfMake.createPdf(docDefinition).download(
-        `loan_passbook_${member.lastName}.pdf`
-      );
-      resolve();
-    }
+  const schedule = Array.from({ length: termWeeks }, (_, i) => {
+    const dueDate = new Date(firstDueDate);
+    dueDate.setDate(firstDueDate.getDate() + i * 7);
+    return {
+      week: i + 1,
+      date: dueDate.toLocaleDateString('en-PH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+      signature: '',
+      amount: `P ${weeklyPayment.toFixed(2)}`,
+      paid: i < weeksPaid,
+    };
   });
+
+  const ScheduleRow = ({ s }: { s: typeof schedule[number] }) => (
+    <View style={{ display: 'flex', flexDirection: 'row' }}>
+      <Text style={[styles.cell, { width: 35 }]}>{s.week.toString()}</Text>
+      <Text style={[styles.cell, { flexGrow: 1, width: 150 }]}>{s.date}</Text>
+      <Text style={[styles.cell, { width: 90 }]}>{s.amount}</Text>
+      <Text style={[styles.cell, { width: 160 }]}>{s.signature}</Text>
+      <Text style={[styles.cell, { width: 90 }]}>{s.paid ? 'Paid' : ''}</Text>
+    </View>
+  );
+
+  const InfoRow = (props: { label1: string; value1: string; label2: string; value2: string }) => (
+    <View style={styles.row}>
+      <Text style={[styles.cellBold, { width: 120 }]}>{props.label1}</Text>
+      <Text style={[styles.cell, { width: 200 }]}>{props.value1}</Text>
+      <Text style={[styles.cellBold, { width: 120 }]}>{props.label2}</Text>
+      <Text style={[styles.cell, { width: 120 }]}>{props.value2}</Text>
+    </View>
+  );
+
+  const docElement = (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        <Text style={[styles.watermarkText, { left: 150, top: 100 }]} fixed>DCLA</Text>
+
+        <Text style={styles.headerText}>DCLA LOAN SOLUTIONS</Text>
+
+        <View style={styles.grid}>
+          <InfoRow label1="Client Name" value1={fullName} label2="Loan Amount" value2={`P ${principal.toLocaleString()}`} />
+          <InfoRow label1="Center Leader" value1={member.centerLeader} label2="Release Date" value2={releaseDate.toLocaleDateString('en-PH')} />
+          <InfoRow label1="Contact Number" value1={member.contactNumber} label2="Savings" value2={`P ${savings.toFixed(2)}`} />
+        </View>
+
+        <View>
+          <View style={styles.row}>
+            <Text style={[styles.cellBold, { width: 35 }]}>#</Text>
+            <Text style={[styles.cellBold, { flexGrow: 1, width: 150 }]}>Date</Text>
+            <Text style={[styles.cellBold, { width: 90 }]}>Amount</Text>
+            <Text style={[styles.cellBold, { width: 160 }]}>BM/AO Signature</Text>
+            <Text style={[styles.cellBold, { width: 90 }]}>Remarks</Text>
+          </View>
+          {schedule.map((s) => (
+            <ScheduleRow key={s.week} s={s} />
+          ))}
+        </View>
+
+        <Text style={styles.footer}>| Thank you for trusting DCLA Loan Solutions |</Text>
+      </Page>
+    </Document>
+  );
+
+  const blob = await pdf(docElement).toBlob();
+  if (preview) {
+    return URL.createObjectURL(blob);
+  }
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `loan_passbook_${member.lastName}.pdf`;
+  link.click();
+  return;
 };
