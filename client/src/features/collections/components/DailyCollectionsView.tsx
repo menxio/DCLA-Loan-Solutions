@@ -19,7 +19,7 @@ import {
   Visibility,
   FileDownload,
 } from "@mui/icons-material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CollectionStatsCard from "./CollectionStatsCard";
 import { exportAllCollectionsToExcel } from "../utils/exportUtils";
 import collectionsService from "../api";
@@ -38,9 +38,89 @@ export default function DailyCollectionsView({
 }: DailyCollectionsViewProps) {
   const [exportingAll, setExportingAll] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [centerMembersMap, setCenterMembersMap] = useState<
+    Record<string, MemberWithLoans[]>
+  >({});
 
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString()}`;
+  };
+
+  // Fetch members for each center so cards use the same basis as the modal
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAll = async () => {
+      try {
+        const results = await Promise.all(
+          data.map(async (group) => {
+            try {
+              const members = await collectionsService.getCenterMembers(
+                group.centerId
+              );
+              // Attach today's collection to each member for convenience
+              const withCollections = members.map((m: any) => ({
+                ...m,
+                collection: group.collections.find((c) => c.memberId === m.id),
+              }));
+              return {
+                centerId: group.centerId,
+                members: withCollections as MemberWithLoans[],
+              };
+            } catch {
+              return {
+                centerId: group.centerId,
+                members: [] as MemberWithLoans[],
+              };
+            }
+          })
+        );
+        if (!cancelled) {
+          const map: Record<string, MemberWithLoans[]> = {};
+          results.forEach((r) => (map[r.centerId] = r.members));
+          setCenterMembersMap(map);
+        }
+      } catch {
+        if (!cancelled) setCenterMembersMap({});
+      }
+    };
+    if (data.length > 0) fetchAll();
+    return () => {
+      cancelled = true;
+    };
+  }, [data]);
+
+  const getMembersFor = (centerId: string) => centerMembersMap[centerId] || [];
+
+  const getPaidCount = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    if (members.length === 0) return 0;
+    return group.collections.filter((c) => {
+      const member = members.find((m) => m.id === c.memberId);
+      return member
+        ? c.paymentReceived >= (member.weeklyPaymentAmount || 0)
+        : false;
+    }).length;
+  };
+
+  const getPartialCount = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    if (members.length === 0) return 0;
+    return group.collections.filter((c) => {
+      const member = members.find((m) => m.id === c.memberId);
+      return member
+        ? c.paymentReceived > 0 &&
+            c.paymentReceived < (member.weeklyPaymentAmount || 0)
+        : false;
+    }).length;
+  };
+
+  const getUnpaidCount = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    if (members.length === 0) return 0;
+    return group.collections.filter((c) => {
+      const member = members.find((m) => m.id === c.memberId);
+      return member ? (c.paymentReceived || 0) <= 0 : false;
+    }).length;
   };
 
   const handleExportAllCollections = async () => {
@@ -291,19 +371,15 @@ export default function DailyCollectionsView({
               <Grid item xs={6} md={3}>
                 <CollectionStatsCard
                   title="Paid"
-                  value={
-                    group.collections.filter(
-                      (c) => c.paymentReceived >= c.amount
-                    ).length
-                  }
+                  value={getPaidCount(group)}
                   icon={<CheckCircle />}
                   color="success"
                 />
               </Grid>
               <Grid item xs={6} md={3}>
                 <CollectionStatsCard
-                  title="Pending"
-                  value={group.pendingCollections}
+                  title="Unpaid"
+                  value={getUnpaidCount(group)}
                   icon={<Schedule />}
                   color="warning"
                 />
@@ -311,12 +387,7 @@ export default function DailyCollectionsView({
               <Grid item xs={6} md={3}>
                 <CollectionStatsCard
                   title="Partial"
-                  value={
-                    group.collections.filter(
-                      (c) =>
-                        c.paymentReceived < c.amount && c.paymentReceived > 0
-                    ).length
-                  }
+                  value={getPartialCount(group)}
                   icon={<Warning />}
                   color="error"
                 />

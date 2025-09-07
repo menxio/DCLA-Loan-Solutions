@@ -37,17 +37,10 @@ import {
   Schedule,
   Warning,
   Payment,
-  AccountBalance,
-  CreditCard,
   Download,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
-import type {
-  DailyCollectionGroup,
-  Collection,
-  Member,
-  MemberWithLoans,
-} from "../types";
+import type { DailyCollectionGroup, Collection, Member } from "../types";
 import collectionsService from "../api";
 import { exportToExcel } from "../utils/exportUtils";
 
@@ -81,7 +74,6 @@ export default function CollectionDetailsModal({
   open,
   collectionGroup,
   onClose,
-  onEditCollection,
 }: CollectionDetailsModalProps) {
   const [members, setMembers] = useState<MemberWithLoans[]>([]);
   const [loading, setLoading] = useState(false);
@@ -123,83 +115,7 @@ export default function CollectionDetailsModal({
       setMembers(membersWithCollections);
     } catch (error) {
       console.error("Failed to fetch center members:", error);
-      // Fallback to mock data if API fails
-      const mockMembers: MemberWithLoans[] = [
-        {
-          id: "1",
-          firstName: "Juan",
-          lastName: "Dela Cruz",
-          middleName: "Santos",
-          contactNumber: "09123456789",
-          address: "123 Main St, City",
-          birthDate: "1990-01-01",
-          center: {
-            id: collectionGroup.centerId,
-            name: collectionGroup.centerName,
-            collectionDay: collectionGroup.collectionDay,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          } as any,
-          loans: [
-            {
-              id: "loan1",
-              amount: 50000,
-              balance: 25000,
-              status: "active",
-              dueDate: "2024-12-31",
-            },
-          ],
-          totalLoanAmount: 50000,
-          totalBalance: 25000,
-          overallAmount: 55000,
-          weeklyPaymentAmount: 2500,
-          totalTermWeeks: 22,
-          totalSavings: 5000,
-          collection: collectionGroup.collections.find(
-            (c) => c.memberId === "1"
-          ),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: "2",
-          firstName: "Maria",
-          lastName: "Santos",
-          middleName: "Garcia",
-          contactNumber: "09187654321",
-          address: "456 Oak Ave, Town",
-          birthDate: "1985-05-15",
-          center: {
-            id: collectionGroup.centerId,
-            name: collectionGroup.centerName,
-            collectionDay: collectionGroup.collectionDay,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          } as any,
-          loans: [
-            {
-              id: "loan2",
-              amount: 30000,
-              balance: 15000,
-              status: "active",
-              dueDate: "2024-11-30",
-            },
-          ],
-          totalLoanAmount: 30000,
-          totalBalance: 15000,
-          overallAmount: 33000,
-          weeklyPaymentAmount: 1500,
-          totalTermWeeks: 20,
-          totalSavings: 3000,
-          collection: collectionGroup.collections.find(
-            (c) => c.memberId === "2"
-          ),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
-
-      setMembers(mockMembers);
+      setMembers([]);
     } finally {
       setLoading(false);
     }
@@ -796,7 +712,19 @@ export default function CollectionDetailsModal({
                             variant="body2"
                             sx={{ fontWeight: 600, color: "#8b5cf6" }}
                           >
-                            {member.collection?.numberOfPayments || 0}
+                            {(() => {
+                              const activeLoan = member.loans?.find(
+                                (l) => l.status === "active"
+                              );
+                              // Prefer backend-tracked weeksPaid if available on active loan; fallback to collection.numberOfPayments
+                              const weeksPaid: any = (activeLoan as any)
+                                ?.weeksPaid;
+                              return (
+                                weeksPaid ??
+                                member.collection?.numberOfPayments ??
+                                0
+                              );
+                            })()}
                           </Typography>
                         </TableCell>
                         <TableCell>
