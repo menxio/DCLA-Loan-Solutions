@@ -205,3 +205,37 @@ export const collectionsService = {
 };
 
 export default collectionsService;
+
+// Loans-related lightweight APIs for reloan/eligibility
+const loansApi = axios.create({
+  baseURL: `${API_BASE_URL}/loans`,
+  headers: { "Content-Type": "application/json" },
+});
+
+loansApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export const loansClient = {
+  checkEligibilityByLoan: async (loanId: string) => {
+    const res = await loansApi.get(`/${loanId}/eligibility`);
+    return res.data;
+  },
+  reloan: async (
+    loanId: string,
+    body: {
+      newPrincipalAmount: number;
+      newTermWeeks: 8 | 12;
+      mode: "payoff" | "netoff";
+      serviceCharge?: number;
+    }
+  ) => {
+    const res = await loansApi.post(`/${loanId}/reloan`, body);
+    return res.data;
+  },
+};

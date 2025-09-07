@@ -37,18 +37,11 @@ import {
   Schedule,
   Warning,
   Payment,
-  AccountBalance,
-  CreditCard,
   Download,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
-import type {
-  DailyCollectionGroup,
-  Collection,
-  Member,
-  MemberWithLoans,
-} from "../types";
-import collectionsService from "../api";
+import type { DailyCollectionGroup, Collection, Member } from "../types";
+import collectionsService, { loansClient } from "../api";
 import { exportToExcel } from "../utils/exportUtils";
 
 interface Loan {
@@ -81,7 +74,6 @@ export default function CollectionDetailsModal({
   open,
   collectionGroup,
   onClose,
-  onEditCollection,
 }: CollectionDetailsModalProps) {
   const [members, setMembers] = useState<MemberWithLoans[]>([]);
   const [loading, setLoading] = useState(false);
@@ -94,6 +86,16 @@ export default function CollectionDetailsModal({
   const [processingPayment, setProcessingPayment] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  // Reloan dialog state
+  const [reloanOpen, setReloanOpen] = useState(false);
+  const [reloanMember, setReloanMember] = useState<MemberWithLoans | null>(
+    null
+  );
+  const [reloanPrincipal, setReloanPrincipal] = useState<string>("");
+  const [reloanTerm, setReloanTerm] = useState<8 | 12>(12);
+  const [reloanMode, setReloanMode] = useState<"payoff" | "netoff">("netoff");
+  const [serviceCharge, setServiceCharge] = useState<string>("500");
+  const [processingReloan, setProcessingReloan] = useState(false);
 
   // Fetch all members for this center when modal opens
   useEffect(() => {
@@ -123,83 +125,7 @@ export default function CollectionDetailsModal({
       setMembers(membersWithCollections);
     } catch (error) {
       console.error("Failed to fetch center members:", error);
-      // Fallback to mock data if API fails
-      const mockMembers: MemberWithLoans[] = [
-        {
-          id: "1",
-          firstName: "Juan",
-          lastName: "Dela Cruz",
-          middleName: "Santos",
-          contactNumber: "09123456789",
-          address: "123 Main St, City",
-          birthDate: "1990-01-01",
-          center: {
-            id: collectionGroup.centerId,
-            name: collectionGroup.centerName,
-            collectionDay: collectionGroup.collectionDay,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          } as any,
-          loans: [
-            {
-              id: "loan1",
-              amount: 50000,
-              balance: 25000,
-              status: "active",
-              dueDate: "2024-12-31",
-            },
-          ],
-          totalLoanAmount: 50000,
-          totalBalance: 25000,
-          overallAmount: 55000,
-          weeklyPaymentAmount: 2500,
-          totalTermWeeks: 22,
-          totalSavings: 5000,
-          collection: collectionGroup.collections.find(
-            (c) => c.memberId === "1"
-          ),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: "2",
-          firstName: "Maria",
-          lastName: "Santos",
-          middleName: "Garcia",
-          contactNumber: "09187654321",
-          address: "456 Oak Ave, Town",
-          birthDate: "1985-05-15",
-          center: {
-            id: collectionGroup.centerId,
-            name: collectionGroup.centerName,
-            collectionDay: collectionGroup.collectionDay,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          } as any,
-          loans: [
-            {
-              id: "loan2",
-              amount: 30000,
-              balance: 15000,
-              status: "active",
-              dueDate: "2024-11-30",
-            },
-          ],
-          totalLoanAmount: 30000,
-          totalBalance: 15000,
-          overallAmount: 33000,
-          weeklyPaymentAmount: 1500,
-          totalTermWeeks: 20,
-          totalSavings: 3000,
-          collection: collectionGroup.collections.find(
-            (c) => c.memberId === "2"
-          ),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
-
-      setMembers(mockMembers);
+      setMembers([]);
     } finally {
       setLoading(false);
     }
@@ -210,6 +136,17 @@ export default function CollectionDetailsModal({
     setPaymentAmount("");
     setPaymentNotes("");
     setPaymentDialogOpen(true);
+  };
+
+  const openReloanDialog = (member: MemberWithLoans) => {
+    setReloanMember(member);
+    setReloanPrincipal(
+      String(Math.max(0, Number(member.totalLoanAmount) || 0))
+    );
+    setReloanTerm(12);
+    setReloanMode("netoff");
+    setServiceCharge("500");
+    setReloanOpen(true);
   };
 
   const processPayment = async () => {
@@ -796,7 +733,19 @@ export default function CollectionDetailsModal({
                             variant="body2"
                             sx={{ fontWeight: 600, color: "#8b5cf6" }}
                           >
-                            {member.collection?.numberOfPayments || 0}
+                            {(() => {
+                              const activeLoan = member.loans?.find(
+                                (l) => l.status === "active"
+                              );
+                              // Prefer backend-tracked weeksPaid if available on active loan; fallback to collection.numberOfPayments
+                              const weeksPaid: any = (activeLoan as any)
+                                ?.weeksPaid;
+                              return (
+                                weeksPaid ??
+                                member.collection?.numberOfPayments ??
+                                0
+                              );
+                            })()}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -846,6 +795,16 @@ export default function CollectionDetailsModal({
                               sx={{ minWidth: 100 }}
                             >
                               Payment
+                            </Button>
+                          </Tooltip>
+                          <Tooltip title="Process Reloan">
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => openReloanDialog(member)}
+                              sx={{ ml: 1, minWidth: 100 }}
+                            >
+                              Reloan
                             </Button>
                           </Tooltip>
                         </TableCell>
@@ -951,6 +910,154 @@ export default function CollectionDetailsModal({
             }
           >
             {processingPayment ? "Processing..." : "Process Payment"}
+          </Button>
+        </PaymentDialogActions>
+      </PaymentDialog>
+      {/* Reloan Dialog */}
+      <PaymentDialog
+        open={reloanOpen}
+        onClose={() => setReloanOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <PaymentDialogTitle>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            Reloan
+          </Box>
+        </PaymentDialogTitle>
+        <PaymentDialogContent>
+          {reloanMember && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                {reloanMember.firstName} {reloanMember.lastName}
+              </Typography>
+
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Old Remaining Balance
+                  </Typography>
+                  <Typography variant="h6" color="error.main">
+                    {formatCurrency(reloanMember.totalBalance)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Weeks Paid
+                  </Typography>
+                  <Typography variant="h6">
+                    {(() => {
+                      const active = reloanMember.loans?.find(
+                        (l) => l.status === "active"
+                      );
+                      return (active as any)?.weeksPaid ?? 0;
+                    })()}
+                  </Typography>
+                </Grid>
+              </Grid>
+
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="New Principal"
+                    type="number"
+                    value={reloanPrincipal}
+                    onChange={(e) => setReloanPrincipal(e.target.value)}
+                    InputProps={{
+                      startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Term Weeks"
+                    type="number"
+                    value={reloanTerm}
+                    onChange={(e) =>
+                      setReloanTerm(
+                        (Number(e.target.value) === 8 ? 8 : 12) as 8 | 12
+                      )
+                    }
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Mode (payoff | netoff)"
+                    value={reloanMode}
+                    onChange={(e) =>
+                      setReloanMode(
+                        e.target.value === "payoff" ? "payoff" : "netoff"
+                      )
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Service Charge"
+                    type="number"
+                    value={serviceCharge}
+                    onChange={(e) => setServiceCharge(e.target.value)}
+                    InputProps={{
+                      startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
+                    }}
+                  />
+                </Grid>
+              </Grid>
+
+              <Box sx={{ p: 2, border: "1px dashed #cbd5e1", borderRadius: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Net Cash Released (preview)
+                </Typography>
+                <Typography variant="h6" color="primary.main">
+                  {(() => {
+                    const principal = Number(reloanPrincipal) || 0;
+                    const fee = Number(serviceCharge) || 0;
+                    const oldBal = Number(reloanMember.totalBalance) || 0;
+                    const net =
+                      reloanMode === "payoff"
+                        ? principal - fee
+                        : Math.max(0, principal - oldBal - fee);
+                    return formatCurrency(net);
+                  })()}
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </PaymentDialogContent>
+        <PaymentDialogActions>
+          <Button onClick={() => setReloanOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={processingReloan || !reloanMember}
+            onClick={async () => {
+              if (!reloanMember) return;
+              setProcessingReloan(true);
+              try {
+                const active = reloanMember.loans?.find(
+                  (l) => l.status === "active"
+                );
+                if (!active) throw new Error("No active loan found");
+                await loansClient.reloan(active.id, {
+                  newPrincipalAmount: Number(reloanPrincipal) || 0,
+                  newTermWeeks: reloanTerm,
+                  mode: reloanMode,
+                  serviceCharge: Number(serviceCharge) || 0,
+                });
+                await fetchCenterMembers();
+                setReloanOpen(false);
+                setReloanMember(null);
+              } catch (e) {
+                console.error("Failed to reloan", e);
+              } finally {
+                setProcessingReloan(false);
+              }
+            }}
+          >
+            {processingReloan ? "Processing..." : "Confirm Reloan"}
           </Button>
         </PaymentDialogActions>
       </PaymentDialog>

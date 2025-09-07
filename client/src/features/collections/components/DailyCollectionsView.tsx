@@ -19,7 +19,7 @@ import {
   Visibility,
   FileDownload,
 } from "@mui/icons-material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CollectionStatsCard from "./CollectionStatsCard";
 import { exportAllCollectionsToExcel } from "../utils/exportUtils";
 import collectionsService from "../api";
@@ -38,9 +38,110 @@ export default function DailyCollectionsView({
 }: DailyCollectionsViewProps) {
   const [exportingAll, setExportingAll] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [centerMembersMap, setCenterMembersMap] = useState<
+    Record<string, MemberWithLoans[]>
+  >({});
 
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString()}`;
+  };
+
+  // Fetch members for each center so cards use the same basis as the modal
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAll = async () => {
+      try {
+        const results = await Promise.all(
+          data.map(async (group) => {
+            try {
+              const members = await collectionsService.getCenterMembers(
+                group.centerId
+              );
+              // Attach today's collection to each member for convenience
+              const withCollections = members.map((m: any) => ({
+                ...m,
+                collection: group.collections.find((c) => c.memberId === m.id),
+              }));
+              return {
+                centerId: group.centerId,
+                members: withCollections as MemberWithLoans[],
+              };
+            } catch {
+              return {
+                centerId: group.centerId,
+                members: [] as MemberWithLoans[],
+              };
+            }
+          })
+        );
+        if (!cancelled) {
+          const map: Record<string, MemberWithLoans[]> = {};
+          results.forEach((r) => (map[r.centerId] = r.members));
+          setCenterMembersMap(map);
+        }
+      } catch {
+        if (!cancelled) setCenterMembersMap({});
+      }
+    };
+    if (data.length > 0) fetchAll();
+    return () => {
+      cancelled = true;
+    };
+  }, [data]);
+
+  const getMembersFor = (centerId: string) => centerMembersMap[centerId] || [];
+
+  const sumOverallAmount = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    return members.reduce((sum, m) => sum + (Number(m.overallAmount) || 0), 0);
+  };
+
+  const sumTotalReceived = (group: DailyCollectionGroup) => {
+    return group.collections.reduce(
+      (sum, c) => sum + (Number(c.paymentReceived) || 0),
+      0
+    );
+  };
+
+  const sumRemainingBalance = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    const totalBalance = members.reduce(
+      (sum, m) => sum + (Number(m.totalBalance) || 0),
+      0
+    );
+    return totalBalance - sumTotalReceived(group);
+  };
+
+  const getPaidCount = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    if (members.length === 0) return 0;
+    return group.collections.filter((c) => {
+      const member = members.find((m) => m.id === c.memberId);
+      return member
+        ? c.paymentReceived >= (member.weeklyPaymentAmount || 0)
+        : false;
+    }).length;
+  };
+
+  const getPartialCount = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    if (members.length === 0) return 0;
+    return group.collections.filter((c) => {
+      const member = members.find((m) => m.id === c.memberId);
+      return member
+        ? c.paymentReceived > 0 &&
+            c.paymentReceived < (member.weeklyPaymentAmount || 0)
+        : false;
+    }).length;
+  };
+
+  const getUnpaidCount = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    if (members.length === 0) return 0;
+    return group.collections.filter((c) => {
+      const member = members.find((m) => m.id === c.memberId);
+      return member ? (c.paymentReceived || 0) <= 0 : false;
+    }).length;
   };
 
   const handleExportAllCollections = async () => {
@@ -267,10 +368,14 @@ export default function DailyCollectionsView({
               <Grid item xs={12} md={4}>
                 <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {formatCurrency(group.totalAmount)}
+                    {formatCurrency(sumOverallAmount(group))}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Received: {formatCurrency(group.totalReceived)}
+                    Received: {formatCurrency(sumTotalReceived(group))}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    Remaining:{" "}
+                    {formatCurrency(Math.max(0, sumRemainingBalance(group)))}
                   </Typography>
                 </Box>
               </Grid>
@@ -291,19 +396,15 @@ export default function DailyCollectionsView({
               <Grid item xs={6} md={3}>
                 <CollectionStatsCard
                   title="Paid"
-                  value={
-                    group.collections.filter(
-                      (c) => c.paymentReceived >= c.amount
-                    ).length
-                  }
+                  value={getPaidCount(group)}
                   icon={<CheckCircle />}
                   color="success"
                 />
               </Grid>
               <Grid item xs={6} md={3}>
                 <CollectionStatsCard
-                  title="Pending"
-                  value={group.pendingCollections}
+                  title="Unpaid"
+                  value={getUnpaidCount(group)}
                   icon={<Schedule />}
                   color="warning"
                 />
@@ -311,12 +412,7 @@ export default function DailyCollectionsView({
               <Grid item xs={6} md={3}>
                 <CollectionStatsCard
                   title="Partial"
-                  value={
-                    group.collections.filter(
-                      (c) =>
-                        c.paymentReceived < c.amount && c.paymentReceived > 0
-                    ).length
-                  }
+                  value={getPartialCount(group)}
                   icon={<Warning />}
                   color="error"
                 />
@@ -364,9 +460,11 @@ export default function DailyCollectionsView({
                     >
                       <Box
                         sx={{
-                          width: `${
-                            (group.totalReceived / group.totalAmount) * 100
-                          }%`,
+                          width: `${(() => {
+                            const total = sumOverallAmount(group);
+                            const received = sumTotalReceived(group);
+                            return total > 0 ? (received / total) * 100 : 0;
+                          })()}%`,
                           height: "100%",
                           background:
                             "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
@@ -376,9 +474,13 @@ export default function DailyCollectionsView({
                     </Box>
                   </Box>
                   <Typography variant="caption" color="text.secondary">
-                    {((group.totalReceived / group.totalAmount) * 100).toFixed(
-                      1
-                    )}
+                    {(() => {
+                      const total = sumOverallAmount(group);
+                      const received = sumTotalReceived(group);
+                      return (total > 0 ? (received / total) * 100 : 0).toFixed(
+                        1
+                      );
+                    })()}
                     % collected
                   </Typography>
                 </Grid>
