@@ -213,6 +213,7 @@ export default function LoanModal({
             onSubmit={handleCreateLoan}
             onCancel={() => setCreatingLoan(false)}
             loading={loading}
+            isFirstLoan={loans.length === 0}
           />
         ) : !hasActiveLoan ? (
           // No active loan - show create loan option

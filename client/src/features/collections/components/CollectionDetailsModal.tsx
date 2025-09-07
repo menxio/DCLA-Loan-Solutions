@@ -84,6 +84,7 @@ export default function CollectionDetailsModal({
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [useSavings, setUseSavings] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   // Reloan dialog state
@@ -135,6 +136,7 @@ export default function CollectionDetailsModal({
     setSelectedMember(member);
     setPaymentAmount("");
     setPaymentNotes("");
+    setUseSavings(false);
     setPaymentDialogOpen(true);
   };
 
@@ -170,12 +172,14 @@ export default function CollectionDetailsModal({
         centerId: collectionGroup!.centerId,
         amount,
         notes: paymentNotes,
+        useSavings,
       });
 
       // Refresh data
       await fetchCenterMembers();
       setPaymentDialogOpen(false);
       setSelectedMember(null);
+      setUseSavings(false);
     } catch (error) {
       console.error("Failed to process payment:", error);
     } finally {
@@ -873,6 +877,22 @@ export default function CollectionDetailsModal({
                     )}
                   </Typography>
                 </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Weekly Payment:
+                  </Typography>
+                  <Typography variant="h6" color="info.main">
+                    {formatCurrency(selectedMember.loans.find(l => l.status === 'active')?.weeklyPaymentAmount || 0)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Available Savings:
+                  </Typography>
+                  <Typography variant="h6" color="success.main">
+                    {formatCurrency(selectedMember.loans.find(l => l.status === 'active')?.savings || 0)}
+                  </Typography>
+                </Grid>
               </Grid>
 
               <TextField
@@ -886,6 +906,37 @@ export default function CollectionDetailsModal({
                   startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
                 }}
               />
+
+              {/* Savings Usage Option */}
+              {(() => {
+                const activeLoan = selectedMember.loans.find(l => l.status === 'active');
+                const weeklyPayment = activeLoan?.weeklyPaymentAmount || 0;
+                const availableSavings = activeLoan?.savings || 0;
+                const paymentAmountNum = parseFloat(paymentAmount) || 0;
+                const canUseSavings = paymentAmountNum < weeklyPayment && availableSavings > 0;
+                
+                return canUseSavings ? (
+                  <Box sx={{ mb: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2, border: '1px solid #0ea5e9' }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Payment is short by {formatCurrency(weeklyPayment - paymentAmountNum)}. 
+                      You can use savings to cover the difference.
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <input
+                        type="checkbox"
+                        id="useSavings"
+                        checked={useSavings}
+                        onChange={(e) => setUseSavings(e.target.checked)}
+                      />
+                      <label htmlFor="useSavings">
+                        <Typography variant="body2">
+                          Use {formatCurrency(Math.min(weeklyPayment - paymentAmountNum, availableSavings))} from savings
+                        </Typography>
+                      </label>
+                    </Box>
+                  </Box>
+                ) : null;
+              })()}
 
               <TextField
                 fullWidth

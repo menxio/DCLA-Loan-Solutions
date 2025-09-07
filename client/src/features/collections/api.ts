@@ -198,6 +198,7 @@ export const collectionsService = {
     centerId: string;
     amount: number;
     notes?: string;
+    useSavings?: boolean;
   }): Promise<any> => {
     const response = await repaymentsApi.post("/", data);
     return response.data;

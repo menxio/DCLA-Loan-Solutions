@@ -24,6 +24,7 @@ interface LoanFormProps {
   onSubmit: (data: LoanFormData) => Promise<void>;
   onCancel?: () => void;
   loading?: boolean;
+  isFirstLoan?: boolean;
 }
 
 export default function LoanForm({
@@ -31,10 +32,12 @@ export default function LoanForm({
   onSubmit,
   onCancel,
   loading = false,
+  isFirstLoan = false,
 }: LoanFormProps) {
   const [formData, setFormData] = useState<LoanFormData>({
     principalAmount: 0,
     termWeeks: 8,
+    savings: undefined,
   });
 
   const [calculation, setCalculation] = useState<LoanCalculation | null>(null);
@@ -54,9 +57,9 @@ export default function LoanForm({
   const handleInputChange = (field: keyof LoanFormData) => (
     e: React.ChangeEvent<HTMLInputElement | { value: unknown }>
   ) => {
-    const value = field === "principalAmount" 
-      ? Number(e.target.value) 
-      : e.target.value;
+    const value = field === "principalAmount" || field === "savings"
+      ? Number((e as React.ChangeEvent<HTMLInputElement>).target.value)
+      : (e as React.ChangeEvent<{ value: unknown }>).target.value;
 
     setFormData((prev) => ({
       ...prev,
@@ -80,9 +83,14 @@ export default function LoanForm({
 
     // Validation
     const newErrors: Partial<LoanFormData> = {};
-    // if (!formData.principalAmount || formData.principalAmount <= 0) {
-    //   newErrors.principalAmount = "Principal amount must be greater than 0";
-    // }
+    if (!formData.principalAmount || formData.principalAmount <= 0) {
+      (newErrors as any).principalAmount = "Principal amount must be greater than 0";
+    }
+    if (isFirstLoan) {
+      if (formData.savings === undefined || formData.savings === null || Number(formData.savings) <= 0) {
+        (newErrors as any).savings = "Savings amount is required for first loan";
+      }
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -139,6 +147,24 @@ export default function LoanForm({
               helperText={errors.principalAmount}
               disabled={loading}
               required
+              InputProps={{
+                startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
+              }}
+            />
+          </Grid>
+
+          {/* Savings Amount (manual input) */}
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Savings Amount"
+              type="number"
+              value={formData.savings ?? ""}
+              onChange={handleInputChange("savings")}
+              error={Boolean((errors as any).savings)}
+              helperText={(errors as any).savings}
+              disabled={loading}
+              required={isFirstLoan}
               InputProps={{
                 startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
               }}
@@ -246,22 +272,7 @@ export default function LoanForm({
                 </Paper>
               </Grid>
 
-              <Grid item xs={12}>
-                <Paper
-                  sx={{
-                    p: 2,
-                    backgroundColor: "#dbeafe",
-                    border: "1px solid #3b82f6",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Savings Required (10% of principal)
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e3a8a" }}>
-                    {formatCurrency(calculation.savings)}
-                  </Typography>
-                </Paper>
-              </Grid>
+              {/* Removed auto 10% savings preview */}
             </>
           )}
 

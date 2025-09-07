@@ -31,8 +31,9 @@ export class RepaymentsService {
     centerId: string;
     amount: number;
     notes?: string;
+    useSavings?: boolean;
   }) {
-    const { loanId, memberId, centerId, amount, notes } = body;
+    const { loanId, memberId, centerId, amount, notes, useSavings = false } = body;
     if (amount <= 0) throw new BadRequestException('Amount must be > 0');
 
     const [loan, member, center] = await Promise.all([
@@ -45,7 +46,7 @@ export class RepaymentsService {
     if (!member) throw new NotFoundException('Member not found');
     if (!center) throw new NotFoundException('Center not found');
 
-    await this.loansService.applyRepayment(loanId, amount);
+    await this.loansService.applyRepayment(loanId, amount, useSavings);
 
     const repayment = this.repaymentRepo.create({
       loan,

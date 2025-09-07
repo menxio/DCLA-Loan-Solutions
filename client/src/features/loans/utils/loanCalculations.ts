@@ -5,9 +5,9 @@ export const getInterestRate = (termWeeks: number): number => {
   return termWeeks === 4 ? 0.10 : termWeeks === 8 ? 0.20 : 0.30;
 };
 
-// Calculate savings required (10% of principal)
-export const getSavingsRequired = (principalAmount: number): number => {
-  return principalAmount * 0.10;
+// Savings is now manually provided at loan creation; keep function only if needed elsewhere
+export const getSavingsRequired = (_principalAmount: number): number => {
+  return 0;
 };
 
 // Calculate all loan details
@@ -24,7 +24,7 @@ export const calculateLoanDetails = (
   const roundedWeeklyPayment = Math.floor(baseWeeklyPayment / 10) * 10;
   // If term is 12 weeks, add 10 to the rounded weekly payment
   const weeklyPaymentAmount = termWeeks === 12 ? roundedWeeklyPayment + 10 : roundedWeeklyPayment;
-  const savings = getSavingsRequired(principalAmount);
+  const savings = 0;
 
   return {
     principalAmount,

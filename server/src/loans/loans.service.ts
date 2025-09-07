@@ -25,11 +25,6 @@ export class LoansService {
     return termWeeks === 8 ? 0.2 : 0.3;
   }
 
-  // Calculate savings required (10% of principal)
-  private getSavings(principalAmount: number): number {
-    return principalAmount * 0.1;
-  }
-
   // Calculate loan details
   private calculateLoanDetails(principalAmount: number, termWeeks: number) {
     const interestRate = this.getInterestRate(termWeeks);
@@ -39,19 +34,17 @@ export class LoansService {
     const roundedWeeklyPayment = Math.floor(baseWeeklyPayment / 10) * 10;
     const weeklyPaymentAmount =
       termWeeks === 12 ? roundedWeeklyPayment + 10 : roundedWeeklyPayment;
-    const savings = this.getSavings(principalAmount);
 
     return {
       interestRate,
       totalInterest,
       totalAmount,
       weeklyPaymentAmount,
-      savings,
     };
   }
 
   async create(createLoanDto: CreateLoanDto): Promise<Loan> {
-    const { borrowerId, principalAmount, termWeeks } = createLoanDto;
+    const { borrowerId, principalAmount, termWeeks, savings } = createLoanDto as any;
 
     // Check if borrower exists
     const borrower = await this.memberRepository.findOne({
@@ -69,8 +62,20 @@ export class LoansService {
       throw new BadRequestException('Member already has an active loan');
     }
 
-    // Calculate loan details
-    const { interestRate, totalAmount, weeklyPaymentAmount, savings } =
+    // Determine if this is the borrower's first loan (no prior loans at all)
+    const priorLoansCount = await this.loanRepository.count({ where: { borrower: { id: borrowerId } } });
+    const isFirstLoan = priorLoansCount === 0;
+
+    // Validate savings per business rule
+    const providedSavings = typeof savings === 'number' ? Number(savings) : undefined;
+    if (isFirstLoan) {
+      if (providedSavings === undefined || isNaN(providedSavings) || providedSavings <= 0) {
+        throw new BadRequestException('Savings amount is required and must be > 0 for the first loan');
+      }
+    }
+
+    // Calculate loan details (no auto-10% savings)
+    const { interestRate, totalAmount, weeklyPaymentAmount } =
       this.calculateLoanDetails(principalAmount, termWeeks);
 
     // Create loan
@@ -82,7 +87,7 @@ export class LoansService {
       totalAmount,
       weeklyPaymentAmount,
       balance: totalAmount,
-      savings,
+      savings: providedSavings ?? 0,
       weeksPaid: 0,
       amountPaid: 0,
       advancePaymentBuffer: 0,
@@ -94,8 +99,9 @@ export class LoansService {
 
   /**
    * Apply a repayment amount to a loan. Handles weekly payment counting and advance buffer.
+   * If payment is short of weekly amount, deducts from savings to cover the difference.
    */
-  async applyRepayment(loanId: string, amount: number): Promise<Loan> {
+  async applyRepayment(loanId: string, amount: number, useSavings: boolean = false): Promise<Loan> {
     if (amount <= 0) {
       throw new BadRequestException('Payment amount must be greater than zero');
     }
@@ -107,15 +113,34 @@ export class LoansService {
 
     const weekly = Number(loan.weeklyPaymentAmount);
     const currentBuffer = Number(loan.advancePaymentBuffer || 0);
-    const newBuffer = currentBuffer + amount;
+    const currentSavings = Number(loan.savings || 0);
+    
+    // If payment is short and useSavings is true, deduct from savings
+    let totalPayment = amount;
+    let savingsUsed = 0;
+    
+    if (useSavings && amount < weekly) {
+      const shortfall = weekly - amount;
+      if (currentSavings >= shortfall) {
+        savingsUsed = shortfall;
+        totalPayment = weekly; // Use full weekly amount
+      } else {
+        // Use all available savings
+        savingsUsed = currentSavings;
+        totalPayment = amount + currentSavings;
+      }
+    }
+    
+    const newBuffer = currentBuffer + totalPayment;
 
     const newWeeksPaid = Math.floor(newBuffer / weekly);
     const remainingBuffer = newBuffer % weekly;
 
     loan.weeksPaid = Number(loan.weeksPaid) + newWeeksPaid;
     loan.advancePaymentBuffer = remainingBuffer;
-    loan.amountPaid = Number(loan.amountPaid) + amount;
-    loan.balance = Math.max(0, Number(loan.balance) - amount);
+    loan.amountPaid = Number(loan.amountPaid) + totalPayment;
+    loan.balance = Math.max(0, Number(loan.balance) - totalPayment);
+    loan.savings = Math.max(0, currentSavings - savingsUsed);
 
     if (loan.balance === 0) {
       loan.status = 'paid';
