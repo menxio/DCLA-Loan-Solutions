@@ -91,6 +91,27 @@ export default function DailyCollectionsView({
 
   const getMembersFor = (centerId: string) => centerMembersMap[centerId] || [];
 
+  const sumOverallAmount = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    return members.reduce((sum, m) => sum + (Number(m.overallAmount) || 0), 0);
+  };
+
+  const sumTotalReceived = (group: DailyCollectionGroup) => {
+    return group.collections.reduce(
+      (sum, c) => sum + (Number(c.paymentReceived) || 0),
+      0
+    );
+  };
+
+  const sumRemainingBalance = (group: DailyCollectionGroup) => {
+    const members = getMembersFor(group.centerId);
+    const totalBalance = members.reduce(
+      (sum, m) => sum + (Number(m.totalBalance) || 0),
+      0
+    );
+    return totalBalance - sumTotalReceived(group);
+  };
+
   const getPaidCount = (group: DailyCollectionGroup) => {
     const members = getMembersFor(group.centerId);
     if (members.length === 0) return 0;
@@ -347,10 +368,14 @@ export default function DailyCollectionsView({
               <Grid item xs={12} md={4}>
                 <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {formatCurrency(group.totalAmount)}
+                    {formatCurrency(sumOverallAmount(group))}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Received: {formatCurrency(group.totalReceived)}
+                    Received: {formatCurrency(sumTotalReceived(group))}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    Remaining:{" "}
+                    {formatCurrency(Math.max(0, sumRemainingBalance(group)))}
                   </Typography>
                 </Box>
               </Grid>
@@ -435,9 +460,11 @@ export default function DailyCollectionsView({
                     >
                       <Box
                         sx={{
-                          width: `${
-                            (group.totalReceived / group.totalAmount) * 100
-                          }%`,
+                          width: `${(() => {
+                            const total = sumOverallAmount(group);
+                            const received = sumTotalReceived(group);
+                            return total > 0 ? (received / total) * 100 : 0;
+                          })()}%`,
                           height: "100%",
                           background:
                             "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
@@ -447,9 +474,13 @@ export default function DailyCollectionsView({
                     </Box>
                   </Box>
                   <Typography variant="caption" color="text.secondary">
-                    {((group.totalReceived / group.totalAmount) * 100).toFixed(
-                      1
-                    )}
+                    {(() => {
+                      const total = sumOverallAmount(group);
+                      const received = sumTotalReceived(group);
+                      return (total > 0 ? (received / total) * 100 : 0).toFixed(
+                        1
+                      );
+                    })()}
                     % collected
                   </Typography>
                 </Grid>

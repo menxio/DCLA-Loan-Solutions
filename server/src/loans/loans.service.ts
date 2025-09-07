@@ -9,6 +9,7 @@ import { Loan } from './loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
+import { ReloanDto } from './dto/reloan.dto';
 
 @Injectable()
 export class LoansService {
@@ -146,6 +147,71 @@ export class LoansService {
       throw new NotFoundException(`Loan #${id} not found`);
     }
     return loan;
+  }
+
+  /**
+   * Check eligibility given a specific loan
+   */
+  async eligibilityByLoan(loanId: string) {
+    const loan = await this.findOne(loanId);
+    const minWeeks = loan.termWeeks === 8 ? 5 : 8;
+    const eligible = loan.weeksPaid >= minWeeks && loan.status === 'active';
+    return { eligible, minWeeksRequired: minWeeks, weeksPaid: loan.weeksPaid, termWeeks: loan.termWeeks };
+  }
+
+  /**
+   * Reloan flow with flat service charge and Net Off / Pay Off modes.
+   * - payoff: client pays old balance in cash; new principal - serviceCharge is released
+   * - netoff: old balance is deducted from new loan principal; released = new principal - old balance - serviceCharge
+   */
+  async reloan(loanId: string, dto: ReloanDto) {
+    const { newPrincipalAmount, newTermWeeks, mode, serviceCharge } = dto;
+    if (newPrincipalAmount <= 0) throw new BadRequestException('newPrincipalAmount must be > 0');
+    if (![8, 12].includes(newTermWeeks)) throw new BadRequestException('newTermWeeks must be 8 or 12');
+    if (!['payoff', 'netoff'].includes(mode)) throw new BadRequestException('mode must be payoff or netoff');
+
+    const loan = await this.findOne(loanId);
+    if (loan.status !== 'active') throw new BadRequestException('Only active loans can be reloaned');
+
+    const { eligible, minWeeksRequired } = await this.eligibilityByLoan(loanId);
+    if (!eligible) throw new BadRequestException(`Not eligible for reloan. Requires >= ${minWeeksRequired} weeks paid.`);
+
+    const defaultServiceCharge = 500; // flat fee default (can be from config later)
+    const fee = typeof serviceCharge === 'number' ? serviceCharge : defaultServiceCharge;
+
+    // Compute old remaining balance
+    const oldRemaining = Number(loan.balance);
+
+    // Close old loan
+    loan.status = 'paid';
+    loan.balance = 0 as any;
+    loan.advancePaymentBuffer = 0 as any;
+    await this.loanRepository.save(loan);
+
+    // Create the new loan using existing create calculation helpers
+    const borrowerId = loan.borrower.id;
+    const tempCreate: CreateLoanDto = { borrowerId, principalAmount: Number(newPrincipalAmount), termWeeks: newTermWeeks } as any;
+    const newLoan = await this.create(tempCreate);
+
+    // Compute net cash released per mode
+    let netCashReleased = 0;
+    if (mode === 'payoff') {
+      netCashReleased = Number(newPrincipalAmount) - fee;
+    } else {
+      netCashReleased = Number(newPrincipalAmount) - oldRemaining - fee;
+      if (netCashReleased < 0) netCashReleased = 0; // never negative release
+    }
+
+    return {
+      oldLoanId: loanId,
+      newLoanId: newLoan.id,
+      mode,
+      serviceCharge: fee,
+      oldRemaining,
+      newPrincipalAmount,
+      netCashReleased,
+      newLoan,
+    };
   }
 
   async update(id: string, updateLoanDto: UpdateLoanDto): Promise<Loan> {
