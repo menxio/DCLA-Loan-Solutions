@@ -88,7 +88,12 @@ export function CollectionSummaryCards({
     {
       title: "Payment Received",
       subtitle: "Today's Collections",
-      value: formatCurrency(collectionGroup.totalReceived),
+      value: formatCurrency(
+        (collectionGroup.collections || []).reduce((sum, c: any) => {
+          const received = c?.amountReceived ?? c?.paymentReceived ?? 0;
+          return sum + (Number(received) || 0);
+        }, 0)
+      ),
       icon: AttachMoney,
       color: "#10b981",
       bgColor: "#f0fdf4",

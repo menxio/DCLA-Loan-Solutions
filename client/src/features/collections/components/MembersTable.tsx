@@ -44,14 +44,12 @@ interface MemberWithLoans {
 }
 
 interface MembersTableProps {
-  members: MemberWithLoans[];
-  getStatusColor: (
-    member: MemberWithLoans
-  ) => "default" | "success" | "warning" | "error";
-  getStatusLabel: (member: MemberWithLoans) => string;
+  members: any[];
+  getStatusColor: (member: any) => "default" | "success" | "warning" | "error";
+  getStatusLabel: (member: any) => string;
   formatCurrency: (amount: number) => string;
-  onOpenPaymentDialog: (member: MemberWithLoans) => void;
-  onOpenReloanDialog: (member: MemberWithLoans) => void;
+  onOpenPaymentDialog: (member: any) => void;
+  onOpenReloanDialog: (member: any) => void;
 }
 
 export function MembersTable({
@@ -126,7 +124,7 @@ export function MembersTable({
           <TableBody>
             {members.map((member, index) => {
               const activeLoan = member.loans?.find(
-                (l) => l.status === "active"
+                (l: any) => l.status === "active"
               );
               const weeksPaid =
                 (activeLoan as any)?.weeksPaid ??
@@ -204,14 +202,26 @@ export function MembersTable({
                       variant="body2"
                       sx={{
                         fontWeight: 600,
-                        color: member.collection?.paymentReceived
-                          ? "#10b981"
-                          : "#6b7280",
+                        color: (() => {
+                          const received = (member.collection as any)?.amountReceived ?? (member.collection as any)?.paymentReceived ?? 0;
+                          return received ? "#10b981" : "#6b7280";
+                        })(),
                       }}
                     >
-                      {member.collection
-                        ? formatCurrency(member.collection.paymentReceived)
-                        : "₱0"}
+                      {(() => {
+                        const fromCollection = (member.collection as any)?.amountReceived ?? (member.collection as any)?.paymentReceived;
+                        if (fromCollection !== undefined) {
+                          return formatCurrency(Number(fromCollection) || 0);
+                        }
+                        const activeLoan = member.loans?.find((l: any) => l.status === "active");
+                        const amountPaidRaw = (activeLoan as any)?.amountPaid;
+                        if (amountPaidRaw !== undefined) {
+                          return formatCurrency(Number(amountPaidRaw) || 0);
+                        }
+                        const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0;
+                        const weekly = member.weeklyPaymentAmount || (activeLoan as any)?.weeklyPaymentAmount || 0;
+                        return formatCurrency(Number(weeksPaid) * Number(weekly));
+                      })()}
                     </Typography>
                   </TableCell>
 

@@ -25,7 +25,12 @@ const exportToCSV = (
       "",
       "Financial Summary",
       `Total Amount Expected,₱${collectionGroup.totalAmount.toLocaleString()}`,
-      `Total Amount Received,₱${collectionGroup.totalReceived.toLocaleString()}`,
+      `Total Amount Received,₱${(
+        (collectionGroup.collections || []).reduce((sum, c: any) => {
+          const received = c?.amountReceived ?? c?.paymentReceived ?? 0;
+          return sum + (Number(received) || 0);
+        }, 0)
+      ).toLocaleString()}`,
       `Total Remaining Balance,₱${(
         collectionGroup.totalAmount - collectionGroup.totalReceived
       ).toLocaleString()}`,
@@ -33,16 +38,22 @@ const exportToCSV = (
       "",
       "Status Breakdown",
       `Paid Collections,${
-        collectionGroup.collections.filter((c) => c.paymentReceived >= c.amount)
-          .length
+        collectionGroup.collections.filter((c: any) => {
+          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0);
+          return received >= Number(c.amount || 0);
+        }).length
       }`,
       `Partial Collections,${
-        collectionGroup.collections.filter(
-          (c) => c.paymentReceived > 0 && c.paymentReceived < c.amount
-        ).length
+        collectionGroup.collections.filter((c: any) => {
+          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0);
+          return received > 0 && received < Number(c.amount || 0);
+        }).length
       }`,
       `Pending Collections,${
-        collectionGroup.collections.filter((c) => c.paymentReceived <= 0).length
+        collectionGroup.collections.filter((c: any) => {
+          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0);
+          return received <= 0;
+        }).length
       }`,
       "",
       // Members detail section
@@ -71,20 +82,21 @@ const exportToCSV = (
       // Collections detail section
       "Collections Detail",
       "Member Name,Collection Date,Amount Expected,Amount Received,Balance,Status,Notes,Auto Generated",
-      ...collectionGroup.collections.map((collection) =>
+      ...collectionGroup.collections.map((collection: any) =>
         [
           `${collection.member?.firstName || ""} ${
             collection.member?.lastName || ""
           }`,
           collection.collectionDate,
           `₱${collection.amount.toLocaleString()}`,
-          `₱${collection.paymentReceived.toLocaleString()}`,
+          `₱${(Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0).toLocaleString()}`,
           `₱${(
-            collection.amount - collection.paymentReceived
+            Number(collection.amount || 0) -
+            (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0)
           ).toLocaleString()}`,
-          collection.paymentReceived >= collection.amount
+          (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0) >= Number(collection.amount || 0)
             ? "PAID"
-            : collection.paymentReceived > 0
+            : (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0) > 0
             ? "PARTIAL"
             : "PENDING",
           collection.notes || "-",
@@ -123,6 +135,23 @@ const buildGroupSheetData = (
   merges: { s: { r: number; c: number }; e: { r: number; c: number } }[];
 } => {
   const sheetData: (string | number)[][] = [];
+
+  // Helpers to read values regardless of backend field names
+  const getMemberReceived = (m: any): number => {
+    const fromCollection = m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
+    if (fromCollection !== undefined) return Number(fromCollection) || 0;
+    const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active");
+    const amountPaidRaw = activeLoan?.amountPaid;
+    if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
+    const weeksPaid = Number(activeLoan?.weeksPaid || 0);
+    const weekly = Number(m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0);
+    return weeksPaid * weekly;
+  };
+  const getMemberWeeksPaid = (m: any): number => {
+    const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active");
+    const weeksPaid = activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0;
+    return Number(weeksPaid) || 0;
+  };
 
   // Title rows
   sheetData.push(["DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)"]);
@@ -163,6 +192,8 @@ const buildGroupSheetData = (
 
   // Daily collection table rows
   members.forEach((member) => {
+    const received = getMemberReceived(member as any);
+    const weeksPaid = getMemberWeeksPaid(member as any);
     sheetData.push([
       `${member.firstName} ${member.middleName || ""} ${member.lastName}`,
       `${member.contactNumber ? "\n" + member.contactNumber : ""}`,
@@ -170,15 +201,14 @@ const buildGroupSheetData = (
       `₱${member.overallAmount?.toLocaleString() || "0"}`,
       member.totalTermWeeks || "0",
       `₱${member.weeklyPaymentAmount?.toLocaleString() || "0"}`,
-      `₱${(member.collection?.paymentReceived || 0).toLocaleString()}`,
+      `₱${(Number(received) || 0).toLocaleString()}`,
       `₱${member.netCashReleased?.toLocaleString() || "0"}`,
-      member.numberOfPayments || "0",
+      weeksPaid || "0",
       `₱${member.totalSavings?.toLocaleString() || "0"}`,
       `₱${member.totalBalance?.toLocaleString() || "0"}`,
-      (member.collection?.paymentReceived || 0) >=
-      (member.weeklyPaymentAmount || 0)
+      (Number(received) || 0) >= (member.weeklyPaymentAmount || 0)
         ? "PAID"
-        : (member.collection?.paymentReceived || 0) > 0
+        : (Number(received) || 0) > 0
         ? "PARTIAL"
         : "UNPAID",
     ]);
@@ -211,17 +241,21 @@ const buildGroupSheetData = (
     (sum, m) => sum + (m.totalBalance || 0),
     0
   );
-  const paidMembers = members.filter(
-    (m) => (m.collection?.paymentReceived || 0) >= (m.weeklyPaymentAmount || 0)
-  ).length;
+  const paidMembers = members.filter((m: any) => {
+    const received = getMemberReceived(m);
+    return received >= Number(m.weeklyPaymentAmount || 0);
+  }).length;
   const partialMembers = members.filter(
-    (m) =>
-      (m.collection?.paymentReceived || 0) > 0 &&
-      (m.collection?.paymentReceived || 0) < (m.weeklyPaymentAmount || 0)
+    (m: any) => {
+      const received = getMemberReceived(m);
+      const weekly = Number(m.weeklyPaymentAmount || 0);
+      return received > 0 && received < weekly;
+    }
   ).length;
-  const unpaidMembers = members.filter(
-    (m) => !m.collection || (m.collection?.paymentReceived || 0) <= 0
-  ).length;
+  const unpaidMembers = members.filter((m: any) => {
+    const received = getMemberReceived(m);
+    return !m.collection || received <= 0;
+  }).length;
 
   sheetData.push(["Financial Summary"]);
   sheetData.push([""]);
@@ -234,10 +268,8 @@ const buildGroupSheetData = (
     "Total Weekly Payments",
     `₱${totalWeeklyPayments.toLocaleString()}`,
   ]);
-  sheetData.push([
-    "Total Payment Received",
-    `₱${collectionGroup.totalReceived.toLocaleString()}`,
-  ]);
+  const totalPaymentReceived = members.reduce((sum, m) => sum + getMemberReceived(m as any), 0);
+  sheetData.push(["Total Payment Received", `₱${totalPaymentReceived.toLocaleString()}`]);
   sheetData.push([
     "Total Net Cash Released",
     `₱${totalNetCashReleased.toLocaleString()}`,
