@@ -6,16 +6,14 @@ export class ReloanDto {
   newPrincipalAmount: number;
 
   @IsInt()
-  @IsIn([8, 12] as any)
-  newTermWeeks: 8 | 12;
+  @IsIn([4, 8, 12])
+  newTermWeeks: 4 | 8 | 12;
 
-  @IsIn(['payoff', 'netoff'] as any)
+  @IsIn(['payoff', 'netoff'])
   mode: 'payoff' | 'netoff';
 
   @IsNumber()
   @IsOptional()
   @Min(0)
-  serviceCharge?: number; // Flat fee, default 500 if omitted
+  serviceCharge?: number;
 }
-
-
