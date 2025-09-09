@@ -46,6 +46,7 @@ interface PaymentDialogProps {
   onClose: () => void;
   onSuccess: () => void;
   formatCurrency: (amount: number) => string;
+  centerId: string;
 }
 
 export function PaymentDialog({
@@ -54,6 +55,7 @@ export function PaymentDialog({
   onClose,
   onSuccess,
   formatCurrency,
+  centerId,
 }: PaymentDialogProps) {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
@@ -91,7 +93,7 @@ export function PaymentDialog({
       await collectionsService.createRepayment({
         loanId: activeLoan.id,
         memberId: member.id,
-        centerId: "", // This should be passed from parent component
+        centerId,
         amount,
         notes: paymentNotes,
         useSavings,

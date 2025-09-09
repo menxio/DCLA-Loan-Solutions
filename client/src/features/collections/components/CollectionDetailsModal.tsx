@@ -466,6 +466,7 @@ export default function CollectionDetailsModal({
         onClose={handleClosePaymentDialog}
         onSuccess={handlePaymentSuccess}
         formatCurrency={formatCurrency}
+        centerId={collectionGroup.centerId}
       />
 
       <ReloanDialog

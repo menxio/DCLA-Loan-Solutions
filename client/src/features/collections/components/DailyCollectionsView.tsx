@@ -371,7 +371,7 @@ export default function DailyCollectionsView({
                     {formatCurrency(sumOverallAmount(group))}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Received: {formatCurrency(sumTotalReceived(group))}
+                    Received: {formatCurrency(sumOverallAmount(group) - sumRemainingBalance(group))}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Remaining:{" "}

@@ -125,7 +125,7 @@ export function MembersTable({
             {members.map((member, index) => {
               const activeLoan = member.loans?.find(
                 (l: any) => l.status === "active"
-              );
+              ) as any;
               const weeksPaid =
                 (activeLoan as any)?.weeksPaid ??
                 member.collection?.numberOfPayments ??
@@ -163,7 +163,7 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#1e3a8a" }}
                     >
-                      {formatCurrency(member.totalLoanAmount)}
+                      {formatCurrency(Number(activeLoan?.principalAmount ?? (member.totalLoanAmount || 0)))}
                     </Typography>
                   </TableCell>
 
@@ -172,13 +172,13 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#8b5cf6" }}
                     >
-                      {formatCurrency(member.overallAmount || 0)}
+                      {formatCurrency(Number(activeLoan?.totalAmount ?? (member.overallAmount || 0)))}
                     </Typography>
                   </TableCell>
 
                   <TableCell>
                     <Chip
-                      label={`${member.totalTermWeeks || 0}w`}
+                      label={`${Number(activeLoan?.termWeeks ?? (member.totalTermWeeks || 0))}w`}
                       size="small"
                       sx={{
                         backgroundColor: "#dbeafe",
@@ -193,7 +193,7 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#059669" }}
                     >
-                      {formatCurrency(member.weeklyPaymentAmount || 0)}
+                      {formatCurrency(Number(activeLoan?.weeklyPaymentAmount ?? (member.weeklyPaymentAmount || 0)))}
                     </Typography>
                   </TableCell>
 
@@ -251,7 +251,7 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#f59e0b" }}
                     >
-                      {formatCurrency(member.totalSavings || 0)}
+                      {formatCurrency(Number(member.totalSavings || 0))}
                     </Typography>
                   </TableCell>
 
@@ -260,10 +260,13 @@ export function MembersTable({
                       variant="body2"
                       sx={{
                         fontWeight: 600,
-                        color: member.totalBalance > 0 ? "#ef4444" : "#10b981",
+                        color:
+                          Number(activeLoan?.balance ?? (member.totalBalance || 0)) > 0
+                            ? "#ef4444"
+                            : "#10b981",
                       }}
                     >
-                      {formatCurrency(member.totalBalance || 0)}
+                      {formatCurrency(Number(activeLoan?.balance ?? (member.totalBalance || 0)))}
                     </Typography>
                   </TableCell>
 
