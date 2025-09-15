@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Center } from './entities/center.entity';
 import { CreateCenterDto } from './dto/create-center.dto';
 import { UpdateCenterDto } from './dto/update-center.dto';
+import { FindCentersQueryDto } from './dto/find-centers-query.dto';
 
 @Injectable()
 export class CentersService {
@@ -17,8 +18,41 @@ export class CentersService {
     return this.centerRepository.save(center);
   }
 
-  async findAll(): Promise<Center[]> {
-    return this.centerRepository.find();
+  async findAll(query?: FindCentersQueryDto): Promise<
+    | Center[]
+    | {
+        items: Center[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+      }
+  > {
+    if (!query) {
+      return this.centerRepository.find();
+    }
+
+    const { page = 1, limit = 10, search } = query;
+
+    const qb = this.centerRepository.createQueryBuilder('center');
+
+    if (search && search.trim().length > 0) {
+      const term = `%${search.trim().toLowerCase()}%`;
+      qb.where('LOWER(center.name) LIKE :term OR LOWER(center.address) LIKE :term', {
+        term,
+      });
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
   }
 
   async findOne(id: string): Promise<Center> {

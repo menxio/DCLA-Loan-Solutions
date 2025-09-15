@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Alert, Snackbar, Button, Paper, FormControl, InputLabel, Select, MenuItem, TextField } from "@mui/material";
+import { Box, Typography, Alert, Snackbar, Button, Paper, FormControl, InputLabel, Select, MenuItem, TextField, Pagination } from "@mui/material";
 import { Add, Group, FilterList } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import MemberModal from "./components/MemberModal";
@@ -11,7 +11,7 @@ import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
 
 export default function MembersPage() {
-  const { members, loading, error, createMember, updateMember, deleteMember } = useMembers();
+  const { members, total, page, limit, setPage, setLimit, loading, error, createMember, updateMember, deleteMember } = useMembers();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | undefined>(undefined);
@@ -100,8 +100,8 @@ export default function MembersPage() {
     const loadCenters = async () => {
       try {
         setLoadingCenters(true);
-        const centersData = await CentersAPI.getAll();
-        setCenters(centersData);
+        const centersData = await CentersAPI.getAll({ limit: 1000 });
+        setCenters(Array.isArray(centersData) ? centersData : centersData.items ?? []);
       } catch (error) {
         console.error("Failed to load centers:", error);
       } finally {
@@ -112,18 +112,16 @@ export default function MembersPage() {
     loadCenters();
   }, []);
 
-  // Filter members based on selected center
+  // Server-side pagination; still allow client-side quick filter until API search wired
   const filteredMembers = members
-  .filter((member) =>
-    selectedCenterId ? member.center?.id === selectedCenterId : true
-  )
-  .filter((member) => {
-    if (!searchMember) return true;
-    const fullName = `${member.firstName} ${member.middleName || ""} ${member.lastName}`
-      .toLowerCase()
-      .trim();
-    return fullName.includes(searchMember.toLowerCase().trim());
-  });
+    .filter((member) => (selectedCenterId ? member.center?.id === selectedCenterId : true))
+    .filter((member) => {
+      if (!searchMember) return true;
+      const fullName = `${member.firstName} ${member.middleName || ""} ${member.lastName}`
+        .toLowerCase()
+        .trim();
+      return fullName.includes(searchMember.toLowerCase().trim());
+    });
 
   return (
     <DashboardLayout>
@@ -175,7 +173,7 @@ export default function MembersPage() {
                 Members
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {filteredMembers.length} of {members.length} member{members.length !== 1 ? "s" : ""} registered
+                {filteredMembers.length} of {total} member{total !== 1 ? "s" : ""} registered
               </Typography>
             </Box>
           </Box>
@@ -254,6 +252,16 @@ export default function MembersPage() {
         onViewLoan={handleViewLoan}
         loading={loading} 
         />
+
+        {/* Pagination Controls */}
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+          <Pagination
+            count={Math.ceil(total / limit) || 1}
+            page={page}
+            onChange={(_, value) => setPage(value)}
+            color="primary"
+          />
+        </Box>
 
         {/* Member Modal */}
         <MemberModal

@@ -43,3 +43,18 @@ export interface MemberCardsProps {
   onViewLoan?: (member: Member) => void;
   loading?: boolean;
 }
+
+export type MembersQuery = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  centerId?: string;
+};
+
+export type PaginatedMembers = {
+  items: Member[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};

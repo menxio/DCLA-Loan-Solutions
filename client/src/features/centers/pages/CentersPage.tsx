@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, Typography, Alert, Snackbar, Button, Paper } from "@mui/material";
+import { Box, Typography, Alert, Snackbar, Button, Paper, Pagination } from "@mui/material";
 import { Add, Groups } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import CenterModal from "../components/CenterModal";
@@ -8,7 +8,7 @@ import { useCenters } from "../hooks/useCenters";
 import type { Center, CenterFormData } from "../types";
 
 export default function CentersPage() {
-  const { centers, loading, error, createCenter, updateCenter, deleteCenter } =
+  const { centers, total, page, limit, setPage, loading, error, createCenter, updateCenter, deleteCenter } =
     useCenters();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCenter, setEditingCenter] = useState<Center | undefined>(
@@ -142,8 +142,7 @@ export default function CentersPage() {
                 Collection Centers
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {centers.length} center{centers.length !== 1 ? "s" : ""}{" "}
-                configured
+                {centers.length} of {total} center{total !== 1 ? "s" : ""} configured
               </Typography>
             </Box>
           </Box>
@@ -173,6 +172,16 @@ export default function CentersPage() {
           onDelete={handleDelete}
           loading={loading}
         />
+
+        {/* Pagination */}
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+          <Pagination
+            count={Math.ceil(total / limit) || 1}
+            page={page}
+            onChange={(_, value) => setPage(value)}
+            color="primary"
+          />
+        </Box>
 
         {/* Center Modal */}
         <CenterModal

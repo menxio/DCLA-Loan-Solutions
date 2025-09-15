@@ -61,12 +61,14 @@ interface CollectionDetailsModalProps {
   collectionGroup?: DailyCollectionGroup;
   onClose: () => void;
   onEditCollection?: (collection: Collection) => void;
+  onDataChanged?: () => void;
 }
 
 export default function CollectionDetailsModal({
   open,
   collectionGroup,
   onClose,
+  onDataChanged,
 }: CollectionDetailsModalProps) {
   // State management
   const [members, setMembers] = useState<MemberWithLoans[]>([]);
@@ -183,13 +185,15 @@ export default function CollectionDetailsModal({
 
   const handlePaymentSuccess = useCallback(async () => {
     await fetchCenterMembers();
+    onDataChanged?.();
     handleClosePaymentDialog();
-  }, [fetchCenterMembers, handleClosePaymentDialog]);
+  }, [fetchCenterMembers, handleClosePaymentDialog, onDataChanged]);
 
   const handleReloanSuccess = useCallback(async () => {
     await fetchCenterMembers();
+    onDataChanged?.();
     handleCloseReloanDialog();
-  }, [fetchCenterMembers, handleCloseReloanDialog]);
+  }, [fetchCenterMembers, handleCloseReloanDialog, onDataChanged]);
 
   const handleExport = useCallback(async () => {
     if (!collectionGroup || !members.length) return;

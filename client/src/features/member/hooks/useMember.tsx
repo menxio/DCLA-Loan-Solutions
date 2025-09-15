@@ -1,25 +1,35 @@
 import { useState, useEffect, useCallback } from "react";
 import { MembersAPI } from "../api";
-import type { Member, MemberFormData } from "../types";
+import type { Member, MemberFormData, MembersQuery, PaginatedMembers } from "../types";
 
 export function useMembers() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(4);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMembers = useCallback(async () => {
+  const fetchMembers = useCallback(async (query?: MembersQuery) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await MembersAPI.getAll();
-      setMembers(data);
+      const mergedQuery: MembersQuery = { page, limit, ...(query || {}) };
+      const data: PaginatedMembers | Member[] = await MembersAPI.getAll(mergedQuery);
+      if (Array.isArray(data)) {
+        setMembers(data);
+        setTotal(data.length);
+      } else {
+        setMembers(data.items);
+        setTotal(data.total);
+      }
     } catch (err) {
       setError("Failed to fetch members");
       console.error("Error fetching members:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit]);
 
   const createMember = useCallback(
     async (data: MemberFormData) => {
@@ -78,6 +88,11 @@ export function useMembers() {
 
   return {
     members,
+    total,
+    page,
+    limit,
+    setPage,
+    setLimit,
     loading,
     error,
     createMember,

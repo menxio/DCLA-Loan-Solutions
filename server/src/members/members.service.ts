@@ -6,6 +6,7 @@ import { Center } from '../centers/entities/center.entity';
 import { Loan } from '../loans/loan.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { FindMembersQueryDto } from './dto/find-members-query.dto';
 
 @Injectable()
 export class MembersService {
@@ -36,10 +37,46 @@ export class MembersService {
     return this.memberRepository.save(member);
   }
 
-  async findAll(): Promise<Member[]> {
-    return this.memberRepository.find({
-      relations: ['center'],
-    });
+  async findAll(query?: FindMembersQueryDto): Promise<{
+    items: Member[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  } | Member[]> {
+    // Backward compatibility if no query provided
+    if (!query) {
+      return this.memberRepository.find({ relations: ['center'] });
+    }
+
+    const { page = 1, limit = 10, search, centerId } = query;
+
+    const qb = this.memberRepository
+      .createQueryBuilder('member')
+      .leftJoinAndSelect('member.center', 'center');
+
+    if (centerId) {
+      qb.andWhere('center.id = :centerId', { centerId });
+    }
+
+    if (search && search.trim().length > 0) {
+      const term = `%${search.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(member.firstName) LIKE :term OR LOWER(member.middleName) LIKE :term OR LOWER(member.lastName) LIKE :term)',
+        { term },
+      );
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
   }
 
   async findOne(id: string): Promise<Member> {

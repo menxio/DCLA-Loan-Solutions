@@ -24,3 +24,17 @@ export interface CenterTableProps {
   onDelete: (id: string) => Promise<void>;
   loading?: boolean;
 }
+
+export type CentersQuery = {
+  page?: number;
+  limit?: number;
+  search?: string;
+};
+
+export type PaginatedCenters = {
+  items: Center[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};

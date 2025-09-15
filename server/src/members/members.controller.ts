@@ -7,10 +7,12 @@ import {
   Param,
   Delete,
   Put,
+  Query,
 } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { FindMembersQueryDto } from './dto/find-members-query.dto';
 
 @Controller('members')
 export class MembersController {
@@ -22,8 +24,8 @@ export class MembersController {
   }
 
   @Get()
-  findAll() {
-    return this.membersService.findAll();
+  findAll(@Query() query: FindMembersQueryDto) {
+    return this.membersService.findAll(query);
   }
 
   @Get(':id')
