@@ -25,12 +25,12 @@ const exportToCSV = (
       "",
       "Financial Summary",
       `Total Amount Expected,₱${collectionGroup.totalAmount.toLocaleString()}`,
-      `Total Amount Received,₱${(
-        (collectionGroup.collections || []).reduce((sum, c: any) => {
+      `Total Amount Received,₱${(collectionGroup.collections || [])
+        .reduce((sum, c: any) => {
           const received = c?.amountReceived ?? c?.paymentReceived ?? 0;
           return sum + (Number(received) || 0);
         }, 0)
-      ).toLocaleString()}`,
+        .toLocaleString()}`,
       `Total Remaining Balance,₱${(
         collectionGroup.totalAmount - collectionGroup.totalReceived
       ).toLocaleString()}`,
@@ -89,14 +89,24 @@ const exportToCSV = (
           }`,
           collection.collectionDate,
           `₱${collection.amount.toLocaleString()}`,
-          `₱${(Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0).toLocaleString()}`,
+          `₱${(
+            Number(
+              collection.amountReceived ?? collection.paymentReceived ?? 0
+            ) || 0
+          ).toLocaleString()}`,
           `₱${(
             Number(collection.amount || 0) -
-            (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0)
+            (Number(
+              collection.amountReceived ?? collection.paymentReceived ?? 0
+            ) || 0)
           ).toLocaleString()}`,
-          (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0) >= Number(collection.amount || 0)
+          (Number(
+            collection.amountReceived ?? collection.paymentReceived ?? 0
+          ) || 0) >= Number(collection.amount || 0)
             ? "PAID"
-            : (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0) > 0
+            : (Number(
+                collection.amountReceived ?? collection.paymentReceived ?? 0
+              ) || 0) > 0
             ? "PARTIAL"
             : "PENDING",
           collection.notes || "-",
@@ -138,18 +148,26 @@ const buildGroupSheetData = (
 
   // Helpers to read values regardless of backend field names
   const getMemberReceived = (m: any): number => {
-    const fromCollection = m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
+    const fromCollection =
+      m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
     if (fromCollection !== undefined) return Number(fromCollection) || 0;
-    const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active");
+    const activeLoan = (m?.loans || []).find(
+      (l: any) => l?.status === "active"
+    );
     const amountPaidRaw = activeLoan?.amountPaid;
     if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
     const weeksPaid = Number(activeLoan?.weeksPaid || 0);
-    const weekly = Number(m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0);
+    const weekly = Number(
+      m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0
+    );
     return weeksPaid * weekly;
   };
   const getMemberWeeksPaid = (m: any): number => {
-    const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active");
-    const weeksPaid = activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0;
+    const activeLoan = (m?.loans || []).find(
+      (l: any) => l?.status === "active"
+    );
+    const weeksPaid =
+      activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0;
     return Number(weeksPaid) || 0;
   };
 
@@ -174,26 +192,30 @@ const buildGroupSheetData = (
   sheetData.push(["Number of Clients", collectionGroup.totalMembers]);
   sheetData.push([""]);
 
-  // Daily collection table header (11 columns)
+  // Daily collection table header (short labels to keep sheet narrow)
   sheetData.push([
-    "Client Name",
-    "Contact No.",
-    "Loan Amount",
-    "Overall Amount",
-    "Term Weeks",
-    "Amount Due",
-    "Payment Received",
-    "Net Cash Released",
-    "No. of Payments",
+    "Client",
+    "Contact",
+    "Loan",
+    "Overall",
+    "Term",
+    "Due",
+    "Received",
+    "Net Rel.",
+    "Payments",
     "Savings",
-    "Rem. Balance",
-    "Status/Remarks",
+    "Remain",
+    "Status",
   ]);
 
   // Daily collection table rows
   members.forEach((member) => {
     const received = getMemberReceived(member as any);
     const weeksPaid = getMemberWeeksPaid(member as any);
+    const netRelease =
+      (member as any)?.collection?.netRelease ??
+      (member as any)?.netCashReleased ??
+      0;
     sheetData.push([
       `${member.firstName} ${member.middleName || ""} ${member.lastName}`,
       `${member.contactNumber ? "\n" + member.contactNumber : ""}`,
@@ -202,7 +224,7 @@ const buildGroupSheetData = (
       member.totalTermWeeks || "0",
       `₱${member.weeklyPaymentAmount?.toLocaleString() || "0"}`,
       `₱${(Number(received) || 0).toLocaleString()}`,
-      `₱${member.netCashReleased?.toLocaleString() || "0"}`,
+      `₱${(Number(netRelease) || 0).toLocaleString()}`,
       weeksPaid || "0",
       `₱${member.totalSavings?.toLocaleString() || "0"}`,
       `₱${member.totalBalance?.toLocaleString() || "0"}`,
@@ -245,13 +267,11 @@ const buildGroupSheetData = (
     const received = getMemberReceived(m);
     return received >= Number(m.weeklyPaymentAmount || 0);
   }).length;
-  const partialMembers = members.filter(
-    (m: any) => {
-      const received = getMemberReceived(m);
-      const weekly = Number(m.weeklyPaymentAmount || 0);
-      return received > 0 && received < weekly;
-    }
-  ).length;
+  const partialMembers = members.filter((m: any) => {
+    const received = getMemberReceived(m);
+    const weekly = Number(m.weeklyPaymentAmount || 0);
+    return received > 0 && received < weekly;
+  }).length;
   const unpaidMembers = members.filter((m: any) => {
     const received = getMemberReceived(m);
     return !m.collection || received <= 0;
@@ -268,8 +288,14 @@ const buildGroupSheetData = (
     "Total Weekly Payments",
     `₱${totalWeeklyPayments.toLocaleString()}`,
   ]);
-  const totalPaymentReceived = members.reduce((sum, m) => sum + getMemberReceived(m as any), 0);
-  sheetData.push(["Total Payment Received", `₱${totalPaymentReceived.toLocaleString()}`]);
+  const totalPaymentReceived = members.reduce(
+    (sum, m) => sum + getMemberReceived(m as any),
+    0
+  );
+  sheetData.push([
+    "Total Payment Received",
+    `₱${totalPaymentReceived.toLocaleString()}`,
+  ]);
   sheetData.push([
     "Total Net Cash Released",
     `₱${totalNetCashReleased.toLocaleString()}`,
@@ -304,13 +330,17 @@ const buildWorksheet = async (
   const ws = XLSX.utils.aoa_to_sheet(data);
   (ws as any)["!merges"] = merges;
 
-  // Auto-size columns
+  // Narrower columns: clamp widths more aggressively to keep sheet compact
   const maxCols = data.reduce((max, r) => Math.max(max, r.length), 0);
-  const maxColWidths = new Array(maxCols).fill(10);
+  const maxColWidths = new Array(maxCols).fill(8);
   data.forEach((row) => {
     row.forEach((cell, idx) => {
       const len = String(cell ?? "").length;
-      maxColWidths[idx] = Math.min(Math.max(maxColWidths[idx], len + 2), 50);
+      // Add small padding, clamp to 28 characters max to reduce width
+      maxColWidths[idx] = Math.min(
+        Math.max(maxColWidths[idx], Math.min(len + 1, 28)),
+        28
+      );
     });
   });
   (ws as any)["!cols"] = maxColWidths.map((w) => ({ width: w }));
@@ -384,8 +414,142 @@ export const exportAllCollectionsToExcel = async (
 
   const workbook = XLSX.utils.book_new();
 
+  // Build Summary sheet: aggregates across all groups for the day
+  try {
+    const totalReceived = bundles.reduce(
+      (sum, b) =>
+        sum +
+        (b.group.collections || []).reduce(
+          (s, c: any) =>
+            s + (Number(c.paymentReceived ?? c.amountReceived) || 0),
+          0
+        ),
+      0
+    );
+    const totalRemaining = bundles.reduce((sum, b) => {
+      const members = b.members || [];
+      const totalBalance = members.reduce(
+        (s, m: any) => s + (Number(m.totalBalance) || 0),
+        0
+      );
+      const received = (b.group.collections || []).reduce(
+        (s, c: any) => s + (Number(c.paymentReceived ?? c.amountReceived) || 0),
+        0
+      );
+      return sum + Math.max(0, totalBalance - received);
+    }, 0);
+    const totalReleased = bundles.reduce(
+      (sum, b) =>
+        sum +
+        (b.members || []).reduce(
+          (s, m: any) => s + (Number(m.netCashReleased) || 0),
+          0
+        ),
+      0
+    );
+    const date = bundles[0]?.group.collectionDate || "";
+
+    const summaryData: (string | number)[][] = [];
+    summaryData.push(["DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)"]); // title
+    summaryData.push(["END-OF-DAY COLLECTION SUMMARY"]);
+    summaryData.push([""]);
+    summaryData.push(["Date", date]);
+    summaryData.push([""]);
+    summaryData.push(["Total Collected", `₱${totalReceived.toLocaleString()}`]);
+    summaryData.push([
+      "Unpaid (Remaining)",
+      `₱${totalRemaining.toLocaleString()}`,
+    ]);
+    summaryData.push(["Released", `₱${totalReleased.toLocaleString()}`]);
+    summaryData.push([""]);
+    summaryData.push(["Breakdown by Center"]);
+    summaryData.push(["Center", "Collected", "Unpaid", "Released"]);
+    for (const { group, members } of bundles) {
+      const collected = (group.collections || []).reduce(
+        (s, c: any) => s + (Number(c.paymentReceived ?? c.amountReceived) || 0),
+        0
+      );
+      const rem = Math.max(
+        0,
+        (members || []).reduce(
+          (s, m: any) => s + (Number(m.totalBalance) || 0),
+          0
+        ) - collected
+      );
+      const released = (members || []).reduce(
+        (s, m: any) => s + (Number(m.netCashReleased) || 0),
+        0
+      );
+      summaryData.push([
+        group.centerName,
+        `₱${collected.toLocaleString()}`,
+        `₱${rem.toLocaleString()}`,
+        `₱${released.toLocaleString()}`,
+      ]);
+    }
+
+    const { ws: summaryWs } = await (async () => {
+      const ws = XLSX.utils.aoa_to_sheet(summaryData);
+      (ws as any)["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
+      ];
+      const maxCols = summaryData.reduce((m, r) => Math.max(m, r.length), 0);
+      (ws as any)["!cols"] = new Array(maxCols)
+        .fill(0)
+        .map((_, i) => ({ width: 22 }));
+      return { ws };
+    })();
+    XLSX.utils.book_append_sheet(workbook, summaryWs, "Summary");
+  } catch (e) {
+    console.warn("Failed to build Summary sheet", e);
+  }
+
   for (const { group, members } of bundles) {
     const { data, merges } = buildGroupSheetData(group, members);
+    // Build per-center unpaid section to append to data before creating worksheet
+    const getMemberReceived = (m: any): number => {
+      const fromCollection =
+        m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
+      if (fromCollection !== undefined) return Number(fromCollection) || 0;
+      const activeLoan = (m?.loans || []).find(
+        (l: any) => l?.status === "active"
+      );
+      const amountPaidRaw = activeLoan?.amountPaid;
+      if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
+      const weeksPaid = Number(activeLoan?.weeksPaid || 0);
+      const weekly = Number(
+        m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0
+      );
+      return weeksPaid * weekly;
+    };
+    const unpaidMembers = (members || []).filter(
+      (m: any) => (getMemberReceived(m) || 0) <= 0
+    );
+    const unpaidTodayTotal = unpaidMembers.reduce(
+      (s: number, m: any) => s + Number(m.weeklyPaymentAmount || 0),
+      0
+    );
+    const unpaidBalancesTotal = unpaidMembers.reduce(
+      (s: number, m: any) => s + Number(m.totalBalance || 0),
+      0
+    );
+
+    data.push([""]); // spacer
+    data.push(["Unpaid Members (Today)"]); // section title
+    data.push(["Name", "Weekly Due", "Remaining Bal."]);
+    unpaidMembers.forEach((m: any) => {
+      data.push([
+        `${m.firstName} ${m.middleName || ""} ${m.lastName}`.trim(),
+        `₱${(Number(m.weeklyPaymentAmount) || 0).toLocaleString()}`,
+        `₱${(Number(m.totalBalance) || 0).toLocaleString()}`,
+      ]);
+    });
+    data.push([
+      "Totals",
+      `₱${unpaidTodayTotal.toLocaleString()}`,
+      `₱${unpaidBalancesTotal.toLocaleString()}`,
+    ]);
     const sheetTitleBase = `${group.centerName}`.trim();
     const sheetName = sheetTitleBase.substring(0, 31) || "Collection"; // Excel limit
     const { ws } = await buildWorksheet(data, merges, sheetName);

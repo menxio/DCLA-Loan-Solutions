@@ -214,17 +214,21 @@ export default function CollectionDetailsModal({
   const getStatusColor = useCallback(
     (member: MemberWithLoans): "default" | "success" | "warning" | "error" => {
       const received = (() => {
-        const fromCollection = (member.collection as any)?.amountReceived ?? (member.collection as any)?.paymentReceived;
+        const fromCollection =
+          (member.collection as any)?.amountReceived ??
+          (member.collection as any)?.paymentReceived;
         if (fromCollection !== undefined) return Number(fromCollection) || 0;
         const activeLoan = member.loans?.find((l) => l.status === "active");
         const amountPaidRaw = (activeLoan as any)?.amountPaid;
         if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
         const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0;
-        const weekly = member.weeklyPaymentAmount || (activeLoan as any)?.weeklyPaymentAmount || 0;
+        const weekly =
+          member.weeklyPaymentAmount ||
+          (activeLoan as any)?.weeklyPaymentAmount ||
+          0;
         return Number(weeksPaid) * Number(weekly);
       })();
-      if (received >= member.weeklyPaymentAmount)
-        return "success";
+      if (received >= member.weeklyPaymentAmount) return "success";
       if (received > 0) return "warning";
       return "error";
     },
@@ -233,17 +237,21 @@ export default function CollectionDetailsModal({
 
   const getStatusLabel = useCallback((member: MemberWithLoans): string => {
     const received = (() => {
-      const fromCollection = (member.collection as any)?.amountReceived ?? (member.collection as any)?.paymentReceived;
+      const fromCollection =
+        (member.collection as any)?.amountReceived ??
+        (member.collection as any)?.paymentReceived;
       if (fromCollection !== undefined) return Number(fromCollection) || 0;
       const activeLoan = member.loans?.find((l) => l.status === "active");
       const amountPaidRaw = (activeLoan as any)?.amountPaid;
       if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
       const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0;
-      const weekly = member.weeklyPaymentAmount || (activeLoan as any)?.weeklyPaymentAmount || 0;
+      const weekly =
+        member.weeklyPaymentAmount ||
+        (activeLoan as any)?.weeklyPaymentAmount ||
+        0;
       return Number(weeksPaid) * Number(weekly);
     })();
-    if (received >= member.weeklyPaymentAmount)
-      return "PAID";
+    if (received >= member.weeklyPaymentAmount) return "PAID";
     if (received > 0) return "PARTIAL";
     return "UNPAID";
   }, []);
@@ -428,8 +436,12 @@ export default function CollectionDetailsModal({
                 getStatusColor={(m: any) => getStatusColor(m as any)}
                 getStatusLabel={(m: any) => getStatusLabel(m as any)}
                 formatCurrency={formatCurrency}
-                onOpenPaymentDialog={(m: any) => handleOpenPaymentDialog(m as any)}
-                onOpenReloanDialog={(m: any) => handleOpenReloanDialog(m as any)}
+                onOpenPaymentDialog={(m: any) =>
+                  handleOpenPaymentDialog(m as any)
+                }
+                onOpenReloanDialog={(m: any) =>
+                  handleOpenReloanDialog(m as any)
+                }
               />
             </>
           )}

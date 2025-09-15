@@ -144,6 +144,22 @@ export default function DailyCollectionsView({
     }).length;
   };
 
+  // End-of-Day totals across all groups (for the selected date)
+  const eod = (() => {
+    const totalReceived = data.reduce((sum, g) => sum + sumTotalReceived(g), 0);
+    const totalRemaining = data.reduce(
+      (sum, g) => sum + Math.max(0, sumRemainingBalance(g)),
+      0
+    );
+    const totalReleased = data.reduce((sum, g) => {
+      const members = getMembersFor(g.centerId);
+      return (
+        sum + members.reduce((s, m) => s + (Number(m.netCashReleased) || 0), 0)
+      );
+    }, 0);
+    return { totalReceived, totalRemaining, totalReleased };
+  })();
+
   const handleExportAllCollections = async () => {
     if (data.length === 0) return;
 
@@ -275,6 +291,56 @@ export default function DailyCollectionsView({
             {data.length} center{data.length !== 1 ? "s" : ""} scheduled for
             collection today
           </Typography>
+          <Box sx={{ display: "flex", gap: 2, mt: 1, flexWrap: "wrap" }}>
+            <Box
+              sx={{
+                p: 1,
+                px: 1.5,
+                backgroundColor: "#ecfeff",
+                border: "1px solid #bae6fd",
+                borderRadius: 1,
+              }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                Total Collected
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                {formatCurrency(eod.totalReceived)}
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                p: 1,
+                px: 1.5,
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: 1,
+              }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                Unpaid (Remaining)
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                {formatCurrency(eod.totalRemaining)}
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                p: 1,
+                px: 1.5,
+                backgroundColor: "#fefce8",
+                border: "1px solid #fde68a",
+                borderRadius: 1,
+              }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                Released
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                {formatCurrency(eod.totalReleased)}
+              </Typography>
+            </Box>
+          </Box>
         </Box>
         <Button
           variant="contained"
@@ -371,7 +437,10 @@ export default function DailyCollectionsView({
                     {formatCurrency(sumOverallAmount(group))}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Received: {formatCurrency(sumOverallAmount(group) - sumRemainingBalance(group))}
+                    Received:{" "}
+                    {formatCurrency(
+                      sumOverallAmount(group) - sumRemainingBalance(group)
+                    )}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Remaining:{" "}

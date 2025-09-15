@@ -243,9 +243,17 @@ export class LoansService {
         `Not eligible for reloan. Requires >= ${minWeeksRequired} weeks paid.`,
       );
 
-    const defaultServiceCharge = 500;
-    const fee =
-      typeof serviceCharge === 'number' ? serviceCharge : defaultServiceCharge;
+    if (
+      serviceCharge === undefined ||
+      serviceCharge === null ||
+      isNaN(Number(serviceCharge)) ||
+      Number(serviceCharge) < 0
+    ) {
+      throw new BadRequestException(
+        'serviceCharge is required and must be >= 0',
+      );
+    }
+    const fee = Number(serviceCharge);
 
     // Compute old remaining balance
     const oldRemaining = Number(loan.balance);

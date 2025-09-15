@@ -130,6 +130,11 @@ export function MembersTable({
                 (activeLoan as any)?.weeksPaid ??
                 member.collection?.numberOfPayments ??
                 0;
+              const hasActive = Boolean(activeLoan);
+              const principal = Number(activeLoan?.principalAmount ?? 0);
+              const totalAmount = Number(activeLoan?.totalAmount ?? 0);
+              const weekly = Number(activeLoan?.weeklyPaymentAmount ?? 0);
+              const balance = Number(activeLoan?.balance ?? 0);
 
               return (
                 <TableRow
@@ -163,7 +168,7 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#1e3a8a" }}
                     >
-                      {formatCurrency(Number(activeLoan?.principalAmount ?? (member.totalLoanAmount || 0)))}
+                      {formatCurrency(hasActive ? principal : 0)}
                     </Typography>
                   </TableCell>
 
@@ -172,13 +177,15 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#8b5cf6" }}
                     >
-                      {formatCurrency(Number(activeLoan?.totalAmount ?? (member.overallAmount || 0)))}
+                      {formatCurrency(hasActive ? totalAmount : 0)}
                     </Typography>
                   </TableCell>
 
                   <TableCell>
                     <Chip
-                      label={`${Number(activeLoan?.termWeeks ?? (member.totalTermWeeks || 0))}w`}
+                      label={`${Number(
+                        (hasActive ? activeLoan?.termWeeks : 0) || 0
+                      )}w`}
                       size="small"
                       sx={{
                         backgroundColor: "#dbeafe",
@@ -193,7 +200,7 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#059669" }}
                     >
-                      {formatCurrency(Number(activeLoan?.weeklyPaymentAmount ?? (member.weeklyPaymentAmount || 0)))}
+                      {formatCurrency(hasActive ? weekly : 0)}
                     </Typography>
                   </TableCell>
 
@@ -203,24 +210,36 @@ export function MembersTable({
                       sx={{
                         fontWeight: 600,
                         color: (() => {
-                          const received = (member.collection as any)?.amountReceived ?? (member.collection as any)?.paymentReceived ?? 0;
+                          const received =
+                            (member.collection as any)?.amountReceived ??
+                            (member.collection as any)?.paymentReceived ??
+                            0;
                           return received ? "#10b981" : "#6b7280";
                         })(),
                       }}
                     >
                       {(() => {
-                        const fromCollection = (member.collection as any)?.amountReceived ?? (member.collection as any)?.paymentReceived;
+                        const fromCollection =
+                          (member.collection as any)?.amountReceived ??
+                          (member.collection as any)?.paymentReceived;
                         if (fromCollection !== undefined) {
                           return formatCurrency(Number(fromCollection) || 0);
                         }
-                        const activeLoan = member.loans?.find((l: any) => l.status === "active");
+                        const activeLoan = member.loans?.find(
+                          (l: any) => l.status === "active"
+                        );
                         const amountPaidRaw = (activeLoan as any)?.amountPaid;
                         if (amountPaidRaw !== undefined) {
                           return formatCurrency(Number(amountPaidRaw) || 0);
                         }
                         const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0;
-                        const weekly = member.weeklyPaymentAmount || (activeLoan as any)?.weeklyPaymentAmount || 0;
-                        return formatCurrency(Number(weeksPaid) * Number(weekly));
+                        const weekly =
+                          member.weeklyPaymentAmount ||
+                          (activeLoan as any)?.weeklyPaymentAmount ||
+                          0;
+                        return formatCurrency(
+                          hasActive ? Number(weeksPaid) * Number(weekly) : 0
+                        );
                       })()}
                     </Typography>
                   </TableCell>
@@ -230,7 +249,9 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#3b82f6" }}
                     >
-                      {formatCurrency(member.collection?.netRelease || 0)}
+                      {formatCurrency(
+                        Number(member.collection?.netRelease || 0)
+                      )}
                     </Typography>
                   </TableCell>
 
@@ -261,12 +282,12 @@ export function MembersTable({
                       sx={{
                         fontWeight: 600,
                         color:
-                          Number(activeLoan?.balance ?? (member.totalBalance || 0)) > 0
+                          Number(hasActive ? balance : 0) > 0
                             ? "#ef4444"
                             : "#10b981",
                       }}
                     >
-                      {formatCurrency(Number(activeLoan?.balance ?? (member.totalBalance || 0)))}
+                      {formatCurrency(Number(hasActive ? balance : 0))}
                     </Typography>
                   </TableCell>
 
@@ -287,6 +308,7 @@ export function MembersTable({
                           size="small"
                           startIcon={<Payment />}
                           onClick={() => onOpenPaymentDialog(member)}
+                          disabled={!hasActive || Number(balance) <= 0}
                           sx={{
                             minWidth: 100,
                             borderRadius: 2,
@@ -303,7 +325,12 @@ export function MembersTable({
                           variant="outlined"
                           size="small"
                           startIcon={<AccountBalance />}
-                          onClick={() => onOpenReloanDialog(member)}
+                          onClick={() =>
+                            onOpenReloanDialog({
+                              ...member,
+                              _forcePayoff: !hasActive || Number(balance) <= 0,
+                            } as any)
+                          }
                           sx={{
                             minWidth: 100,
                             borderRadius: 2,
