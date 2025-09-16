@@ -540,6 +540,12 @@ export default function CollectionsPage() {
           open={detailsModalOpen}
           collectionGroup={selectedCollectionGroup}
           onClose={handleCloseDetailsModal}
+          onDataChanged={async () => {
+            try {
+              await refetchDaily();
+              await refetchAll();
+            } catch {}
+          }}
           onEditCollection={handleEditCollection}
         />
 

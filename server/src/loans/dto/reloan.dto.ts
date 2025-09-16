@@ -16,4 +16,9 @@ export class ReloanDto {
   @IsOptional()
   @Min(0)
   serviceCharge?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  savings?: number;
 }

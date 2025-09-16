@@ -25,6 +25,9 @@ export class Center {
   @Column({ nullable: true })
   address: string;
 
+  @Column({ nullable: true })
+  leader: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

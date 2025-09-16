@@ -31,6 +31,7 @@ export interface Loan {
   savings: number;
   weeksPaid: number;
   status: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
+  netCashReleased?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -3,12 +3,14 @@ export interface Center {
   name: string;
   collectionDay: string;
   address?: string;
+  leader?: string;
 }
 
 export interface CenterFormData {
   name: string;
   collectionDay: string;
   address: string;
+  leader?: string;
 }
 
 export interface CenterFormProps {

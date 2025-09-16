@@ -46,6 +46,7 @@ export default function CenterModal({
     name: "",
     collectionDay: "",
     address: "",
+    leader: "",
   });
   const [errors, setErrors] = useState<Partial<CenterFormData>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -59,12 +60,14 @@ export default function CenterModal({
           name: center.name,
           collectionDay: center.collectionDay,
           address: center.address || "",
+          leader: center.leader || "",
         });
       } else {
         setFormData({
           name: "",
           collectionDay: "",
           address: "",
+          leader: "",
         });
       }
       setErrors({});
@@ -190,6 +193,21 @@ export default function CenterModal({
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
+                label="Center Leader"
+                value={formData.leader}
+                onChange={handleInputChange("leader")}
+                disabled={loading}
+                sx={{
+                  "& .MuiInputLabel-root": {
+                    fontWeight: 500,
+                  },
+                }}
+              />
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
                 select
                 label="Collection Day"
                 value={formData.collectionDay}
@@ -212,7 +230,7 @@ export default function CenterModal({
               </TextField>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 label="Address"
@@ -222,7 +240,6 @@ export default function CenterModal({
                 helperText={errors.address}
                 disabled={loading}
                 multiline
-                rows={3}
                 sx={{
                   "& .MuiInputLabel-root": {
                     fontWeight: 500,

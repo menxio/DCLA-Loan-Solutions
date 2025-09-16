@@ -178,6 +178,15 @@ export default function CenterTable({
                   Address
                 </TableCell>
                 <TableCell
+                  sx={{
+                    fontWeight: 600,
+                    color: "#1e293b",
+                    borderBottom: "2px solid #e2e8f0",
+                  }}
+                >
+                  Center Leader
+                </TableCell>
+                <TableCell
                   align="center"
                   sx={{
                     fontWeight: 600,
@@ -236,6 +245,11 @@ export default function CenterTable({
                         No address provided
                       </Typography>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">
+                      {center.leader || "-"}
+                    </Typography>
                   </TableCell>
                   <TableCell align="center">
                     <Box

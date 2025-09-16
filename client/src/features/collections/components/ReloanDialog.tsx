@@ -50,6 +50,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
   const [reloanTerm, setReloanTerm] = useState<8 | 12>(12)
   const [reloanMode, setReloanMode] = useState<"payoff" | "netoff">("netoff")
   const [serviceCharge, setServiceCharge] = useState("500")
+  const [savings, setSavings] = useState("")
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [eligibility, setEligibility] = useState<any>(null)
@@ -123,6 +124,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
         newTermWeeks: reloanTerm,
         mode: reloanMode,
         serviceCharge: Number(serviceCharge) || 0,
+        ...(savings !== "" ? { savings: Number(savings) || 0 } : {}),
       })
 
       onSuccess()
@@ -300,6 +302,20 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                 startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
               }}
               helperText="Processing fee for the reloan"
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Savings (optional)"
+              type="number"
+              value={savings}
+              onChange={(e) => setSavings(e.target.value)}
+              InputProps={{
+                startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
+              }}
+              helperText="Set or adjust savings to carry on the new loan"
             />
           </Grid>
         </Grid>

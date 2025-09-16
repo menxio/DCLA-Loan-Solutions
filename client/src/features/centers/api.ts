@@ -11,6 +11,7 @@ export const CentersAPI = {
     name: string;
     collectionDay: string;
     address?: string;
+    leader?: string;
   }) => {
     const res = await api.post("/centers", data);
     return res.data;
@@ -18,7 +19,7 @@ export const CentersAPI = {
 
   update: async (
     id: string,
-    data: { name?: string; collectionDay?: string; address?: string } 
+    data: { name?: string; collectionDay?: string; address?: string; leader?: string }
   ) => {
     const res = await api.patch(`/centers/${id}`, data);
     return res.data;

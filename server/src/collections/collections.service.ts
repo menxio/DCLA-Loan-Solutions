@@ -13,6 +13,7 @@ import { Center } from '../centers/entities/center.entity';
 import { Member } from '../members/entities/member.entity';
 import { CollectionsRepository } from './collections.repository';
 import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
+import { Repayment } from '../repayments/repayment.entity';
 
 @Injectable()
 export class CollectionsService {
@@ -25,6 +26,8 @@ export class CollectionsService {
     private readonly centerRepo: Repository<Center>,
     @InjectRepository(Member)
     private readonly memberRepo: Repository<Member>,
+    @InjectRepository(Repayment)
+    private readonly repaymentRepo: Repository<Repayment>,
     private readonly collectionsRepository: CollectionsRepository,
   ) {}
 
@@ -160,10 +163,21 @@ export class CollectionsService {
           (sum, c) => sum + Number(c.amount),
           0,
         ),
-        totalReceived: existingCollections.reduce(
-          (sum, c) => sum + Number(c.paymentReceived),
-          0,
-        ),
+        totalReceived: await (async () => {
+          const start = new Date(dateString);
+          const end = new Date(dateString);
+          end.setDate(end.getDate() + 1);
+          const reps = await this.repaymentRepo
+            .createQueryBuilder('repayment')
+            .leftJoin('repayment.center', 'center')
+            .where('center.id = :centerId', { centerId: center.id })
+            .andWhere('repayment.createdAt >= :start AND repayment.createdAt < :end', {
+              start: start.toISOString(),
+              end: end.toISOString(),
+            })
+            .getMany();
+          return reps.reduce((sum, r) => sum + Number(r.amount), 0);
+        })(),
       };
 
       dailyCollections.push(centerCollectionList);

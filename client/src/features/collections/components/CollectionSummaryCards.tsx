@@ -88,13 +88,7 @@ export function CollectionSummaryCards({
     {
       title: "Payment Received",
       subtitle: "Today's Collections",
-      value: formatCurrency(
-        Math.max(
-          0,
-          (computedStats?.totalOverallAmount || 0) -
-            (computedStats?.totalRemainingBalance || 0)
-        )
-      ),
+      value: formatCurrency(Number((collectionGroup as any)?.totalReceived || 0)),
       icon: AttachMoney,
       color: "#10b981",
       bgColor: "#f0fdf4",

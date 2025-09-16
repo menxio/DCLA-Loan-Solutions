@@ -63,7 +63,11 @@ export default function LoanModal({
       setLoading(true);
       setError(null);
       const memberLoans = await LoansAPI.getByMember(member.id);
-      setLoans(memberLoans);
+      // Sort by createdAt desc so newest first
+      const sorted = [...memberLoans].sort(
+        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setLoans(sorted);
     } catch (err) {
       setError("Failed to load loans");
       console.error("Error loading loans:", err);
@@ -108,7 +112,7 @@ export default function LoanModal({
       lastName: member.lastName,
       middleName: member.middleName || '',
       contactNumber: member.contactNumber,
-      centerLeader: 'Your Center Leader', // you can pass actual data if available
+      centerLeader: (member as any)?.center?.leader || '',
     };
 
     const loanData = {

@@ -210,7 +210,7 @@ export default function MemberCards({
                         lineHeight: 1.2,
                       }}
                     >
-                      {member.firstName} {member.lastName}
+                      {member.lastName}, {member.firstName} 
                     </Typography>
                     {member.middleName && (
                       <Typography

@@ -158,6 +158,12 @@ export class MembersService {
           0,
         );
 
+        // Sum of net cash released across all loans (reloans)
+        const netCashReleased = loans.reduce(
+          (sum, loan) => sum + Number((loan as any).netCashReleased || 0),
+          0,
+        );
+
         return {
           ...member,
           loans,
@@ -167,6 +173,7 @@ export class MembersService {
           weeklyPaymentAmount,
           totalTermWeeks,
           totalSavings,
+          netCashReleased,
         };
       }),
     );
