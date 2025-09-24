@@ -48,7 +48,7 @@ export default function MemberForm({
       try {
         setLoadingCenters(true);
         const centersData = await CentersAPI.getAll();
-        setCenters(centersData);
+        setCenters(Array.isArray(centersData) ? centersData : centersData.items ?? []);
       } catch (error) {
         console.error("Failed to load centers:", error);
       } finally {

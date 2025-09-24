@@ -47,7 +47,7 @@ export class LoansService {
   }
 
   async create(createLoanDto: CreateLoanDto): Promise<Loan> {
-    const { borrowerId, principalAmount, termWeeks, savings } =
+    const { borrowerId, principalAmount, termWeeks, savings, serviceCharge } =
       createLoanDto as any;
 
     // Check if borrower exists
@@ -75,6 +75,14 @@ export class LoansService {
     // Validate savings per business rule
     const providedSavings =
       typeof savings === 'number' ? Number(savings) : undefined;
+    // Validate service charge if provided
+    const fee =
+      serviceCharge !== undefined && serviceCharge !== null
+        ? Number(serviceCharge)
+        : 0;
+    if (isNaN(fee) || fee < 0) {
+      throw new BadRequestException('serviceCharge must be >= 0 when provided');
+    }
     if (isFirstLoan) {
       if (
         providedSavings === undefined ||
@@ -107,7 +115,24 @@ export class LoansService {
       status: 'active',
     });
 
-    return this.loanRepository.save(loan);
+    // Compute net cash released for first loan only: principal - fee - savings (never below 0)
+    let netCashReleased: number | null = null;
+    if (isFirstLoan) {
+      const savingsForCalc = Number(providedSavings ?? 0);
+      const net = Number(principalAmount) - fee - savingsForCalc;
+      netCashReleased = net > 0 ? net : 0;
+      (loan as any).netCashReleased = netCashReleased;
+    }
+
+    const savedLoan = await this.loanRepository.save(loan);
+
+    // Reset any existing collections' paymentReceived to 0 for this member
+    await this.collectionRepository.update(
+      { memberId: borrowerId },
+      { paymentReceived: 0 }
+    );
+
+    return savedLoan;
   }
 
   /**
@@ -228,7 +253,7 @@ export class LoansService {
    * - netoff: old balance is deducted from new loan principal; released = new principal - old balance - serviceCharge
    */
   async reloan(loanId: string, dto: ReloanDto) {
-    const { newPrincipalAmount, newTermWeeks, mode, serviceCharge } = dto;
+    const { newPrincipalAmount, newTermWeeks, mode, serviceCharge, savings } = dto;
     if (newPrincipalAmount <= 0)
       throw new BadRequestException('newPrincipalAmount must be > 0');
     if (![4, 8, 12].includes(newTermWeeks))
@@ -257,6 +282,10 @@ export class LoansService {
       );
     }
     const fee = Number(serviceCharge);
+    const savingsAmount = savings !== undefined && savings !== null ? Number(savings) : 0;
+    if (isNaN(savingsAmount) || savingsAmount < 0) {
+      throw new BadRequestException('savings must be >= 0 when provided');
+    }
 
     // Compute old remaining balance
     const oldRemaining = Number(loan.balance);
@@ -276,14 +305,20 @@ export class LoansService {
     } as any;
     const newLoan = await this.create(tempCreate);
 
+    // Reset any existing collections' paymentReceived to 0 for this member (already done in create, but being explicit)
+    await this.collectionRepository.update(
+      { memberId: borrowerId },
+      { paymentReceived: 0 }
+    );
+
     // Compute net cash released per mode
     let netCashReleased = 0;
     if (mode === 'payoff') {
-      // Client pays old balance in cash, gets full new loan minus service charge
-      netCashReleased = Number(newPrincipalAmount) - fee;
+      // Client pays old balance in cash, gets full new loan minus service charge and savings
+      netCashReleased = Number(newPrincipalAmount) - fee - savingsAmount;
     } else {
-      // Net off: old balance is deducted from new loan
-      netCashReleased = Number(newPrincipalAmount) - oldRemaining - fee;
+      // Net off: old balance is deducted from new loan; also deduct service charge and savings
+      netCashReleased = Number(newPrincipalAmount) - oldRemaining - fee - savingsAmount;
       if (netCashReleased < 0) netCashReleased = 0; // Never negative release
     }
 
@@ -301,6 +336,7 @@ export class LoansService {
       newLoanId: newLoan.id,
       mode,
       serviceCharge: fee,
+      savings: savingsAmount,
       oldRemaining,
       newPrincipalAmount,
       netCashReleased,

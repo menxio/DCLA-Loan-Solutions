@@ -12,6 +12,7 @@ import { CentersModule } from './centers/centers.module';
 import { MembersModule } from './members/members.module';
 import { CollectionsModule } from './collections/collections.module';
 import { RepaymentsModule } from './repayments/repayments.module';
+import { PortfolioModule } from './portfolio/portfolio.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { RepaymentsModule } from './repayments/repayments.module';
     MembersModule,
     CollectionsModule,
     RepaymentsModule,
+    PortfolioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

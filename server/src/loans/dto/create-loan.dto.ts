@@ -15,4 +15,10 @@ export class CreateLoanDto {
   @IsNumber()
   @Min(0)
   savings?: number;
+
+  // Optional service charge for initial loan; used to compute net cash released
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  serviceCharge?: number;
 } 

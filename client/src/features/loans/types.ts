@@ -50,12 +50,14 @@ export interface CreateLoanData {
   principalAmount: number;
   termWeeks: 4 | 8 | 12;
   savings?: number;
+  serviceCharge?: number;
 }
 
 export interface LoanFormData {
   principalAmount: number;
   termWeeks: 4 | 8 | 12;
   savings?: number;
+  serviceCharge?: number;
 }
 
 export interface LoanCalculation {

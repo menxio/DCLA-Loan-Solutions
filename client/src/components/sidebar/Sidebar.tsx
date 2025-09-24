@@ -14,13 +14,12 @@ import {
 } from "@mui/material";
 import {
   Dashboard,
-  AccountBalance,
   ExpandLess,
   ExpandMore,
-  Person,
   Groups,
   Person4,
   Settings,
+  AccountBalance,
 } from "@mui/icons-material";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -46,26 +45,6 @@ const sidebarItems: SidebarItem[] = [
     path: "/member-management",
   },
   {
-    id: "loans",
-    label: "Loans",
-    icon: AccountBalance,
-    path: "/loans",
-    children: [
-      {
-        id: "loan-applications",
-        label: "Applications",
-        icon: Person,
-        path: "/loans/applications",
-      },
-      {
-        id: "loan-management",
-        label: "Management",
-        icon: Settings,
-        path: "/loans/management",
-      },
-    ],
-  },
-  {
     id: "centers",
     label: "Centers",
     icon: Groups,
@@ -76,6 +55,12 @@ const sidebarItems: SidebarItem[] = [
     label: "Collections",
     icon: Groups,
     path: "/collections",
+  },
+  {
+    id: "portfolio",
+    label: "Portfolio",
+    icon: AccountBalance,
+    path: "/portfolio",
   },
   {
     id: "settings",

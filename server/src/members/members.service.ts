@@ -67,7 +67,11 @@ export class MembersService {
       );
     }
 
-    qb.skip((page - 1) * limit).take(limit);
+    qb.orderBy('member.lastName', 'ASC')
+      .addOrderBy('member.firstName', 'ASC')
+      .addOrderBy('member.middleName', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return {
@@ -127,20 +131,17 @@ export class MembersService {
           where: { borrower: { id: member.id } },
         });
 
-        const totalLoanAmount = loans.reduce(
-          (sum, loan) => sum + Number(loan.principalAmount),
-          0,
-        );
-        const totalBalance = loans.reduce(
-          (sum, loan) => sum + Number(loan.balance),
-          0,
-        );
+        const totalLoanAmount = loans
+          .filter((loan) => loan.status === 'active')
+          .reduce((sum, loan) => sum + Number(loan.principalAmount), 0);
+        const totalBalance = loans
+          .filter((loan) => loan.status === 'active')
+          .reduce((sum, loan) => sum + Number(loan.balance), 0);
 
-        // Calculate overall amount (principal + interest)
-        const overallAmount = loans.reduce(
-          (sum, loan) => sum + Number(loan.totalAmount),
-          0,
-        );
+        // Calculate overall amount (principal + interest) - only for active loans
+        const overallAmount = loans
+          .filter((loan) => loan.status === 'active')
+          .reduce((sum, loan) => sum + Number(loan.totalAmount), 0);
 
         // Calculate weekly payment amount (sum of all active loans' weekly payments)
         const weeklyPaymentAmount = loans
@@ -158,11 +159,10 @@ export class MembersService {
           0,
         );
 
-        // Sum of net cash released across all loans (reloans)
-        const netCashReleased = loans.reduce(
-          (sum, loan) => sum + Number((loan as any).netCashReleased || 0),
-          0,
-        );
+        // Sum of net cash released across active loans only (reloans)
+        const netCashReleased = loans
+          .filter((loan) => loan.status === 'active')
+          .reduce((sum, loan) => sum + Number((loan as any).netCashReleased || 0), 0);
 
         return {
           ...member,

@@ -47,9 +47,9 @@ interface ReloanDialogProps {
 
 export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency }: ReloanDialogProps) {
   const [reloanPrincipal, setReloanPrincipal] = useState("")
-  const [reloanTerm, setReloanTerm] = useState<8 | 12>(12)
+  const [reloanTerm, setReloanTerm] = useState<4 | 8 | 12>(12)
   const [reloanMode, setReloanMode] = useState<"payoff" | "netoff">("netoff")
-  const [serviceCharge, setServiceCharge] = useState("500")
+  const [serviceCharge, setServiceCharge] = useState("")
   const [savings, setSavings] = useState("")
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,10 +60,10 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
   useEffect(() => {
     if (open && member) {
       const activeLoan = member.loans?.find((l) => l.status === "active")
-      setReloanPrincipal(String(Math.max(0, Number(member.totalBalance) || 0)))
+      setReloanPrincipal("")
       setReloanTerm(12)
       setReloanMode("netoff")
-      setServiceCharge("500")
+      setServiceCharge("")
       setError(null)
       setEligibility(null)
 
@@ -93,14 +93,15 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
 
     const principal = Number(reloanPrincipal) || 0
     const fee = Number(serviceCharge) || 0
+    const savingsAmt = Number(savings) || 0
     const oldBalance = Number(member.totalBalance) || 0
 
     if (reloanMode === "payoff") {
-      return Math.max(0, principal - fee)
+      return Math.max(0, principal - fee - savingsAmt)
     } else {
-      return Math.max(0, principal - oldBalance - fee)
+      return Math.max(0, principal - oldBalance - fee - savingsAmt)
     }
-  }, [reloanPrincipal, serviceCharge, member, reloanMode])
+  }, [reloanPrincipal, serviceCharge, savings, member, reloanMode])
 
   const handleSubmit = async () => {
     if (!member) return
@@ -260,6 +261,8 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               type="number"
               value={reloanPrincipal}
               onChange={(e) => setReloanPrincipal(e.target.value)}
+              
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               InputProps={{
                 startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
               }}
@@ -270,7 +273,8 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
           <Grid item xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>Term (Weeks)</InputLabel>
-              <Select value={reloanTerm} label="Term (Weeks)" onChange={(e) => setReloanTerm(e.target.value as 8 | 12)}>
+              <Select value={reloanTerm} label="Term (Weeks)" onChange={(e) => setReloanTerm(e.target.value as 4 | 8 | 12)}>
+                <MenuItem value={4}>4 weeks</MenuItem>
                 <MenuItem value={8}>8 weeks</MenuItem>
                 <MenuItem value={12}>12 weeks</MenuItem>
               </Select>
@@ -298,6 +302,8 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               type="number"
               value={serviceCharge}
               onChange={(e) => setServiceCharge(e.target.value)}
+              
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               InputProps={{
                 startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
               }}
@@ -312,6 +318,8 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               type="number"
               value={savings}
               onChange={(e) => setSavings(e.target.value)}
+              
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               InputProps={{
                 startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
               }}
@@ -334,8 +342,8 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               Net Cash Released (Preview)
             </Typography>
 
-            <Grid container spacing={2} sx={{ mb: 2 }}>
-              <Grid item xs={12} md={4}>
+            <Grid container spacing={2} sx={{ mb: 2,  }}>
+              <Grid item xs={12} md={6}>
                 <Typography variant="body2" color="text.secondary">
                   New Principal:
                 </Typography>
@@ -345,7 +353,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               </Grid>
 
               {reloanMode === "netoff" && (
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <Typography variant="body2" color="text.secondary">
                     Less: Old Balance:
                   </Typography>
@@ -355,12 +363,21 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                 </Grid>
               )}
 
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <Typography variant="body2" color="text.secondary">
                   Less: Service Charge:
                 </Typography>
                 <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>
                   -{formatCurrency(Number(serviceCharge) || 0)}
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Less: Savings:
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>
+                  -{formatCurrency(Number(savings) || 0)}
                 </Typography>
               </Grid>
             </Grid>

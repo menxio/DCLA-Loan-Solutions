@@ -288,7 +288,7 @@ export default function LoanModal({
               </Box>
 
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                     <TrendingUp sx={{ fontSize: 16, color: "#64748b" }} />
                     <Typography variant="body2" color="text.secondary">
@@ -300,7 +300,7 @@ export default function LoanModal({
                   </Typography>
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                     <AccountBalance sx={{ fontSize: 16, color: "#64748b" }} />
                     <Typography variant="body2" color="text.secondary">
@@ -312,7 +312,7 @@ export default function LoanModal({
                   </Typography>
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                     <Schedule sx={{ fontSize: 16, color: "#64748b" }} />
                     <Typography variant="body2" color="text.secondary">
@@ -324,7 +324,7 @@ export default function LoanModal({
                   </Typography>
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                     <Schedule sx={{ fontSize: 16, color: "#64748b" }} />
                     <Typography variant="body2" color="text.secondary">
@@ -336,7 +336,7 @@ export default function LoanModal({
                   </Typography>
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                     <Savings sx={{ fontSize: 16, color: "#64748b" }} />
                     <Typography variant="body2" color="text.secondary">
@@ -347,6 +347,20 @@ export default function LoanModal({
                     {formatCurrency(activeLoan!.savings)}
                   </Typography>
                 </Grid>
+
+                {typeof (activeLoan as any)?.netCashReleased !== "undefined" && (
+                  <Grid item xs={12} sm={6} md={4}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                      <Savings sx={{ fontSize: 16, color: "#64748b" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Net Cash Released
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                      {formatCurrency((activeLoan as any).netCashReleased || 0)}
+                    </Typography>
+                  </Grid>
+                )}
               </Grid>
 
 

@@ -1,4 +1,5 @@
-import axios, { AxiosRequestConfig } from "axios";
+import axios from "axios";
+import type { InternalAxiosRequestConfig } from "axios";
 import type {
   LoginCredentials,
   RegisterCredentials,
@@ -7,8 +8,7 @@ import type {
   PasswordChangeData,
 } from "./types";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 // Create axios instance
 const authApi = axios.create({
@@ -19,11 +19,9 @@ const authApi = axios.create({
 });
 
 // Add token to requests if available
-authApi.interceptors.request.use((config: AxiosRequestConfig) => {
+authApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("token");
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) (config.headers as any).Authorization = `Bearer ${token}`;
   return config;
 });
 

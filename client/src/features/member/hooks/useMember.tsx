@@ -6,7 +6,7 @@ export function useMembers() {
   const [members, setMembers] = useState<Member[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(4);
+  const [limit, setLimit] = useState(12);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

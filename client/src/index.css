@@ -13,6 +13,22 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Number inputs: hide spinners and reduce scroll interactions */
+/* Chrome, Safari, Edge, Opera */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+  touch-action: manipulation;
+  overscroll-behavior: contain;
+}
+
 a {
   font-weight: 500;
   color: #646cff;

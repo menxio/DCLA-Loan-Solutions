@@ -1,6 +1,23 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Alert, Snackbar, Button, Paper, FormControl, InputLabel, Select, MenuItem, TextField, Pagination } from "@mui/material";
-import { Add, Group, FilterList } from "@mui/icons-material";
+import { 
+  Box, 
+  Typography, 
+  Alert, 
+  Snackbar, 
+  Button, 
+  Paper, 
+  FormControl, 
+  InputLabel, 
+  Select, 
+  MenuItem, 
+  TextField, 
+  Pagination,
+  Grid,
+  Card,
+  CardContent,
+  InputAdornment,
+} from "@mui/material";
+import { Add, Group, FilterList, Person } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import MemberModal from "./components/MemberModal";
 import MemberCards from "./components/MemberCards";
@@ -11,7 +28,7 @@ import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
 
 export default function MembersPage() {
-  const { members, total, page, limit, setPage, setLimit, loading, error, createMember, updateMember, deleteMember } = useMembers();
+  const { members, total, page, limit, setPage, setLimit, loading, error, createMember, updateMember, deleteMember, refetch } = useMembers();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | undefined>(undefined);
@@ -30,6 +47,23 @@ export default function MembersPage() {
   const [loanModalOpen, setLoanModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [searchMember, setSearchMember] = useState("");
+
+  // Reset to page 1 and refetch when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [selectedCenterId, searchMember, setPage]);
+
+  // Refetch whenever filters, page, or limit change (server-side filtering)
+  useEffect(() => {
+    const query = {
+      page,
+      limit,
+      search: searchMember.trim() || undefined,
+      centerId: selectedCenterId || undefined,
+    } as any;
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    refetch(query);
+  }, [page, limit, selectedCenterId, searchMember, refetch]);
 
   const showSnackbar = (message: string, severity: "success" | "error" = "success") => {
     setSnackbar({ open: true, message, severity });
@@ -112,39 +146,87 @@ export default function MembersPage() {
     loadCenters();
   }, []);
 
-  // Server-side pagination; still allow client-side quick filter until API search wired
-  const filteredMembers = members
-    .filter((member) => (selectedCenterId ? member.center?.id === selectedCenterId : true))
-    .filter((member) => {
-      if (!searchMember) return true;
-      const fullName = `${member.firstName} ${member.middleName || ""} ${member.lastName}`
-        .toLowerCase()
-        .trim();
-      return fullName.includes(searchMember.toLowerCase().trim());
-    });
+  // Use server-side filtered results directly
+  const filteredMembers = members;
 
   return (
     <DashboardLayout>
-      <Box sx={{ maxWidth: 1400, mx: "auto" }}>
-        {/* Page Header */}
-        <Box sx={{ mb: 4 }}>
-          <Typography
-            variant="h3"
-            component="h1"
-            gutterBottom
-            sx={{
-              fontWeight: 700,
-              background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-              backgroundClip: "text",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            Members Management
-          </Typography>
-          <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 400 }}>
-            Manage your registered members
-          </Typography>
+      <Box sx={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
+        {/* Header Section */}
+        <Box
+          sx={{
+            background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+            color: "white",
+            p: 4,
+            mb: 3,
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={2} mb={2}>
+            <Person sx={{ fontSize: 32 }} />
+            <Box>
+              <Typography variant="h4" fontWeight="bold" mb={1}>
+                Members Management
+              </Typography>
+              <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                Manage your registered members across all centers
+              </Typography>
+            </Box>
+          </Box>
+          
+          {/* Quick Stats */}
+          <Grid container spacing={2} mt={2}>
+            <Grid item xs={12} sm={4}>
+              <Box
+                sx={{
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: 2,
+                  p: 2,
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                  Total Members
+                </Typography>
+                <Typography variant="h5" fontWeight="bold">
+                  {total || 0}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Box
+                sx={{
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: 2,
+                  p: 2,
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                  Active Members
+                </Typography>
+                <Typography variant="h5" fontWeight="bold">
+                  {members?.length || 0}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Box
+                sx={{
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: 2,
+                  p: 2,
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                  Centers
+                </Typography>
+                <Typography variant="h5" fontWeight="bold">
+                  {centers?.length || 0}
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
         </Box>
 
         {/* Error Alert */}

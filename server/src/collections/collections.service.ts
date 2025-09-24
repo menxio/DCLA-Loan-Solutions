@@ -288,11 +288,26 @@ export class CollectionsService {
       throw new NotFoundException('Collection not found');
     }
 
-    const newPaymentReceived =
-      Number(collection.paymentReceived) + paymentData.paymentAmount;
+    // Get the member's active loan to get the cumulative amount paid
+    const member = await this.memberRepo.findOne({
+      where: { id: collection.memberId },
+      relations: ['loans'],
+    });
+
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    const activeLoan = member.loans?.find((loan) => loan.status === 'active');
+    if (!activeLoan) {
+      throw new NotFoundException('No active loan found for member');
+    }
+
+    // Set paymentReceived to the cumulative amount paid from the loan
+    const cumulativeAmountPaid = Number(activeLoan.amountPaid) || 0;
 
     const updateData: UpdateCollectionDto = {
-      paymentReceived: newPaymentReceived,
+      paymentReceived: cumulativeAmountPaid,
       notes: paymentData.notes || collection.notes,
     };
 

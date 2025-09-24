@@ -43,7 +43,9 @@ export class CentersService {
       });
     }
 
-    qb.skip((page - 1) * limit).take(limit);
+    qb.orderBy('center.name', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return {

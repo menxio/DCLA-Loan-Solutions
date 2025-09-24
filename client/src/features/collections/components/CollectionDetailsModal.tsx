@@ -87,30 +87,29 @@ export default function CollectionDetailsModal({
   const computedStats = useMemo(() => {
     if (!collectionGroup || !members.length) return null;
 
-    const paidCount = collectionGroup.collections.filter((collection) => {
-      const member = members.find((m) => m.id === collection.memberId);
-      return member
-        ? collection.paymentReceived >= member.weeklyPaymentAmount
-        : false;
-    }).length;
+    const hasActiveLoan = (m: MemberWithLoans) =>
+      Array.isArray(m.loans) && m.loans.some((l) => l.status === "active");
 
-    const partialCount = collectionGroup.collections.filter((collection) => {
-      const member = members.find((m) => m.id === collection.memberId);
-      return member
-        ? collection.paymentReceived > 0 &&
-            collection.paymentReceived < member.weeklyPaymentAmount
-        : false;
-    }).length;
+    const eligibleMembers = members.filter(hasActiveLoan);
 
-    const unpaidCount = collectionGroup.collections.filter((collection) => {
-      return collection.paymentReceived <= 0;
-    }).length;
+    const getReceived = (m: any): number => {
+      const v = (m?.collection as any)?.amountReceived ?? (m?.collection as any)?.paymentReceived;
+      return v !== undefined ? Number(v) || 0 : 0;
+    };
 
-    const totalOverallAmount = members.reduce(
+    const paidCount = eligibleMembers.filter((m) => getReceived(m) >= Number(m.weeklyPaymentAmount || 0)).length;
+    const partialCount = eligibleMembers.filter((m) => {
+      const r = getReceived(m);
+      const w = Number(m.weeklyPaymentAmount || 0);
+      return r > 0 && r < w;
+    }).length;
+    const unpaidCount = eligibleMembers.filter((m) => getReceived(m) <= 0).length;
+
+    const totalOverallAmount = eligibleMembers.reduce(
       (sum, member) => sum + (member.overallAmount || 0),
       0
     );
-    const totalRemainingBalance = members.reduce(
+    const totalRemainingBalance = eligibleMembers.reduce(
       (sum, member) => sum + (member.totalBalance || 0),
       0
     );
@@ -202,7 +201,10 @@ export default function CollectionDetailsModal({
     setExportError(null);
 
     try {
-      await exportToExcel(collectionGroup, members);
+      const eligibleMembers = members.filter(
+        (m) => Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
+      );
+      await exportToExcel(collectionGroup, eligibleMembers);
     } catch (error) {
       console.error("Export failed:", error);
       setExportError(
@@ -436,7 +438,9 @@ export default function CollectionDetailsModal({
               />
 
               <MembersTable
-                members={members}
+                members={members.filter(
+                  (m) => Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
+                )}
                 getStatusColor={(m: any) => getStatusColor(m as any)}
                 getStatusLabel={(m: any) => getStatusLabel(m as any)}
                 formatCurrency={formatCurrency}

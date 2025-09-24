@@ -8,15 +8,21 @@ import {
   CardContent,
   Avatar,
   Chip,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   TrendingUp,
   AccountBalance,
   People,
   Assessment,
+  Groups,
+  AttachMoney,
+  TrendingDown,
 } from "@mui/icons-material";
 import PrivateLayout from "@components/layout/PrivateLayout";
 import { useAuthStore } from "@features/auth/authStore";
+import { useDashboardData } from "../hooks/useDashboardData";
 
 interface StatCardProps {
   title: string;
@@ -101,35 +107,86 @@ function StatCard({ title, value, icon, color, trend }: StatCardProps) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const { stats, loading, error, refetch } = useDashboardData();
 
-  const stats = [
+  const formatCurrency = (amount: number): string => {
+    return `₱${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  if (loading) {
+    return (
+      <PrivateLayout>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress sx={{ color: "#2563eb" }} />
+        </Box>
+      </PrivateLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <PrivateLayout>
+        <Box p={3}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        </Box>
+      </PrivateLayout>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <PrivateLayout>
+        <Box p={3}>
+          <Alert severity="info">No dashboard data available</Alert>
+        </Box>
+      </PrivateLayout>
+    );
+  }
+
+  const dashboardStats = [
     {
-      title: "Total Loans",
-      value: "1,234",
-      icon: <AccountBalance />,
+      title: "Total Centers",
+      value: stats.totalCenters,
+      icon: <Groups />,
       color: "primary" as const,
-      trend: "+12% from last month",
+      trend: `${stats.totalCenters} active centers`,
     },
     {
-      title: "Active Applications",
-      value: "89",
-      icon: <Assessment />,
-      color: "secondary" as const,
-      trend: "+5% from last week",
-    },
-    {
-      title: "Total Customers",
-      value: "2,456",
+      title: "Total Members",
+      value: stats.totalMembers,
       icon: <People />,
       color: "success" as const,
-      trend: "+8% from last month",
+      trend: `${stats.totalMembers} registered members`,
     },
     {
-      title: "Revenue",
-      value: "₱125,430",
-      icon: <TrendingUp />,
+      title: "Amount Disbursed",
+      value: formatCurrency(stats.totalAmountDisbursed),
+      icon: <AttachMoney />,
       color: "warning" as const,
-      trend: "+15% from last month",
+      trend: "Total loan disbursements",
+    },
+    {
+      title: "Outstanding Collection",
+      value: formatCurrency(stats.totalOutstandingCollection),
+      icon: <TrendingUp />,
+      color: "secondary" as const,
+      trend: "Pending collections",
+    },
+    {
+      title: "Collection Rate",
+      value: `${stats.collectionRate.toFixed(1)}%`,
+      icon: <Assessment />,
+      color: stats.collectionRate >= 80 ? "success" as const : "warning" as const,
+      trend: stats.collectionRate >= 80 ? "Excellent performance" : "Needs improvement",
+    },
+    {
+      title: "Projected Interest",
+      value: formatCurrency(stats.totalInterestIncome),
+      icon: <TrendingDown />,
+      color: "primary" as const,
+      trend: "20% interest rate",
     },
   ];
 
@@ -161,7 +218,7 @@ export default function DashboardPage() {
       </Box>
 
       <Grid container spacing={3}>
-        {stats.map((stat, index) => (
+        {dashboardStats.map((stat, index) => (
           <Grid item xs={12} sm={6} md={3} key={index}>
             <StatCard {...stat} />
           </Grid>

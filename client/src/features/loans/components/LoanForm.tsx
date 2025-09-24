@@ -43,6 +43,7 @@ export default function LoanForm({
   const [calculation, setCalculation] = useState<LoanCalculation | null>(null);
   const [errors, setErrors] = useState<Partial<LoanFormData>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [serviceCharge, setServiceCharge] = useState<number>(0);
 
   // Calculate loan details when form data changes
   useEffect(() => {
@@ -98,11 +99,17 @@ export default function LoanForm({
     }
 
     try {
-      await onSubmit(formData);
+      await onSubmit({ ...formData, serviceCharge });
     } catch (err) {
       setSubmitError("Failed to create loan. Please try again.");
     }
   };
+
+  // Compute net cash released preview for new loan
+  const netCashReleased = Math.max(
+    0,
+    Number(formData.principalAmount || 0) - Number(serviceCharge || 0) - Number(formData.savings || 0)
+  );
 
   return (
     <Paper
@@ -136,13 +143,14 @@ export default function LoanForm({
 
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={6} className="test">
             <TextField
               fullWidth
               label="Principal Amount"
               type="number"
               value={formData.principalAmount || ""}
               onChange={handleInputChange("principalAmount")}
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               error={Boolean(errors.principalAmount)}
               helperText={errors.principalAmount}
               disabled={loading}
@@ -161,13 +169,34 @@ export default function LoanForm({
               type="number"
               value={formData.savings ?? ""}
               onChange={handleInputChange("savings")}
+              
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               error={Boolean((errors as any).savings)}
               helperText={(errors as any).savings}
+              onWheel={(e) => e.currentTarget.blur()} 
               disabled={loading}
               required={isFirstLoan}
               InputProps={{
                 startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
               }}
+            />
+          </Grid>
+
+          {/* Service Charge (optional, used for net cash preview only) */}
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Service Charge (optional)"
+              type="number"
+              value={serviceCharge || ""}
+              onChange={(e) => setServiceCharge(Number((e as any).target.value))}
+              
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+              disabled={loading}
+              InputProps={{
+                startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
+              }}
+              helperText="Not saved; used to preview net cash to be released"
             />
           </Grid>
 
@@ -273,6 +302,50 @@ export default function LoanForm({
               </Grid>
 
               {/* Removed auto 10% savings preview */}
+
+              {/* Net Cash Released Preview */}
+              <Grid item xs={12}>
+                <Paper
+                  sx={{
+                    p: 2,
+                    backgroundColor: "#f0f9ff",
+                    border: "2px solid #3b82f6",
+                    borderRadius: 2,
+                  }}
+                >
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 700, color: "#1e293b" }}>
+                    <Calculate sx={{ mr: 1, verticalAlign: "middle", color: "#3b82f6" }} />
+                    Net Cash Released (Preview)
+                  </Typography>
+                  <Grid container spacing={2} sx={{ mb: 1 }}>
+                    <Grid item xs={12} md={4}>
+                      <Typography variant="body2" color="text.secondary">New Principal:</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>{formatCurrency(Number(formData.principalAmount || 0))}</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <Typography variant="body2" color="text.secondary">Less: Service Charge:</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(Number(serviceCharge || 0))}</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <Typography variant="body2" color="text.secondary">Less: Savings:</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(Number(formData.savings || 0))}</Typography>
+                    </Grid>
+                  </Grid>
+                  <Divider sx={{ my: 1 }} />
+                  <Box sx={{ textAlign: "center" }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>Net Cash to be Released:</Typography>
+                    <Typography
+                      variant="h5"
+                      sx={{ fontWeight: 800, color: netCashReleased > 0 ? "#10b981" : "#ef4444" }}
+                    >
+                      {formatCurrency(netCashReleased)}
+                    </Typography>
+                    {netCashReleased <= 0 && (
+                      <Typography variant="caption" color="error.main">No cash will be released with current configuration</Typography>
+                    )}
+                  </Box>
+                </Paper>
+              </Grid>
             </>
           )}
 

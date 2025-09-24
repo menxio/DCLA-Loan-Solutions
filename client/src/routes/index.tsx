@@ -4,6 +4,7 @@ import DashboardPage from "@features/dashboard/pages/DashboardPage";
 import MemberManagementPage from "@features/member/MemberManagementPage";
 import CentersPage from "@features/centers/pages/CentersPage";
 import CollectionsPage from "@features/collections/pages/CollectionsPage";
+import PortfolioPage from "@features/portfolio/pages/PortfolioPage";
 import { useAuthStore } from "@features/auth/authStore";
 
 export default function AppRouter() {
@@ -28,6 +29,10 @@ export default function AppRouter() {
       <Route
         path="/collections"
         element={token ? <CollectionsPage /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/portfolio"
+        element={token ? <PortfolioPage /> : <Navigate to="/login" />}
       />
     </Routes>
   );

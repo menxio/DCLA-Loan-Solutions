@@ -488,95 +488,27 @@ export default function DailyCollectionsView({
               </Grid>
             </Grid>
 
-            {/* Collection Progress */}
-            <Box
-              sx={{
-                p: 3,
-                backgroundColor: "#f8fafc",
-                borderRadius: 2,
-                border: "1px solid #e2e8f0",
-                mb: 3,
-              }}
-            >
-              <Grid container spacing={3} alignItems="center">
-                <Grid item xs={12} md={8}>
-                  <Typography
-                    variant="h6"
-                    sx={{ fontWeight: 600, color: "#1e293b", mb: 1 }}
-                  >
-                    Collection Progress
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {
-                      group.collections.filter(
-                        (c) => c.paymentReceived >= c.amount
-                      ).length
-                    }{" "}
-                    of {group.totalMembers} members have completed their
-                    payments
-                  </Typography>
-
-                  {/* Progress Bar */}
-                  <Box sx={{ mt: 2, mb: 1 }}>
-                    <Box
-                      sx={{
-                        width: "100%",
-                        height: 8,
-                        backgroundColor: "#e2e8f0",
-                        borderRadius: 4,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: `${(() => {
-                            const total = sumOverallAmount(group);
-                            const received = sumTotalReceived(group);
-                            return total > 0 ? (received / total) * 100 : 0;
-                          })()}%`,
-                          height: "100%",
-                          background:
-                            "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
-                          transition: "width 0.3s ease-in-out",
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    {(() => {
-                      const total = sumOverallAmount(group);
-                      const received = sumTotalReceived(group);
-                      return (total > 0 ? (received / total) * 100 : 0).toFixed(
-                        1
-                      );
-                    })()}
-                    % collected
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
-                    <Button
-                      variant="contained"
-                      startIcon={<Visibility />}
-                      onClick={() => onViewDetails(group)}
-                      sx={{
-                        background:
-                          "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                        "&:hover": {
-                          background:
-                            "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                        },
-                        px: 3,
-                        py: 1.5,
-                        fontWeight: 600,
-                        borderRadius: 2,
-                      }}
-                    >
-                      View Details
-                    </Button>
-                  </Box>
-                </Grid>
-              </Grid>
+            {/* View Details Button */}
+            <Box sx={{ textAlign: "right", mb: 3 }}>
+              <Button
+                variant="contained"
+                startIcon={<Visibility />}
+                onClick={() => onViewDetails(group)}
+                sx={{
+                  background:
+                    "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                  "&:hover": {
+                    background:
+                      "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
+                  },
+                  px: 3,
+                  py: 1.5,
+                  fontWeight: 600,
+                  borderRadius: 2,
+                }}
+              >
+                View Details
+              </Button>
             </Box>
 
             {/* Quick Summary */}
@@ -608,40 +540,6 @@ export default function DailyCollectionsView({
                           (c) => c.paymentReceived < c.amount
                         ).length
                       }
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 2,
-                    p: 2,
-                    backgroundColor: "#f0fdf4",
-                    borderRadius: 2,
-                  }}
-                >
-                  <Avatar sx={{ bgcolor: "#10b981", width: 40, height: 40 }}>
-                    <CheckCircle />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">
-                      Collection Efficiency
-                    </Typography>
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 600, color: "#1e293b" }}
-                    >
-                      {(
-                        (group.collections.filter(
-                          (c) => c.paymentReceived >= c.amount
-                        ).length /
-                          group.totalMembers) *
-                        100
-                      ).toFixed(1)}
-                      %
                     </Typography>
                   </Box>
                 </Box>

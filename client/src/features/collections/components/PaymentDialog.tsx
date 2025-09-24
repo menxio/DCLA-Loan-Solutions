@@ -273,6 +273,7 @@ export function PaymentDialog({
             type="number"
             value={paymentAmount}
             onChange={(e) => setPaymentAmount(e.target.value)}
+            
             InputProps={{
               startAdornment: (
                 <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>

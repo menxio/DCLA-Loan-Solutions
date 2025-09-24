@@ -9,6 +9,7 @@ import { Repayment } from './repayment.entity';
 import { Loan } from '../loans/loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Center } from '../centers/entities/center.entity';
+import { Collection } from '../collections/entities/collection.entity';
 import { LoansService } from '../loans/loans.service';
 
 @Injectable()
@@ -22,6 +23,8 @@ export class RepaymentsService {
     private readonly memberRepo: Repository<Member>,
     @InjectRepository(Center)
     private readonly centerRepo: Repository<Center>,
+    @InjectRepository(Collection)
+    private readonly collectionRepo: Repository<Collection>,
     private readonly loansService: LoansService,
   ) {}
 
@@ -47,6 +50,15 @@ export class RepaymentsService {
     if (!center) throw new NotFoundException('Center not found');
 
     await this.loansService.applyRepayment(loanId, amount, useSavings);
+
+    // Update the collection's paymentReceived to reflect the cumulative amount paid
+    const updatedLoan = await this.loanRepo.findOne({ where: { id: loanId } });
+    if (updatedLoan) {
+      await this.collectionRepo.update(
+        { memberId, centerId },
+        { paymentReceived: Number(updatedLoan.amountPaid) || 0 }
+      );
+    }
 
     const repayment = this.repaymentRepo.create({
       loan,
