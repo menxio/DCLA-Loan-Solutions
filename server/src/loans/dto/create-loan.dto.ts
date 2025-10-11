@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsUUID, IsIn, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsUUID, IsIn, Min, IsDateString } from 'class-validator';
 
 export class CreateLoanDto {
   @IsUUID()
@@ -21,4 +21,9 @@ export class CreateLoanDto {
   @IsNumber()
   @Min(0)
   serviceCharge?: number;
+
+  // Optional loan creation date; defaults to current date if not provided
+  @IsOptional()
+  @IsDateString()
+  loanCreatedDate?: string;
 } 

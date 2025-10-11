@@ -104,7 +104,10 @@ export default function LoanModal({
   const handleExportPassbook = async () => {
     if (!activeLoan) return;
 
-    const releaseDate = new Date(activeLoan.createdAt);
+    // Use loanCreatedDate if available, otherwise fall back to createdAt
+    const releaseDate = (activeLoan as any).loanCreatedDate 
+      ? new Date((activeLoan as any).loanCreatedDate)
+      : new Date(activeLoan.createdAt);
 
     // Map activeLoan and member data to your PDF function's expected args
     const memberData = {
@@ -121,10 +124,11 @@ export default function LoanModal({
       termWeek: activeLoan.termWeeks,
       savings: activeLoan.savings,
       weeksPaid: activeLoan.weeksPaid,
-      createdAt: releaseDate.toISOString(), // ensure it's in ISO format
+      createdAt: releaseDate.toISOString(), // Use loan creation date for accurate passbook
     };
 
     console.log("Generating PDF with:", memberData, loanData);
+    console.log("Using loan creation date:", releaseDate.toLocaleDateString());
 
     // Align schedule to the member center's collection day if available
     const collectionDay = member.center?.collectionDay; // e.g., 'Friday'
@@ -286,7 +290,12 @@ export default function LoanModal({
                   Loan #{activeLoan!.id.slice(0, 8)}...
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Created {new Date(activeLoan!.createdAt).toLocaleDateString()}
+                  Loan Created: {(activeLoan as any).loanCreatedDate 
+                    ? new Date((activeLoan as any).loanCreatedDate).toLocaleDateString()
+                    : new Date(activeLoan!.createdAt).toLocaleDateString()}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
+                  Record Created: {new Date(activeLoan!.createdAt).toLocaleDateString()}
                 </Typography>
               </Box>
 
@@ -411,7 +420,10 @@ export default function LoanModal({
                           )}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {formatCurrency(loan.principalAmount)} • {loan.termWeeks} weeks • {new Date(loan.createdAt).toLocaleDateString()}
+                          {formatCurrency(loan.principalAmount)} • {loan.termWeeks} weeks • 
+                          {(loan as any).loanCreatedDate 
+                            ? new Date((loan as any).loanCreatedDate).toLocaleDateString()
+                            : new Date(loan.createdAt).toLocaleDateString()}
                         </Typography>
                       </Box>
                       <Chip

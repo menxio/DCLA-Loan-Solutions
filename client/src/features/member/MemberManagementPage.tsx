@@ -153,41 +153,117 @@ export default function MembersPage() {
     <DashboardLayout>
       <Box sx={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
         {/* Header Section */}
-        <Box
+        <Paper
           sx={{
-            background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-            color: "white",
+            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
             p: 4,
             mb: 3,
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
           }}
         >
-          <Box display="flex" alignItems="center" gap={2} mb={2}>
-            <Person sx={{ fontSize: 32 }} />
-            <Box>
-              <Typography variant="h4" fontWeight="bold" mb={1}>
-                Members Management
-              </Typography>
-              <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                Manage your registered members across all centers
-              </Typography>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            {/* Left side - Title and Description */}
+            <Box display="flex" alignItems="center" gap={3}>
+              <Box
+                sx={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 2,
+                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
+                }}
+              >
+                <Group sx={{ fontSize: 28, color: "white" }} />
+              </Box>
+              <Box>
+                <Typography variant="h4" fontWeight="bold" color="#1e293b" mb={1}>
+                  Members
+                </Typography>
+                <Typography variant="body1" color="#64748b">
+                  {total || 0} of {total || 0} member{(total || 0) !== 1 ? "s" : ""} registered
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Right side - Controls */}
+            <Box display="flex" alignItems="center" gap={2}>
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Center</InputLabel>
+                <Select
+                  value={selectedCenterId}
+                  label="Center"
+                  onChange={(e) => setSelectedCenterId(e.target.value)}
+                  sx={{
+                    backgroundColor: "white",
+                    borderRadius: 2,
+                  }}
+                >
+                  <MenuItem value="">All Centers</MenuItem>
+                  {centers.map((center) => (
+                    <MenuItem key={center.id} value={center.id}>
+                      {center.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <TextField
+                size="small"
+                placeholder="Search by name"
+                value={searchMember}
+                onChange={(e) => setSearchMember(e.target.value)}
+                sx={{
+                  minWidth: 200,
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "white",
+                    borderRadius: 2,
+                  },
+                }}
+              />
+              
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => setModalOpen(true)}
+                sx={{
+                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  textTransform: "none",
+                  fontWeight: 600,
+                  boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                    boxShadow: "0 6px 20px 0 rgba(59, 130, 246, 0.4)",
+                  },
+                }}
+              >
+                ADD MEMBER
+              </Button>
             </Box>
           </Box>
           
           {/* Quick Stats */}
-          <Grid container spacing={2} mt={2}>
+          <Grid container spacing={2}>
             <Grid item xs={12} sm={4}>
               <Box
                 sx={{
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  backgroundColor: "rgba(59, 130, 246, 0.05)",
                   borderRadius: 2,
                   p: 2,
-                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(59, 130, 246, 0.1)",
                 }}
               >
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" color="#64748b" mb={1}>
                   Total Members
                 </Typography>
-                <Typography variant="h5" fontWeight="bold">
+                <Typography variant="h5" fontWeight="bold" color="#1e40af">
                   {total || 0}
                 </Typography>
               </Box>
@@ -195,16 +271,16 @@ export default function MembersPage() {
             <Grid item xs={12} sm={4}>
               <Box
                 sx={{
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  backgroundColor: "rgba(16, 185, 129, 0.05)",
                   borderRadius: 2,
                   p: 2,
-                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(16, 185, 129, 0.1)",
                 }}
               >
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" color="#64748b" mb={1}>
                   Active Members
                 </Typography>
-                <Typography variant="h5" fontWeight="bold">
+                <Typography variant="h5" fontWeight="bold" color="#059669">
                   {members?.length || 0}
                 </Typography>
               </Box>
@@ -212,22 +288,22 @@ export default function MembersPage() {
             <Grid item xs={12} sm={4}>
               <Box
                 sx={{
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  backgroundColor: "rgba(245, 158, 11, 0.05)",
                   borderRadius: 2,
                   p: 2,
-                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(245, 158, 11, 0.1)",
                 }}
               >
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" color="#64748b" mb={1}>
                   Centers
                 </Typography>
-                <Typography variant="h5" fontWeight="bold">
+                <Typography variant="h5" fontWeight="bold" color="#d97706">
                   {centers?.length || 0}
                 </Typography>
               </Box>
             </Grid>
           </Grid>
-        </Box>
+        </Paper>
 
         {/* Error Alert */}
         {error && (
@@ -236,95 +312,6 @@ export default function MembersPage() {
           </Alert>
         )}
 
-        {/* Action Bar */}
-        <Paper
-          sx={{
-            p: 3,
-            mb: 3,
-            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-            border: "1px solid #e2e8f0",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Group sx={{ color: "#1e3a8a", fontSize: 28 }} />
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                Members
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {filteredMembers.length} of {total} member{total !== 1 ? "s" : ""} registered
-              </Typography>
-            </Box>
-          </Box>
-
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {/* Filter Section */}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <FilterList sx={{ color: "#64748b", fontSize: 18 }} />
-              <Typography
-                variant="body2"
-                sx={{ fontWeight: 500, color: "#374151", mr: 1 }}
-              >
-                Center:
-              </Typography>
-              <FormControl sx={{ minWidth: 180}} disabled={loadingCenters}>
-                <InputLabel>Select Center</InputLabel>
-                <Select
-                  value={selectedCenterId}
-                  onChange={(e) => setSelectedCenterId(e.target.value)}
-                  label="Select Center"
-                  size="small"
-                  MenuProps={{
-                    PaperProps: {
-                      style: { maxHeight: 200 },
-                    },
-                  }}
-                >
-                  <MenuItem value="">
-                    <em>All Centers</em>
-                  </MenuItem>
-                  {centers.map((center) => (
-                    <MenuItem key={center.id} value={center.id}>
-                      {center.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
-            {/* Search Section */}
-            <TextField
-              size="small"
-              label="Search by name"
-              variant="outlined"
-              value={searchMember}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setSearchMember(e.target.value)
-              }
-              sx={{ minWidth: 200 }}
-            />
-
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={handleOpenModal}
-              sx={{
-                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                "&:hover": {
-                  background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                },
-                px: 3,
-                py: 1.5,
-                fontWeight: 600,
-              }}
-            >
-              Add Member
-            </Button>
-          </Box>
-        </Paper>
 
         {/* Members Cards */}
         <MemberCards 

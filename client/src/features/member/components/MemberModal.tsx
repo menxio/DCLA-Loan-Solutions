@@ -18,6 +18,8 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
+import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import {
   Add,
   Edit,
@@ -258,20 +260,29 @@ export default function MemberModal({
               />
             </Grid>
             <Grid item xs={12}>
-              <TextField
-                label="Birth Date"
-                type="date"
-                value={
-                  formData.birthDate
-                    ? formData.birthDate.toISOString().split("T")[0]
-                    : ""
-                }
-                onChange={handleInputChange("birthDate")}
-                error={Boolean(errors.birthDate)}
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-              />
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Birth Date"
+                  value={formData.birthDate}
+                  onChange={(newValue) => {
+                    setFormData(prev => ({ ...prev, birthDate: newValue }));
+                    if (errors.birthDate) {
+                      setErrors(prev => ({ ...prev, birthDate: undefined }));
+                    }
+                  }}
+                  maxDate={new Date()} // Cannot be in the future
+                  minDate={new Date(new Date().getFullYear() - 100, 0, 1)} // Max 100 years ago
+                  disabled={loading}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      required: true,
+                      error: Boolean(errors.birthDate),
+                      helperText: typeof errors.birthDate === 'string' ? errors.birthDate : "",
+                    },
+                  }}
+                />
+              </LocalizationProvider>
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth disabled={loading || loadingCenters}>

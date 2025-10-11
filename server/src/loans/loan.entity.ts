@@ -52,6 +52,9 @@ export class Loan {
   @Column('decimal', { precision: 12, scale: 2, nullable: true })
   netCashReleased: number | null;
 
+  @Column({ nullable: true })
+  loanCreatedDate: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

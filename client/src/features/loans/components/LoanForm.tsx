@@ -13,7 +13,11 @@ import {
   Select,
   MenuItem,
   Divider,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
+import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { Add, Calculate } from "@mui/icons-material";
 import type { LoanFormData, LoanCalculation } from "../types";
 import { calculateLoanDetails, formatCurrency, formatPercentage } from "../utils/loanCalculations";
@@ -38,12 +42,14 @@ export default function LoanForm({
     principalAmount: 0,
     termWeeks: 8,
     savings: undefined,
+    loanCreatedDate: new Date(),
   });
 
   const [calculation, setCalculation] = useState<LoanCalculation | null>(null);
   const [errors, setErrors] = useState<Partial<LoanFormData>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [serviceCharge, setServiceCharge] = useState<number>(0);
+  const [useCustomDate, setUseCustomDate] = useState<boolean>(false);
 
   // Calculate loan details when form data changes
   useEffect(() => {
@@ -220,7 +226,49 @@ export default function LoanForm({
             </FormControl>
           </Grid>
 
+          {/* Loan Creation Date */}
+          <Grid item xs={12}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={useCustomDate}
+                  onChange={(e) => {
+                    setUseCustomDate(e.target.checked);
+                    if (!e.target.checked) {
+                      setFormData(prev => ({ ...prev, loanCreatedDate: new Date() }));
+                    }
+                  }}
+                  disabled={loading}
+                />
+              }
+              label="Set custom loan creation date"
+            />
+          </Grid>
 
+          {useCustomDate && (
+            <Grid item xs={12} md={6}>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Loan Creation Date"
+                  value={formData.loanCreatedDate}
+                  onChange={(newValue) => {
+                    if (newValue) {
+                      setFormData(prev => ({ ...prev, loanCreatedDate: newValue }));
+                    }
+                  }}
+                  maxDate={new Date()} // Cannot be in the future
+                  minDate={new Date(new Date().getFullYear() - 2, 0, 1)} // Max 2 years ago
+                  disabled={loading}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      helperText: "When was this loan originally given to the member?",
+                    },
+                  }}
+                />
+              </LocalizationProvider>
+            </Grid>
+          )}
 
           {/* Loan Calculation Preview */}
           {calculation && (

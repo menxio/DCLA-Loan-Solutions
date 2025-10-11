@@ -47,7 +47,7 @@ export class LoansService {
   }
 
   async create(createLoanDto: CreateLoanDto): Promise<Loan> {
-    const { borrowerId, principalAmount, termWeeks, savings, serviceCharge } =
+    const { borrowerId, principalAmount, termWeeks, savings, serviceCharge, loanCreatedDate } =
       createLoanDto as any;
 
     // Check if borrower exists
@@ -113,6 +113,7 @@ export class LoansService {
       amountPaid: 0,
       advancePaymentBuffer: 0,
       status: 'active',
+      loanCreatedDate: loanCreatedDate ? new Date(loanCreatedDate) : new Date(),
     });
 
     // Compute net cash released for all loans: principal - fee - savings (never below 0)

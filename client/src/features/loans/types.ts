@@ -32,6 +32,7 @@ export interface Loan {
   weeksPaid: number;
   status: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
   netCashReleased?: number | null;
+  loanCreatedDate?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +52,7 @@ export interface CreateLoanData {
   termWeeks: 4 | 8 | 12;
   savings?: number;
   serviceCharge?: number;
+  loanCreatedDate?: Date;
 }
 
 export interface LoanFormData {
@@ -58,6 +60,7 @@ export interface LoanFormData {
   termWeeks: 4 | 8 | 12;
   savings?: number;
   serviceCharge?: number;
+  loanCreatedDate?: Date;
 }
 
 export interface LoanCalculation {

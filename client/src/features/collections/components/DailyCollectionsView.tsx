@@ -489,7 +489,7 @@ export default function DailyCollectionsView({
             </Grid>
 
             {/* View Details Button */}
-            <Box sx={{ textAlign: "right", mb: 3 }}>
+            <Box sx={{ textAlign: "right" }}>
               <Button
                 variant="contained"
                 startIcon={<Visibility />}
@@ -510,41 +510,6 @@ export default function DailyCollectionsView({
                 View Details
               </Button>
             </Box>
-
-            {/* Quick Summary */}
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 2,
-                    p: 2,
-                    backgroundColor: "#f0f9ff",
-                    borderRadius: 2,
-                  }}
-                >
-                  <Avatar sx={{ bgcolor: "#3b82f6", width: 40, height: 40 }}>
-                    <People />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">
-                      Members with Outstanding Balance
-                    </Typography>
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 600, color: "#1e293b" }}
-                    >
-                      {
-                        group.collections.filter(
-                          (c) => c.paymentReceived < c.amount
-                        ).length
-                      }
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
-            </Grid>
           </CardContent>
         </Card>
       ))}
