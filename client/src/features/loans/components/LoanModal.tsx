@@ -221,38 +221,41 @@ export default function LoanModal({
           />
         ) : !hasActiveLoan ? (
           // No active loan - show create loan option
-          <Paper
-            sx={{
-              p: 4,
-              textAlign: "center",
-              background: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
-              border: "2px dashed #cbd5e1",
-            }}
-          >
-            <AccountBalance sx={{ fontSize: 64, color: "#64748b", mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              No Active Loan
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              This member doesn't have an active loan. Create a new loan to get started.
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => setCreatingLoan(true)}
+          <Box>
+            <Paper
               sx={{
-                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                "&:hover": {
-                  background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                },
-                px: 3,
-                py: 1.5,
-                fontWeight: 600,
+                p: 4,
+                textAlign: "center",
+                background: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+                border: "2px dashed #cbd5e1",
+                mb: 4,
               }}
             >
-              Create New Loan
-            </Button>
-          </Paper>
+              <AccountBalance sx={{ fontSize: 64, color: "#64748b", mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No Active Loan
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                This member doesn't have an active loan. Create a new loan to get started.
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => setCreatingLoan(true)}
+                sx={{
+                  background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
+                  },
+                  px: 3,
+                  py: 1.5,
+                  fontWeight: 600,
+                }}
+              >
+                Create New Loan
+              </Button>
+            </Paper>
+          </Box>
         ) : (
           // Show active loan
           <Box>
@@ -366,45 +369,61 @@ export default function LoanModal({
 
             </Paper>
 
-            {/* Show loan history if there are past loans */}
-            {loans.filter(loan => loan.status !== 'active').length > 0 && (
-              <Box sx={{ mt: 4 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b", mb: 2 }}>
-                  Loan History
-                </Typography>
-                <Grid container spacing={2}>
-                  {loans
-                    .filter(loan => loan.status !== 'active')
-                    .map((loan) => (
-                    <Grid item xs={12} key={loan.id}>
-                      <Paper
-                        sx={{
-                          p: 2,
-                          background: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
-                          border: "1px solid #cbd5e1",
-                        }}
-                      >
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Box>
-                            <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                              Loan #{loan.id.slice(0, 8)}... - {getStatusLabel(loan.status)}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {formatCurrency(loan.principalAmount)} • {loan.termWeeks} weeks • {new Date(loan.createdAt).toLocaleDateString()}
-                            </Typography>
-                          </Box>
-                          <Chip
-                            label={getStatusLabel(loan.status)}
-                            color={getStatusColor(loan.status) as any}
-                            size="small"
-                          />
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  ))}
+          </Box>
+        )}
+
+        {/* Show loan history if there are any loans (active or past) */}
+        {loans.length > 0 && (
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b", mb: 2 }}>
+              Loan History
+            </Typography>
+            <Grid container spacing={2}>
+              {loans.map((loan) => (
+                <Grid item xs={12} key={loan.id}>
+                  <Paper
+                    sx={{
+                      p: 2,
+                      background: loan.status === 'active' 
+                        ? "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)" 
+                        : "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+                      border: loan.status === 'active' 
+                        ? "1px solid #3b82f6" 
+                        : "1px solid #cbd5e1",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Box>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                          Loan #{loan.id.slice(0, 8)}... - {getStatusLabel(loan.status)}
+                          {loan.status === 'active' && (
+                            <Chip 
+                              label="CURRENT" 
+                              size="small" 
+                              sx={{ 
+                                ml: 1, 
+                                backgroundColor: "#3b82f6", 
+                                color: "white",
+                                fontSize: "0.7rem",
+                                height: 20
+                              }} 
+                            />
+                          )}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatCurrency(loan.principalAmount)} • {loan.termWeeks} weeks • {new Date(loan.createdAt).toLocaleDateString()}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={getStatusLabel(loan.status)}
+                        color={getStatusColor(loan.status) as any}
+                        size="small"
+                      />
+                    </Box>
+                  </Paper>
                 </Grid>
-              </Box>
-            )}
+              ))}
+            </Grid>
           </Box>
         )}
       </DialogContent>

@@ -115,14 +115,11 @@ export class LoansService {
       status: 'active',
     });
 
-    // Compute net cash released for first loan only: principal - fee - savings (never below 0)
-    let netCashReleased: number | null = null;
-    if (isFirstLoan) {
-      const savingsForCalc = Number(providedSavings ?? 0);
-      const net = Number(principalAmount) - fee - savingsForCalc;
-      netCashReleased = net > 0 ? net : 0;
-      (loan as any).netCashReleased = netCashReleased;
-    }
+    // Compute net cash released for all loans: principal - fee - savings (never below 0)
+    const savingsForCalc = Number(providedSavings ?? 0);
+    const net = Number(principalAmount) - fee - savingsForCalc;
+    const netCashReleased = net > 0 ? net : 0;
+    (loan as any).netCashReleased = netCashReleased;
 
     const savedLoan = await this.loanRepository.save(loan);
 

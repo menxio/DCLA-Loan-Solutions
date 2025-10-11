@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Member } from './entities/member.entity';
 import { Center } from '../centers/entities/center.entity';
 import { Loan } from '../loans/loan.entity';
+import { Repayment } from '../repayments/repayment.entity';
+import { Savings } from '../savings/savings.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { FindMembersQueryDto } from './dto/find-members-query.dto';
@@ -17,6 +19,11 @@ export class MembersService {
     private readonly centerRepository: Repository<Center>,
     @InjectRepository(Loan)
     private readonly loanRepository: Repository<Loan>,
+    @InjectRepository(Repayment)
+    private readonly repaymentRepository: Repository<Repayment>,
+    @InjectRepository(Savings)
+    private readonly savingsRepository: Repository<Savings>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
@@ -110,9 +117,36 @@ export class MembersService {
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.memberRepository.delete(id);
-    if (result.affected === 0)
-      throw new NotFoundException(`Member #${id} not found`);
+    // Use a transaction to ensure all deletions succeed or none do
+    await this.dataSource.transaction(async (manager) => {
+      // First, check if the member exists
+      const member = await manager.findOne(Member, { where: { id } });
+      if (!member) {
+        throw new NotFoundException(`Member #${id} not found`);
+      }
+
+      // Get all loans for this member
+      const loans = await manager.find(Loan, { where: { borrower: { id } } });
+      
+      // Delete all repayments for this member's loans
+      if (loans.length > 0) {
+        for (const loan of loans) {
+          await manager.delete(Repayment, { loan: { id: loan.id } });
+        }
+      }
+
+      // Delete all repayments directly associated with this member
+      await manager.delete(Repayment, { member: { id } });
+
+      // Delete all loans for this member
+      await manager.delete(Loan, { borrower: { id } });
+
+      // Delete all savings for this member
+      await manager.delete(Savings, { borrower: { id } });
+
+      // Finally, delete the member
+      await manager.delete(Member, { id });
+    });
   }
 
   /**
