@@ -19,7 +19,7 @@ import {
   Visibility,
   FileDownload,
 } from "@mui/icons-material";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CollectionStatsCard from "./CollectionStatsCard";
 import { exportAllCollectionsToExcel } from "../utils/exportUtils";
 import collectionsService from "../api";
@@ -41,6 +41,7 @@ export default function DailyCollectionsView({
   const [centerMembersMap, setCenterMembersMap] = useState<
     Record<string, MemberWithLoans[]>
   >({});
+  const [search, setSearch] = useState("");
 
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString()}`;
@@ -265,6 +266,16 @@ export default function DailyCollectionsView({
     );
   }
 
+  const displayedData = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? data.filter((g) => (g.centerName || "").toLowerCase().includes(q))
+      : data;
+    return [...filtered].sort((a, b) =>
+      (a.centerName || "").localeCompare(b.centerName || "")
+    );
+  }, [data, search]);
+
   return (
     <Box>
       {/* Export All Collections Header */}
@@ -291,6 +302,21 @@ export default function DailyCollectionsView({
             {data.length} center{data.length !== 1 ? "s" : ""} scheduled for
             collection today
           </Typography>
+          <Box sx={{ mt: 2 }}>
+            <input
+              placeholder="Search centers by name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: "100%",
+                maxWidth: 420,
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                outline: "none",
+              }}
+            />
+          </Box>
           <Box sx={{ display: "flex", gap: 2, mt: 1, flexWrap: "wrap" }}>
             <Box
               sx={{
@@ -381,7 +407,7 @@ export default function DailyCollectionsView({
       )}
 
       {/* Individual Collection Cards */}
-      {data.map((group) => (
+      {displayedData.map((group) => (
         <Card
           key={group.centerId}
           sx={{

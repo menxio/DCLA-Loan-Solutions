@@ -15,6 +15,8 @@ import {
   Tooltip,
   Fade,
   Skeleton,
+  TextField,
+  InputAdornment,
 } from "@mui/material";
 import {
   Close,
@@ -23,6 +25,7 @@ import {
   People,
   Download,
 } from "@mui/icons-material";
+import { Search } from "@mui/icons-material";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { DailyCollectionGroup, Collection, Member } from "../types";
 import collectionsService from "../api";
@@ -76,6 +79,7 @@ export default function CollectionDetailsModal({
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [memberSearch, setMemberSearch] = useState("");
 
   // Dialog states
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -93,17 +97,23 @@ export default function CollectionDetailsModal({
     const eligibleMembers = members.filter(hasActiveLoan);
 
     const getReceived = (m: any): number => {
-      const v = (m?.collection as any)?.amountReceived ?? (m?.collection as any)?.paymentReceived;
+      const v =
+        (m?.collection as any)?.amountReceived ??
+        (m?.collection as any)?.paymentReceived;
       return v !== undefined ? Number(v) || 0 : 0;
     };
 
-    const paidCount = eligibleMembers.filter((m) => getReceived(m) >= Number(m.weeklyPaymentAmount || 0)).length;
+    const paidCount = eligibleMembers.filter(
+      (m) => getReceived(m) >= Number(m.weeklyPaymentAmount || 0)
+    ).length;
     const partialCount = eligibleMembers.filter((m) => {
       const r = getReceived(m);
       const w = Number(m.weeklyPaymentAmount || 0);
       return r > 0 && r < w;
     }).length;
-    const unpaidCount = eligibleMembers.filter((m) => getReceived(m) <= 0).length;
+    const unpaidCount = eligibleMembers.filter(
+      (m) => getReceived(m) <= 0
+    ).length;
 
     const totalOverallAmount = eligibleMembers.reduce(
       (sum, member) => sum + (member.overallAmount || 0),
@@ -140,6 +150,19 @@ export default function CollectionDetailsModal({
           (c) => c.memberId === member.id
         ),
       }));
+
+      // Alphabetical sort: Last Name, First Name
+      membersWithCollections.sort((a: any, b: any) => {
+        const al = `${(a.lastName || "").toLowerCase()} ${(
+          a.firstName || ""
+        ).toLowerCase()}`.trim();
+        const bl = `${(b.lastName || "").toLowerCase()} ${(
+          b.firstName || ""
+        ).toLowerCase()}`.trim();
+        if (al < bl) return -1;
+        if (al > bl) return 1;
+        return 0;
+      });
 
       setMembers(membersWithCollections);
     } catch (error) {
@@ -201,8 +224,20 @@ export default function CollectionDetailsModal({
     setExportError(null);
 
     try {
-      const eligibleMembers = members.filter(
-        (m) => Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
+      // Sort alphabetically for export
+      const sorted = [...members].sort((a, b) => {
+        const al = `${(a.lastName || "").toLowerCase()} ${(
+          a.firstName || ""
+        ).toLowerCase()}`.trim();
+        const bl = `${(b.lastName || "").toLowerCase()} ${(
+          b.firstName || ""
+        ).toLowerCase()}`.trim();
+        return al.localeCompare(bl);
+      });
+
+      const eligibleMembers = sorted.filter(
+        (m) =>
+          Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
       );
       await exportToExcel(collectionGroup, eligibleMembers);
     } catch (error) {
@@ -267,6 +302,33 @@ export default function CollectionDetailsModal({
   }, []);
 
   if (!collectionGroup) return null;
+
+  // Filtered + sorted members for table rendering
+  const displayedMembers = useMemo(() => {
+    const query = memberSearch.trim().toLowerCase();
+    const base = members.filter(
+      (m) =>
+        Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
+    );
+    const filtered = query
+      ? base.filter((m) => {
+          const name = `${m.firstName || ""} ${m.middleName || ""} ${
+            m.lastName || ""
+          }`.toLowerCase();
+          const contact = (m.contactNumber || "").toLowerCase();
+          return name.includes(query) || contact.includes(query);
+        })
+      : base;
+    return filtered.sort((a, b) => {
+      const al = `${(a.lastName || "").toLowerCase()} ${(
+        a.firstName || ""
+      ).toLowerCase()}`.trim();
+      const bl = `${(b.lastName || "").toLowerCase()} ${(
+        b.firstName || ""
+      ).toLowerCase()}`.trim();
+      return al.localeCompare(bl);
+    });
+  }, [members, memberSearch]);
 
   return (
     <>
@@ -437,10 +499,24 @@ export default function CollectionDetailsModal({
                 formatCurrency={formatCurrency}
               />
 
+              <Box sx={{ px: 3, pb: 1 }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search member by name or contact"
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search sx={{ color: "text.secondary" }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
+
               <MembersTable
-                members={members.filter(
-                  (m) => Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
-                )}
+                members={displayedMembers}
                 getStatusColor={(m: any) => getStatusColor(m as any)}
                 getStatusLabel={(m: any) => getStatusLabel(m as any)}
                 formatCurrency={formatCurrency}

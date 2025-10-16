@@ -1,14 +1,17 @@
-import type { DailyCollectionGroup, MemberWithLoans } from "../types"
+import type { DailyCollectionGroup, MemberWithLoans } from "../types";
 
 // Types for batch export
 export type CollectionExportBundle = {
-  group: DailyCollectionGroup
-  members: MemberWithLoans[]
-}
+  group: DailyCollectionGroup;
+  members: MemberWithLoans[];
+};
 
 // Fallback CSV export function
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const exportToCSV = (collectionGroup: DailyCollectionGroup, members: MemberWithLoans[]): void => {
+const exportToCSV = (
+  collectionGroup: DailyCollectionGroup,
+  members: MemberWithLoans[]
+): void => {
   try {
     // Create CSV content
     const csvContent = [
@@ -25,30 +28,32 @@ const exportToCSV = (collectionGroup: DailyCollectionGroup, members: MemberWithL
       `Total Amount Expected,₱${collectionGroup.totalAmount.toLocaleString()}`,
       `Total Amount Received,₱${(collectionGroup.collections || [])
         .reduce((sum, c: any) => {
-          const received = c?.amountReceived ?? c?.paymentReceived ?? 0
-          return sum + (Number(received) || 0)
+          const received = c?.amountReceived ?? c?.paymentReceived ?? 0;
+          return sum + (Number(received) || 0);
         }, 0)
         .toLocaleString()}`,
-      `Total Remaining Balance,₱${(collectionGroup.totalAmount - collectionGroup.totalReceived).toLocaleString()}`,
+      `Total Remaining Balance,₱${(
+        collectionGroup.totalAmount - collectionGroup.totalReceived
+      ).toLocaleString()}`,
       `Pending Collections,${collectionGroup.pendingCollections}`,
       "",
       "Status Breakdown",
       `Paid Collections,${
         collectionGroup.collections.filter((c: any) => {
-          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0)
-          return received >= Number(c.amount || 0)
+          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0);
+          return received >= Number(c.amount || 0);
         }).length
       }`,
       `Partial Collections,${
         collectionGroup.collections.filter((c: any) => {
-          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0)
-          return received > 0 && received < Number(c.amount || 0)
+          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0);
+          return received > 0 && received < Number(c.amount || 0);
         }).length
       }`,
       `Pending Collections,${
         collectionGroup.collections.filter((c: any) => {
-          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0)
-          return received <= 0
+          const received = Number(c?.amountReceived ?? c?.paymentReceived ?? 0);
+          return received <= 0;
         }).length
       }`,
       "",
@@ -67,9 +72,12 @@ const exportToCSV = (collectionGroup: DailyCollectionGroup, members: MemberWithL
           `₱${member.totalSavings?.toLocaleString() || "0"}`,
           `₱${member.totalBalance?.toLocaleString() || "0"}`,
           `₱${member.weeklyPaymentAmount?.toLocaleString() || "0"}`,
-          (member.collection?.paymentReceived || 0) >= (member.weeklyPaymentAmount || 0) ? "PAID" : "PENDING",
+          (member.collection?.paymentReceived || 0) >=
+          (member.weeklyPaymentAmount || 0)
+            ? "PAID"
+            : "PENDING",
           member.collection?.notes || "-",
-        ].join(","),
+        ].join(",")
       ),
       "",
       // Collections detail section
@@ -77,74 +85,97 @@ const exportToCSV = (collectionGroup: DailyCollectionGroup, members: MemberWithL
       "Member Name,Collection Date,Amount Expected,Amount Received,Balance,Status,Notes,Auto Generated",
       ...collectionGroup.collections.map((collection: any) =>
         [
-          `${collection.member?.firstName || ""} ${collection.member?.lastName || ""}`,
+          `${collection.member?.firstName || ""} ${
+            collection.member?.lastName || ""
+          }`,
           collection.collectionDate,
           `₱${collection.amount.toLocaleString()}`,
-          `₱${(Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0).toLocaleString()}`,
           `₱${(
-            Number(collection.amount || 0) - (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0)
+            Number(
+              collection.amountReceived ?? collection.paymentReceived ?? 0
+            ) || 0
           ).toLocaleString()}`,
-          (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0) >= Number(collection.amount || 0)
+          `₱${(
+            Number(collection.amount || 0) -
+            (Number(
+              collection.amountReceived ?? collection.paymentReceived ?? 0
+            ) || 0)
+          ).toLocaleString()}`,
+          (Number(
+            collection.amountReceived ?? collection.paymentReceived ?? 0
+          ) || 0) >= Number(collection.amount || 0)
             ? "PAID"
-            : (Number(collection.amountReceived ?? collection.paymentReceived ?? 0) || 0) > 0
+            : (Number(
+                collection.amountReceived ?? collection.paymentReceived ?? 0
+              ) || 0) > 0
             ? "PARTIAL"
             : "PENDING",
           collection.notes || "-",
           collection.isAutoGenerated ? "Yes" : "No",
-        ].join(","),
+        ].join(",")
       ),
-    ].join("\n")
+    ].join("\n");
 
     // Create and download file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-    link.setAttribute("href", url)
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `Collection_Report_${collectionGroup.centerName}_${collectionGroup.collectionDate.replace(/-/g, "_")}.csv`,
-    )
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+      `Collection_Report_${
+        collectionGroup.centerName
+      }_${collectionGroup.collectionDate.replace(/-/g, "_")}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   } catch (error) {
-    console.error("CSV export failed:", error)
-    throw new Error("Failed to export collection data as CSV.")
+    console.error("CSV export failed:", error);
+    throw new Error("Failed to export collection data as CSV.");
   }
-  }
+};
 
 // Helper: build the single-sheet data structure for a group
 const buildGroupSheetData = (
   collectionGroup: DailyCollectionGroup,
-  members: MemberWithLoans[],
+  members: MemberWithLoans[]
 ): {
-  data: (string | number)[][]
-  merges: { s: { r: number; c: number }; e: { r: number; c: number } }[]
+  data: (string | number)[][];
+  merges: { s: { r: number; c: number }; e: { r: number; c: number } }[];
 } => {
-  const sheetData: (string | number)[][] = []
+  const sheetData: (string | number)[][] = [];
 
   // Helpers to read values regardless of backend field names
   const getMemberReceived = (m: any): number => {
-    const fromCollection = m?.collection?.amountReceived ?? m?.collection?.paymentReceived
-    if (fromCollection !== undefined) return Number(fromCollection) || 0
-    const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active")
-    const amountPaidRaw = activeLoan?.amountPaid
-    if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0
-    const weeksPaid = Number(activeLoan?.weeksPaid || 0)
-    const weekly = Number(m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0)
-    return weeksPaid * weekly
-  }
+    const fromCollection =
+      m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
+    if (fromCollection !== undefined) return Number(fromCollection) || 0;
+    const activeLoan = (m?.loans || []).find(
+      (l: any) => l?.status === "active"
+    );
+    const amountPaidRaw = activeLoan?.amountPaid;
+    if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
+    const weeksPaid = Number(activeLoan?.weeksPaid || 0);
+    const weekly = Number(
+      m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0
+    );
+    return weeksPaid * weekly;
+  };
   const getMemberWeeksPaid = (m: any): number => {
-    const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active")
-    const weeksPaid = activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0
-    return Number(weeksPaid) || 0
-  }
+    const activeLoan = (m?.loans || []).find(
+      (l: any) => l?.status === "active"
+    );
+    const weeksPaid =
+      activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0;
+    return Number(weeksPaid) || 0;
+  };
 
   // Title rows
-  sheetData.push(["DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)"])
-  sheetData.push(["GROUP COLLECTION REPORT"])
-  sheetData.push([""])
+  sheetData.push(["DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)"]);
+  sheetData.push(["GROUP COLLECTION REPORT"]);
+  sheetData.push([""]);
 
   // Center info block
   sheetData.push([
@@ -158,9 +189,9 @@ const buildGroupSheetData = (
     "",
     "Collection Date",
     collectionGroup.collectionDate,
-  ])
-  sheetData.push(["Number of Clients", collectionGroup.totalMembers])
-  sheetData.push([""])
+  ]);
+  sheetData.push(["Number of Clients", collectionGroup.totalMembers]);
+  sheetData.push([""]);
 
   // Daily collection table header (keeping ALL existing columns, just improving format)
   sheetData.push([
@@ -177,16 +208,21 @@ const buildGroupSheetData = (
     "Savings",
     "Remaining Balance",
     "Status",
-  ])
+  ]);
 
   // Daily collection table rows (keeping ALL existing data, just improving visual format)
   members.forEach((member, index) => {
-    const received = getMemberReceived(member as any)
-    const weeksPaid = getMemberWeeksPaid(member as any)
-    const netRelease = (member as any)?.collection?.netRelease ?? (member as any)?.netCashReleased ?? 0
+    const received = getMemberReceived(member as any);
+    const weeksPaid = getMemberWeeksPaid(member as any);
+    const netRelease =
+      (member as any)?.collection?.netRelease ??
+      (member as any)?.netCashReleased ??
+      0;
     sheetData.push([
       index + 1, // Row number for better presentation
-      `${member.lastName}, ${member.firstName} ${member.middleName || ""}`.trim(), // Better name format
+      `${member.lastName}, ${member.firstName} ${
+        member.middleName || ""
+      }`.trim(), // Better name format
       `${member.contactNumber || ""}`,
       `₱${member.totalLoanAmount?.toLocaleString() || "0"}`,
       `₱${member.overallAmount?.toLocaleString() || "0"}`,
@@ -202,87 +238,126 @@ const buildGroupSheetData = (
         : (Number(received) || 0) > 0
         ? "PARTIAL"
         : "UNPAID",
-    ])
-  })
+    ]);
+  });
 
-  sheetData.push([""])
+  sheetData.push([""]);
 
   // Financial summary block
-  const totalLoanAmount = members.reduce((sum, m) => sum + (m.totalLoanAmount || 0), 0)
-  const totalOverallAmount = members.reduce((sum, m) => sum + (m.overallAmount || 0), 0)
-  const totalWeeklyPayments = members.reduce((sum, m) => sum + (m.weeklyPaymentAmount || 0), 0)
-  const totalNetCashReleased = members.reduce((sum, m) => sum + (m.netCashReleased || 0), 0)
-  const totalSavings = members.reduce((sum, m) => sum + (m.totalSavings || 0), 0)
-  const totalRemainingBalance = members.reduce((sum, m) => sum + (m.totalBalance || 0), 0)
+  const totalLoanAmount = members.reduce(
+    (sum, m) => sum + (m.totalLoanAmount || 0),
+    0
+  );
+  const totalOverallAmount = members.reduce(
+    (sum, m) => sum + (m.overallAmount || 0),
+    0
+  );
+  const totalWeeklyPayments = members.reduce(
+    (sum, m) => sum + (m.weeklyPaymentAmount || 0),
+    0
+  );
+  const totalNetCashReleased = members.reduce(
+    (sum, m) => sum + (m.netCashReleased || 0),
+    0
+  );
+  const totalSavings = members.reduce(
+    (sum, m) => sum + (m.totalSavings || 0),
+    0
+  );
+  const totalRemainingBalance = members.reduce(
+    (sum, m) => sum + (m.totalBalance || 0),
+    0
+  );
   const paidMembers = members.filter((m: any) => {
-    const received = getMemberReceived(m)
-    return received >= Number(m.weeklyPaymentAmount || 0)
-  }).length
+    const received = getMemberReceived(m);
+    return received >= Number(m.weeklyPaymentAmount || 0);
+  }).length;
   const partialMembers = members.filter((m: any) => {
-    const received = getMemberReceived(m)
-    const weekly = Number(m.weeklyPaymentAmount || 0)
-    return received > 0 && received < weekly
-  }).length
+    const received = getMemberReceived(m);
+    const weekly = Number(m.weeklyPaymentAmount || 0);
+    return received > 0 && received < weekly;
+  }).length;
   const unpaidMembers = members.filter((m: any) => {
-    const received = getMemberReceived(m)
-    return !m.collection || received <= 0
-  }).length
+    const received = getMemberReceived(m);
+    return !m.collection || received <= 0;
+  }).length;
 
-  sheetData.push(["Financial Summary"])
-  sheetData.push([""])
-  sheetData.push(["Total Loan Amount", `₱${totalLoanAmount.toLocaleString()}`])
-  sheetData.push(["Total Overall Amount", `₱${totalOverallAmount.toLocaleString()}`])
-  sheetData.push(["Total Weekly Payments", `₱${totalWeeklyPayments.toLocaleString()}`])
-  const totalPaymentReceived = members.reduce((sum, m) => sum + getMemberReceived(m as any), 0)
-  sheetData.push(["Total Payment Received", `₱${totalPaymentReceived.toLocaleString()}`])
-  sheetData.push(["Total Net Cash Released", `₱${totalNetCashReleased.toLocaleString()}`])
-  sheetData.push(["Total Savings", `₱${totalSavings.toLocaleString()}`])
-  sheetData.push(["Total Remaining Balance", `₱${totalRemainingBalance.toLocaleString()}`])
-  sheetData.push([""])
-  sheetData.push(["Payment Status Summary"])
-  sheetData.push(["Paid Members", paidMembers])
-  sheetData.push(["Partial Payment Members", partialMembers])
-  sheetData.push(["Unpaid Members", unpaidMembers])
+  sheetData.push(["Financial Summary"]);
+  sheetData.push([""]);
+  sheetData.push(["Total Loan Amount", `₱${totalLoanAmount.toLocaleString()}`]);
+  sheetData.push([
+    "Total Overall Amount",
+    `₱${totalOverallAmount.toLocaleString()}`,
+  ]);
+  sheetData.push([
+    "Total Weekly Payments",
+    `₱${totalWeeklyPayments.toLocaleString()}`,
+  ]);
+  const totalPaymentReceived = members.reduce(
+    (sum, m) => sum + getMemberReceived(m as any),
+    0
+  );
+  sheetData.push([
+    "Total Payment Received",
+    `₱${totalPaymentReceived.toLocaleString()}`,
+  ]);
+  sheetData.push([
+    "Total Net Cash Released",
+    `₱${totalNetCashReleased.toLocaleString()}`,
+  ]);
+  sheetData.push(["Total Savings", `₱${totalSavings.toLocaleString()}`]);
+  sheetData.push([
+    "Total Remaining Balance",
+    `₱${totalRemainingBalance.toLocaleString()}`,
+  ]);
+  sheetData.push([""]);
+  sheetData.push(["Payment Status Summary"]);
+  sheetData.push(["Paid Members", paidMembers]);
+  sheetData.push(["Partial Payment Members", partialMembers]);
+  sheetData.push(["Unpaid Members", unpaidMembers]);
 
   // Merge title rows across first 12 columns (A..L)
   const merges = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } },
-  ]
+  ];
 
-  return { data: sheetData, merges }
-}
+  return { data: sheetData, merges };
+};
 
 // Helper: create worksheet with light styling
 const buildWorksheet = async (
   data: (string | number)[][],
   merges: { s: { r: number; c: number }; e: { r: number; c: number } }[],
-  sheetName: string,
+  sheetName: string
 ) => {
-  const XLSX = await import("xlsx")
-  const ws = XLSX.utils.aoa_to_sheet(data)
-  ;(ws as any)["!merges"] = merges
+  const XLSX = await import("xlsx");
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  (ws as any)["!merges"] = merges;
 
   // Enhanced column widths for better readability
-  const maxCols = data.reduce((max, r) => Math.max(max, r.length), 0)
-  const maxColWidths = new Array(maxCols).fill(12)
+  const maxCols = data.reduce((max, r) => Math.max(max, r.length), 0);
+  const maxColWidths = new Array(maxCols).fill(12);
   data.forEach((row) => {
     row.forEach((cell, idx) => {
-      const len = String(cell ?? "").length
+      const len = String(cell ?? "").length;
       // Better width calculation for professional appearance
-      maxColWidths[idx] = Math.min(Math.max(maxColWidths[idx], Math.min(len + 3, 35)), 35)
-    })
-  })
-  ;(ws as any)["!cols"] = maxColWidths.map((w) => ({ width: w }))
+      maxColWidths[idx] = Math.min(
+        Math.max(maxColWidths[idx], Math.min(len + 3, 35)),
+        35
+      );
+    });
+  });
+  (ws as any)["!cols"] = maxColWidths.map((w) => ({ width: w }));
 
   // Professional styling with colors and borders
-  const range = XLSX.utils.decode_range(ws["!ref"] || "A1")
+  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
 
   // Style company header (row 1-2) - Dark blue background with white text
   for (let r = 0; r <= 1; r++) {
     for (let c = 0; c <= range.e.c; c++) {
-      const cellRef = XLSX.utils.encode_cell({ r, c })
-      if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" }
+      const cellRef = XLSX.utils.encode_cell({ r, c });
+      if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
       ws[cellRef].s = {
         font: { bold: true, color: { rgb: "FFFFFF" }, size: 14 },
         fill: { fgColor: { rgb: "1F4E79" } },
@@ -293,39 +368,47 @@ const buildWorksheet = async (
           left: { style: "thin", color: { rgb: "000000" } },
           right: { style: "thin", color: { rgb: "000000" } },
         },
-      }
+      };
     }
   }
 
   // Style center info section (rows 4-5) - Light blue background
   for (let r = 3; r <= 4; r++) {
     for (let c = 0; c <= range.e.c; c++) {
-      const cellRef = XLSX.utils.encode_cell({ r, c })
-      if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" }
+      const cellRef = XLSX.utils.encode_cell({ r, c });
+      if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
       ws[cellRef].s = {
         font: { bold: r === 3, size: 11 },
         fill: { fgColor: { rgb: "E7F3FF" } },
-        alignment: { horizontal: r === 3 ? "center" : "left", vertical: "center" },
+        alignment: {
+          horizontal: r === 3 ? "center" : "left",
+          vertical: "center",
+        },
         border: {
           top: { style: "thin", color: { rgb: "CCCCCC" } },
           bottom: { style: "thin", color: { rgb: "CCCCCC" } },
           left: { style: "thin", color: { rgb: "CCCCCC" } },
           right: { style: "thin", color: { rgb: "CCCCCC" } },
         },
-      }
+      };
     }
   }
 
   // Find and style table header row - Light gray background like reference image
-  const headerRowIndex = data.findIndex((r) => r[0] === "No.")
+  const headerRowIndex = data.findIndex((r) => r[0] === "No.");
   if (headerRowIndex >= 0) {
-    const headerRow = data[headerRowIndex]
-    console.log("Found header row at index:", headerRowIndex, "with data:", headerRow)
-    
+    const headerRow = data[headerRowIndex];
+    console.log(
+      "Found header row at index:",
+      headerRowIndex,
+      "with data:",
+      headerRow
+    );
+
     for (let c = 0; c < headerRow.length; c++) {
-      const cellRef = XLSX.utils.encode_cell({ r: headerRowIndex, c })
-      if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" }
-      
+      const cellRef = XLSX.utils.encode_cell({ r: headerRowIndex, c });
+      if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
+
       const cellStyle = {
         font: { bold: true, color: { rgb: "000000" }, size: 11 },
         fill: { fgColor: { rgb: "F0F0F0" } },
@@ -336,48 +419,51 @@ const buildWorksheet = async (
           left: { style: "thin", color: { rgb: "000000" } },
           right: { style: "thin", color: { rgb: "000000" } },
         },
-      }
-      
-      ws[cellRef].s = cellStyle
-      console.log(`Applied style to cell ${cellRef}:`, cellStyle)
+      };
+
+      ws[cellRef].s = cellStyle;
+      console.log(`Applied style to cell ${cellRef}:`, cellStyle);
     }
 
     // Style data rows with alternating colors and status-based formatting
-    const dataStartRow = headerRowIndex + 1
-    const dataEndRow = data.findIndex((r, idx) => idx > headerRowIndex && r[0] === "") - 1
+    const dataStartRow = headerRowIndex + 1;
+    const dataEndRow =
+      data.findIndex((r, idx) => idx > headerRowIndex && r[0] === "") - 1;
 
-    console.log("Styling data rows from", dataStartRow, "to", dataEndRow)
+    console.log("Styling data rows from", dataStartRow, "to", dataEndRow);
 
     for (let r = dataStartRow; r <= dataEndRow && r < data.length; r++) {
-      const row = data[r]
-      if (!row || row.length === 0) continue
+      const row = data[r];
+      if (!row || row.length === 0) continue;
 
-      const isEvenRow = (r - dataStartRow) % 2 === 0
-      const status = row[row.length - 1] // Status is the last column
+      const isEvenRow = (r - dataStartRow) % 2 === 0;
+      const status = row[row.length - 1]; // Status is the last column
 
       for (let c = 0; c < row.length; c++) {
-        const cellRef = XLSX.utils.encode_cell({ r, c })
-        if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" }
+        const cellRef = XLSX.utils.encode_cell({ r, c });
+        if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
 
-        let fillColor = isEvenRow ? "F8F9FA" : "FFFFFF" // Alternating row colors
-        let fontColor = "000000"
+        let fillColor = isEvenRow ? "F8F9FA" : "FFFFFF"; // Alternating row colors
+        let fontColor = "000000";
 
         // Special column color coding like reference image
-        if (c === 9) { // No. of Payment column (index 9)
-          fontColor = "FF0000" // Red text like in reference
-        } else if (c === 10) { // Savings column (index 10)
-          fontColor = "FF00FF" // Magenta text like in reference
+        if (c === 9) {
+          // No. of Payment column (index 9)
+          fontColor = "FF0000"; // Red text like in reference
+        } else if (c === 10) {
+          // Savings column (index 10)
+          fontColor = "FF00FF"; // Magenta text like in reference
         } else if (c === row.length - 1) {
           // Status column
           if (status === "PAID") {
-            fillColor = "D4EDDA"
-            fontColor = "155724"
+            fillColor = "D4EDDA";
+            fontColor = "155724";
           } else if (status === "PARTIAL") {
-            fillColor = "FFF3CD"
-            fontColor = "856404"
+            fillColor = "FFF3CD";
+            fontColor = "856404";
           } else if (status === "UNPAID") {
-            fillColor = "F8D7DA"
-            fontColor = "721C24"
+            fillColor = "F8D7DA";
+            fontColor = "721C24";
           }
         }
 
@@ -398,24 +484,27 @@ const buildWorksheet = async (
             left: { style: "thin", color: { rgb: "000000" } },
             right: { style: "thin", color: { rgb: "000000" } },
           },
-        }
+        };
 
-        ws[cellRef].s = cellStyle
-        
+        ws[cellRef].s = cellStyle;
+
         // Log first few cells for debugging
         if (r <= dataStartRow + 2 && c < 3) {
-          console.log(`Applied style to cell ${cellRef} (row ${r}, col ${c}):`, cellStyle)
+          console.log(
+            `Applied style to cell ${cellRef} (row ${r}, col ${c}):`,
+            cellStyle
+          );
         }
       }
     }
   }
 
   // Style Financial Summary section
-  const summaryRowIndex = data.findIndex((r) => r[0] === "Financial Summary")
+  const summaryRowIndex = data.findIndex((r) => r[0] === "Financial Summary");
   if (summaryRowIndex >= 0) {
     // Summary header
-    const cellRef = XLSX.utils.encode_cell({ r: summaryRowIndex, c: 0 })
-    if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" }
+    const cellRef = XLSX.utils.encode_cell({ r: summaryRowIndex, c: 0 });
+    if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
     ws[cellRef].s = {
       font: { bold: true, color: { rgb: "FFFFFF" }, size: 12 },
       fill: { fgColor: { rgb: "2E75B6" } },
@@ -426,37 +515,43 @@ const buildWorksheet = async (
         left: { style: "medium", color: { rgb: "000000" } },
         right: { style: "medium", color: { rgb: "000000" } },
       },
-    }
+    };
 
     // Summary data rows
     for (let r = summaryRowIndex + 2; r < data.length; r++) {
-      const row = data[r]
-      if (!row || row.length === 0 || row[0] === "Payment Status Summary") break
+      const row = data[r];
+      if (!row || row.length === 0 || row[0] === "Payment Status Summary")
+        break;
 
       for (let c = 0; c < Math.min(row.length, 2); c++) {
-        const cellRef = XLSX.utils.encode_cell({ r, c })
-        if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" }
+        const cellRef = XLSX.utils.encode_cell({ r, c });
+        if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
         ws[cellRef].s = {
           font: { bold: c === 0, size: 10 },
           fill: { fgColor: { rgb: "F0F8FF" } },
-          alignment: { horizontal: c === 0 ? "left" : "right", vertical: "center" },
+          alignment: {
+            horizontal: c === 0 ? "left" : "right",
+            vertical: "center",
+          },
           border: {
             top: { style: "thin", color: { rgb: "CCCCCC" } },
             bottom: { style: "thin", color: { rgb: "CCCCCC" } },
             left: { style: "thin", color: { rgb: "CCCCCC" } },
             right: { style: "thin", color: { rgb: "CCCCCC" } },
           },
-        }
+        };
       }
     }
   }
 
   // Style Payment Status Summary section
-  const statusSummaryIndex = data.findIndex((r) => r[0] === "Payment Status Summary")
+  const statusSummaryIndex = data.findIndex(
+    (r) => r[0] === "Payment Status Summary"
+  );
   if (statusSummaryIndex >= 0) {
     // Status summary header
-    const cellRef = XLSX.utils.encode_cell({ r: statusSummaryIndex, c: 0 })
-    if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" }
+    const cellRef = XLSX.utils.encode_cell({ r: statusSummaryIndex, c: 0 });
+    if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
     ws[cellRef].s = {
       font: { bold: true, color: { rgb: "FFFFFF" }, size: 12 },
       fill: { fgColor: { rgb: "70AD47" } },
@@ -467,156 +562,200 @@ const buildWorksheet = async (
         left: { style: "medium", color: { rgb: "000000" } },
         right: { style: "medium", color: { rgb: "000000" } },
       },
-    }
+    };
 
     // Status summary data rows with color coding
     for (let r = statusSummaryIndex + 1; r < data.length; r++) {
-      const row = data[r]
-      if (!row || row.length === 0) break
+      const row = data[r];
+      if (!row || row.length === 0) break;
 
-      let fillColor = "F0F8FF"
-      if (row[0] && row[0].toString().includes("Paid")) fillColor = "E8F5E8"
-      if (row[0] && row[0].toString().includes("Partial")) fillColor = "FFF8E1"
-      if (row[0] && row[0].toString().includes("Unpaid")) fillColor = "FFEBEE"
+      let fillColor = "F0F8FF";
+      if (row[0] && row[0].toString().includes("Paid")) fillColor = "E8F5E8";
+      if (row[0] && row[0].toString().includes("Partial")) fillColor = "FFF8E1";
+      if (row[0] && row[0].toString().includes("Unpaid")) fillColor = "FFEBEE";
 
       for (let c = 0; c < Math.min(row.length, 2); c++) {
-        const cellRef = XLSX.utils.encode_cell({ r, c })
-        if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" }
+        const cellRef = XLSX.utils.encode_cell({ r, c });
+        if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
         ws[cellRef].s = {
           font: { bold: c === 0, size: 10 },
           fill: { fgColor: { rgb: fillColor } },
-          alignment: { horizontal: c === 0 ? "left" : "center", vertical: "center" },
+          alignment: {
+            horizontal: c === 0 ? "left" : "center",
+            vertical: "center",
+          },
           border: {
             top: { style: "thin", color: { rgb: "CCCCCC" } },
             bottom: { style: "thin", color: { rgb: "CCCCCC" } },
             left: { style: "thin", color: { rgb: "CCCCCC" } },
             right: { style: "thin", color: { rgb: "CCCCCC" } },
           },
-        }
+        };
       }
     }
   }
 
-  console.log("Final worksheet object:", ws)
-  console.log("Worksheet keys:", Object.keys(ws))
-  return { ws, sheetName }
-}
+  console.log("Final worksheet object:", ws);
+  console.log("Worksheet keys:", Object.keys(ws));
+  return { ws, sheetName };
+};
 
 export const exportToExcel = async (
   collectionGroup: DailyCollectionGroup,
-  members: MemberWithLoans[],
+  members: MemberWithLoans[]
 ): Promise<void> => {
   try {
+    // Ensure alphabetical order in export (LastName, FirstName)
+    const sortedMembers = [...members].sort((a, b) => {
+      const al = `${(a.lastName || "").toLowerCase()} ${(
+        a.firstName || ""
+      ).toLowerCase()}`.trim();
+      const bl = `${(b.lastName || "").toLowerCase()} ${(
+        b.firstName || ""
+      ).toLowerCase()}`.trim();
+      return al.localeCompare(bl);
+    });
     // Try using ExcelJS for better styling support
-    console.log("Attempting to use ExcelJS for styling...")
-    const ExcelJS = await import("exceljs")
-    const FileSaver = await import("file-saver")
+    console.log("Attempting to use ExcelJS for styling...");
+    const ExcelJS = await import("exceljs");
+    const FileSaver = await import("file-saver");
 
-    console.log("ExcelJS imported successfully:", ExcelJS)
-    const workbook = new ExcelJS.default.Workbook()
-    const worksheet = workbook.addWorksheet("Group Report")
-    console.log("Workbook and worksheet created successfully")
+    console.log("ExcelJS imported successfully:", ExcelJS);
+    const workbook = new ExcelJS.default.Workbook();
+    const worksheet = workbook.addWorksheet("Group Report");
+    console.log("Workbook and worksheet created successfully");
 
     // Helper functions for data calculations
     const getMemberReceived = (m: any): number => {
-      const fromCollection = m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
+      const fromCollection =
+        m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
       if (fromCollection !== undefined) return Number(fromCollection) || 0;
-      const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active");
+      const activeLoan = (m?.loans || []).find(
+        (l: any) => l?.status === "active"
+      );
       const amountPaidRaw = activeLoan?.amountPaid;
       if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
       const weeksPaid = Number(activeLoan?.weeksPaid || 0);
-      const weekly = Number(m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0);
+      const weekly = Number(
+        m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0
+      );
       return weeksPaid * weekly;
     };
-    
+
     const getMemberWeeksPaid = (m: any): number => {
-      const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active");
-      const weeksPaid = activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0;
+      const activeLoan = (m?.loans || []).find(
+        (l: any) => l?.status === "active"
+      );
+      const weeksPaid =
+        activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0;
       return Number(weeksPaid) || 0;
     };
 
     // Set column widths with better spacing
     worksheet.columns = [
-      { width: 30 },  // No.
-      { width: 30 },  // Client Name
-      { width: 18 },  // Contact
-      { width: 15 },  // Loan Amount
-      { width: 15 },  // Overall Amount
-      { width: 12 },  // Term Weeks
-      { width: 15 },  // Amount Due
-      { width: 18 },  // Payment Received
-      { width: 15 },  // Net Released
-      { width: 15 },  // No. of Payments
-      { width: 15 },  // Savings
-      { width: 18 },  // Remaining Balance
-      { width: 12 },  // Status
-    ]
+      { width: 30 }, // No.
+      { width: 30 }, // Client Name
+      { width: 18 }, // Contact
+      { width: 15 }, // Loan Amount
+      { width: 15 }, // Overall Amount
+      { width: 12 }, // Term Weeks
+      { width: 15 }, // Amount Due
+      { width: 18 }, // Payment Received
+      { width: 15 }, // Net Released
+      { width: 15 }, // No. of Payments
+      { width: 15 }, // Savings
+      { width: 18 }, // Remaining Balance
+      { width: 12 }, // Status
+    ];
 
     // Auto-fit header cells for better display
-    worksheet.getRow(1).height = 20
-    worksheet.getRow(2).height = 20
-    worksheet.getRow(4).height = 18
-    worksheet.getRow(5).height = 18
+    worksheet.getRow(1).height = 20;
+    worksheet.getRow(2).height = 20;
+    worksheet.getRow(4).height = 18;
+    worksheet.getRow(5).height = 18;
 
     // Add title rows
-    worksheet.mergeCells('A1:M1')
-    worksheet.getCell('A1').value = "DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)"
-    worksheet.getCell('A1').font = { bold: true, size: 14 }
-    worksheet.getCell('A1').alignment = { horizontal: 'center' }
+    worksheet.mergeCells("A1:M1");
+    worksheet.getCell("A1").value = "DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)";
+    worksheet.getCell("A1").font = { bold: true, size: 14 };
+    worksheet.getCell("A1").alignment = { horizontal: "center" };
 
-    worksheet.mergeCells('A2:M2')
-    worksheet.getCell('A2').value = "GROUP COLLECTION REPORT"
-    worksheet.getCell('A2').font = { bold: true, size: 12 }
-    worksheet.getCell('A2').alignment = { horizontal: 'center' }
+    worksheet.mergeCells("A2:M2");
+    worksheet.getCell("A2").value = "GROUP COLLECTION REPORT";
+    worksheet.getCell("A2").font = { bold: true, size: 12 };
+    worksheet.getCell("A2").alignment = { horizontal: "center" };
 
     // Add center info with better spacing
-    worksheet.getCell('A4').value = "Center Name"
-    worksheet.getCell('B4').value = collectionGroup.centerName
-    worksheet.getCell('E4').value = "Collection Day"
-    worksheet.getCell('F4').value = collectionGroup.collectionDay
-    worksheet.getCell('I4').value = "Collection Date"
-    worksheet.getCell('J4').value = collectionGroup.collectionDate
+    worksheet.getCell("A4").value = "Center Name";
+    worksheet.getCell("B4").value = collectionGroup.centerName;
+    worksheet.getCell("E4").value = "Collection Day";
+    worksheet.getCell("F4").value = collectionGroup.collectionDay;
+    worksheet.getCell("I4").value = "Collection Date";
+    worksheet.getCell("J4").value = collectionGroup.collectionDate;
 
-    worksheet.getCell('A5').value = "Number of Clients"
-    worksheet.getCell('B5').value = collectionGroup.totalMembers
-    worksheet.getCell('B5').alignment = { horizontal: 'left' }
+    worksheet.getCell("A5").value = "Number of Clients";
+    worksheet.getCell("B5").value = collectionGroup.totalMembers;
+    worksheet.getCell("B5").alignment = { horizontal: "left" };
 
     // Style center info cells
-    worksheet.getCell('A4').font = { bold: true }
-    worksheet.getCell('E4').font = { bold: true }
-    worksheet.getCell('I4').font = { bold: true }
-    worksheet.getCell('A5').font = { bold: true }
+    worksheet.getCell("A4").font = { bold: true };
+    worksheet.getCell("E4").font = { bold: true };
+    worksheet.getCell("I4").font = { bold: true };
+    worksheet.getCell("A5").font = { bold: true };
 
     // Add table headers
-    const headers = ["No.", "Client Name", "Contact", "Loan Amount", "Overall Amount", "Term Weeks", "Amount Due", "Payment Received", "Net Released", "No. of Payment", "Savings", "Remaining Balance", "Status"]
-    const headerRow = worksheet.getRow(7)
-    
+    const headers = [
+      "No.",
+      "Client Name",
+      "Contact",
+      "Loan Amount",
+      "Overall Amount",
+      "Term Weeks",
+      "Amount Due",
+      "Payment Received",
+      "Net Released",
+      "No. of Payment",
+      "Savings",
+      "Remaining Balance",
+      "Status",
+    ];
+    const headerRow = worksheet.getRow(7);
+
     headers.forEach((header, index) => {
-      const cell = headerRow.getCell(index + 1)
-      cell.value = header
-      cell.font = { bold: true, color: { argb: "FF000000" } }
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FFF0F0F0" } }
+      const cell = headerRow.getCell(index + 1);
+      cell.value = header;
+      cell.font = { bold: true, color: { argb: "FF000000" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFF0F0F0" },
+      };
       cell.border = {
-        top: { style: 'medium', color: { argb: "FF000000" } },
-        bottom: { style: 'medium', color: { argb: "FF000000" } },
-        left: { style: 'thin', color: { argb: "FF000000" } },
-        right: { style: 'thin', color: { argb: "FF000000" } }
-      }
-      cell.alignment = { horizontal: 'center', vertical: 'middle' }
-    })
+        top: { style: "medium", color: { argb: "FF000000" } },
+        bottom: { style: "medium", color: { argb: "FF000000" } },
+        left: { style: "thin", color: { argb: "FF000000" } },
+        right: { style: "thin", color: { argb: "FF000000" } },
+      };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    });
 
     // Add data rows
-    members.forEach((member, index) => {
-      const rowIndex = 8 + index
-      const row = worksheet.getRow(rowIndex)
-      
-      const received = getMemberReceived(member as any)
-      const weeksPaid = getMemberWeeksPaid(member as any)
-      const netRelease = (member as any)?.collection?.netRelease ?? (member as any)?.netCashReleased ?? 0
+    sortedMembers.forEach((member, index) => {
+      const rowIndex = 8 + index;
+      const row = worksheet.getRow(rowIndex);
+
+      const received = getMemberReceived(member as any);
+      const weeksPaid = getMemberWeeksPaid(member as any);
+      const netRelease =
+        (member as any)?.collection?.netRelease ??
+        (member as any)?.netCashReleased ??
+        0;
 
       const rowData = [
         index + 1,
-        `${member.lastName}, ${member.firstName} ${member.middleName || ""}`.trim(),
+        `${member.lastName}, ${member.firstName} ${
+          member.middleName || ""
+        }`.trim(),
         member.contactNumber || "",
         `₱${member.totalLoanAmount?.toLocaleString() || "0"}`,
         `₱${member.overallAmount?.toLocaleString() || "0"}`,
@@ -627,58 +766,88 @@ export const exportToExcel = async (
         weeksPaid || "0",
         `₱${member.totalSavings?.toLocaleString() || "0"}`,
         `₱${member.totalBalance?.toLocaleString() || "0"}`,
-        (Number(received) || 0) >= (member.weeklyPaymentAmount || 0) ? "PAID" : (Number(received) || 0) > 0 ? "PARTIAL" : "UNPAID"
-      ]
+        (Number(received) || 0) >= (member.weeklyPaymentAmount || 0)
+          ? "PAID"
+          : (Number(received) || 0) > 0
+          ? "PARTIAL"
+          : "UNPAID",
+      ];
 
       rowData.forEach((value, colIndex) => {
-        const cell = row.getCell(colIndex + 1)
-        cell.value = value
-        
+        const cell = row.getCell(colIndex + 1);
+        cell.value = value;
+
         // Special column colors
-        if (colIndex === 9) { // No. of Payment column
-          cell.font = { color: { argb: "FFFF0000" } } // Red
-        } else if (colIndex === 10) { // Savings column
-          cell.font = { color: { argb: "FFFF00FF" } } // Magenta
-        } else if (colIndex === 12) { // Status column
-          cell.font = { bold: true }
+        if (colIndex === 9) {
+          // No. of Payment column
+          cell.font = { color: { argb: "FFFF0000" } }; // Red
+        } else if (colIndex === 10) {
+          // Savings column
+          cell.font = { color: { argb: "FFFF00FF" } }; // Magenta
+        } else if (colIndex === 12) {
+          // Status column
+          cell.font = { bold: true };
         }
 
         cell.border = {
-          top: { style: 'thin', color: { argb: "FF000000" } },
-          bottom: { style: 'thin', color: { argb: "FF000000" } },
-          left: { style: 'thin', color: { argb: "FF000000" } },
-          right: { style: 'thin', color: { argb: "FF000000" } }
-        }
-        cell.alignment = { horizontal: colIndex === 1 ? 'left' : 'center', vertical: 'middle' }
-      })
-    })
+          top: { style: "thin", color: { argb: "FF000000" } },
+          bottom: { style: "thin", color: { argb: "FF000000" } },
+          left: { style: "thin", color: { argb: "FF000000" } },
+          right: { style: "thin", color: { argb: "FF000000" } },
+        };
+        cell.alignment = {
+          horizontal: colIndex === 1 ? "left" : "center",
+          vertical: "middle",
+        };
+      });
+    });
 
     // Add Financial Summary section
-    const summaryStartRow = 8 + members.length + 2
-    worksheet.getCell(`A${summaryStartRow}`).value = "Financial Summary"
-    worksheet.getCell(`A${summaryStartRow}`).font = { bold: true, size: 12 }
-    worksheet.getCell(`A${summaryStartRow}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FFE0E0E0" } }
+    const summaryStartRow = 8 + sortedMembers.length + 2;
+    worksheet.getCell(`A${summaryStartRow}`).value = "Financial Summary";
+    worksheet.getCell(`A${summaryStartRow}`).font = { bold: true, size: 12 };
+    worksheet.getCell(`A${summaryStartRow}`).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
     worksheet.getCell(`A${summaryStartRow}`).border = {
-      top: { style: 'medium', color: { argb: "FF000000" } },
-      bottom: { style: 'medium', color: { argb: "FF000000" } },
-      left: { style: 'medium', color: { argb: "FF000000" } },
-      right: { style: 'medium', color: { argb: "FF000000" } }
-    }
+      top: { style: "medium", color: { argb: "FF000000" } },
+      bottom: { style: "medium", color: { argb: "FF000000" } },
+      left: { style: "medium", color: { argb: "FF000000" } },
+      right: { style: "medium", color: { argb: "FF000000" } },
+    };
 
     // Calculate totals
-    const totalLoanAmount = members.reduce((sum, m) => sum + (Number(m.totalLoanAmount) || 0), 0)
-    const totalOverallAmount = members.reduce((sum, m) => sum + (Number(m.overallAmount) || 0), 0)
-    const totalWeeklyPayments = members.reduce((sum, m) => sum + (Number(m.weeklyPaymentAmount) || 0), 0)
-    const totalPaymentReceived = members.reduce((sum, m) => {
-      const received = getMemberReceived(m as any)
-      return sum + received
-    }, 0)
-    const totalNetReleased = members.reduce((sum, m) => {
-      const netRelease = (m as any)?.collection?.netRelease ?? (m as any)?.netCashReleased ?? 0
-      return sum + (Number(netRelease) || 0)
-    }, 0)
-    const totalSavings = members.reduce((sum, m) => sum + (Number(m.totalSavings) || 0), 0)
-    const totalRemainingBalance = members.reduce((sum, m) => sum + (Number(m.totalBalance) || 0), 0)
+    const totalLoanAmount = sortedMembers.reduce(
+      (sum, m) => sum + (Number(m.totalLoanAmount) || 0),
+      0
+    );
+    const totalOverallAmount = sortedMembers.reduce(
+      (sum, m) => sum + (Number(m.overallAmount) || 0),
+      0
+    );
+    const totalWeeklyPayments = sortedMembers.reduce(
+      (sum, m) => sum + (Number(m.weeklyPaymentAmount) || 0),
+      0
+    );
+    const totalPaymentReceived = sortedMembers.reduce((sum, m) => {
+      const received = getMemberReceived(m as any);
+      return sum + received;
+    }, 0);
+    const totalNetReleased = sortedMembers.reduce((sum, m) => {
+      const netRelease =
+        (m as any)?.collection?.netRelease ?? (m as any)?.netCashReleased ?? 0;
+      return sum + (Number(netRelease) || 0);
+    }, 0);
+    const totalSavings = sortedMembers.reduce(
+      (sum, m) => sum + (Number(m.totalSavings) || 0),
+      0
+    );
+    const totalRemainingBalance = sortedMembers.reduce(
+      (sum, m) => sum + (Number(m.totalBalance) || 0),
+      0
+    );
 
     // Add financial summary data
     const financialData = [
@@ -688,211 +857,274 @@ export const exportToExcel = async (
       ["Total Payment Received", `₱${totalPaymentReceived.toLocaleString()}`],
       ["Total Net Cash Released", `₱${totalNetReleased.toLocaleString()}`],
       ["Total Savings", `₱${totalSavings.toLocaleString()}`],
-      ["Total Remaining Balance", `₱${totalRemainingBalance.toLocaleString()}`]
-    ]
+      ["Total Remaining Balance", `₱${totalRemainingBalance.toLocaleString()}`],
+    ];
 
     financialData.forEach(([label, value], index) => {
-      const rowNum = summaryStartRow + 2 + index
-      worksheet.getCell(`A${rowNum}`).value = label
-      worksheet.getCell(`B${rowNum}`).value = value
-      worksheet.getCell(`A${rowNum}`).font = { bold: true }
-      worksheet.getCell(`B${rowNum}`).alignment = { horizontal: 'right' }
-    })
+      const rowNum = summaryStartRow + 2 + index;
+      worksheet.getCell(`A${rowNum}`).value = label;
+      worksheet.getCell(`B${rowNum}`).value = value;
+      worksheet.getCell(`A${rowNum}`).font = { bold: true };
+      worksheet.getCell(`B${rowNum}`).alignment = { horizontal: "right" };
+    });
 
     // Add Payment Status Summary section
-    const statusStartRow = summaryStartRow + 2 + financialData.length + 2
-    worksheet.getCell(`A${statusStartRow}`).value = "Payment Status Summary"
-    worksheet.getCell(`A${statusStartRow}`).font = { bold: true, size: 12 }
-    worksheet.getCell(`A${statusStartRow}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FFE0E0E0" } }
+    const statusStartRow = summaryStartRow + 2 + financialData.length + 2;
+    worksheet.getCell(`A${statusStartRow}`).value = "Payment Status Summary";
+    worksheet.getCell(`A${statusStartRow}`).font = { bold: true, size: 12 };
+    worksheet.getCell(`A${statusStartRow}`).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
     worksheet.getCell(`A${statusStartRow}`).border = {
-      top: { style: 'medium', color: { argb: "FF000000" } },
-      bottom: { style: 'medium', color: { argb: "FF000000" } },
-      left: { style: 'medium', color: { argb: "FF000000" } },
-      right: { style: 'medium', color: { argb: "FF000000" } }
-    }
+      top: { style: "medium", color: { argb: "FF000000" } },
+      bottom: { style: "medium", color: { argb: "FF000000" } },
+      left: { style: "medium", color: { argb: "FF000000" } },
+      right: { style: "medium", color: { argb: "FF000000" } },
+    };
 
     // Calculate payment status counts
-    const paidMembers = members.filter(m => {
-      const received = getMemberReceived(m as any)
-      return received >= (Number(m.weeklyPaymentAmount) || 0)
-    }).length
+    const paidMembers = sortedMembers.filter((m) => {
+      const received = getMemberReceived(m as any);
+      return received >= (Number(m.weeklyPaymentAmount) || 0);
+    }).length;
 
-    const partialMembers = members.filter(m => {
-      const received = getMemberReceived(m as any)
-      return received > 0 && received < (Number(m.weeklyPaymentAmount) || 0)
-    }).length
+    const partialMembers = sortedMembers.filter((m) => {
+      const received = getMemberReceived(m as any);
+      return received > 0 && received < (Number(m.weeklyPaymentAmount) || 0);
+    }).length;
 
-    const unpaidMembers = members.filter(m => {
-      const received = getMemberReceived(m as any)
-      return received <= 0
-    }).length
+    const unpaidMembers = sortedMembers.filter((m) => {
+      const received = getMemberReceived(m as any);
+      return received <= 0;
+    }).length;
 
     // Add payment status data
     const statusData = [
       ["Paid Members", paidMembers.toString()],
       ["Partial Payment Members", partialMembers.toString()],
-      ["Unpaid Members", unpaidMembers.toString()]
-    ]
+      ["Unpaid Members", unpaidMembers.toString()],
+    ];
 
     statusData.forEach(([label, value], index) => {
-      const rowNum = statusStartRow + 2 + index
-      worksheet.getCell(`A${rowNum}`).value = label
-      worksheet.getCell(`B${rowNum}`).value = value
-      worksheet.getCell(`A${rowNum}`).font = { bold: true }
-      worksheet.getCell(`B${rowNum}`).alignment = { horizontal: 'right' }
-    })
+      const rowNum = statusStartRow + 2 + index;
+      worksheet.getCell(`A${rowNum}`).value = label;
+      worksheet.getCell(`B${rowNum}`).value = value;
+      worksheet.getCell(`A${rowNum}`).font = { bold: true };
+      worksheet.getCell(`B${rowNum}`).alignment = { horizontal: "right" };
+    });
 
     // Generate buffer and download
-    const buffer = await workbook.xlsx.writeBuffer()
+    const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    })
+    });
 
-    const fileName = `Collection_Report_${collectionGroup.centerName}_${collectionGroup.collectionDate.replace(/-/g, "_")}.xlsx`
-    FileSaver.saveAs(blob, fileName)
-
+    const fileName = `Collection_Report_${
+      collectionGroup.centerName
+    }_${collectionGroup.collectionDate.replace(/-/g, "_")}.xlsx`;
+    FileSaver.saveAs(blob, fileName);
   } catch (error) {
-    console.warn("ExcelJS export failed, falling back to XLSX:", error)
-    
+    console.warn("ExcelJS export failed, falling back to XLSX:", error);
+
     // Fallback to original XLSX method
-    const XLSX = await import("xlsx")
-    const FileSaver = await import("file-saver")
+    const XLSX = await import("xlsx");
+    const FileSaver = await import("file-saver");
 
-    const { data, merges } = buildGroupSheetData(collectionGroup, members)
-    const { ws } = await buildWorksheet(data, merges, "Group Report")
+    const { data, merges } = buildGroupSheetData(
+      collectionGroup,
+      sortedMembers
+    );
+    const { ws } = await buildWorksheet(data, merges, "Group Report");
 
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, ws, "Group Report")
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, ws, "Group Report");
 
-    const fileName = `Collection_Report_${collectionGroup.centerName}_${collectionGroup.collectionDate.replace(/-/g, "_")}.xlsx`
+    const fileName = `Collection_Report_${
+      collectionGroup.centerName
+    }_${collectionGroup.collectionDate.replace(/-/g, "_")}.xlsx`;
 
     const excelBuffer = XLSX.write(workbook, {
       bookType: "xlsx",
       type: "array",
-    })
+    });
     const blob = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    })
-    FileSaver.saveAs(blob, fileName)
+    });
+    FileSaver.saveAs(blob, fileName);
   }
-}
+};
 
 // New: Export all collections for the day (multiple sheets, one per collection)
 export const exportAllCollectionsToExcel = async (
   bundles: CollectionExportBundle[],
-  fileNamePrefix = "Daily_Collections",
+  fileNamePrefix = "Daily_Collections"
 ): Promise<void> => {
-  if (!bundles || bundles.length === 0) return
-  const XLSX = await import("xlsx")
-  const FileSaver = await import("file-saver")
+  if (!bundles || bundles.length === 0) return;
+  const XLSX = await import("xlsx");
+  const FileSaver = await import("file-saver");
 
-  const workbook = XLSX.utils.book_new()
+  const workbook = XLSX.utils.book_new();
 
   // Build Summary sheet: aggregates across all groups for the day
   try {
     const totalReceived = bundles.reduce(
       (sum, b) =>
         sum +
-        (b.group.collections || []).reduce((s, c: any) => s + (Number(c.paymentReceived ?? c.amountReceived) || 0), 0),
-      0,
-    )
+        (b.group.collections || []).reduce(
+          (s, c: any) =>
+            s + (Number(c.paymentReceived ?? c.amountReceived) || 0),
+          0
+        ),
+      0
+    );
     const totalRemaining = bundles.reduce((sum, b) => {
-      const members = b.members || []
-      const totalBalance = members.reduce((s, m: any) => s + (Number(m.totalBalance) || 0), 0)
+      const members = b.members || [];
+      const totalBalance = members.reduce(
+        (s, m: any) => s + (Number(m.totalBalance) || 0),
+        0
+      );
       const received = (b.group.collections || []).reduce(
         (s, c: any) => s + (Number(c.paymentReceived ?? c.amountReceived) || 0),
-        0,
-      )
-      return sum + Math.max(0, totalBalance - received)
-    }, 0)
+        0
+      );
+      return sum + Math.max(0, totalBalance - received);
+    }, 0);
     const totalReleased = bundles.reduce(
-      (sum, b) => sum + (b.members || []).reduce((s, m: any) => s + (Number(m.netCashReleased) || 0), 0),
-      0,
-    )
-    const date = bundles[0]?.group.collectionDate || ""
+      (sum, b) =>
+        sum +
+        (b.members || []).reduce(
+          (s, m: any) => s + (Number(m.netCashReleased) || 0),
+          0
+        ),
+      0
+    );
+    const date = bundles[0]?.group.collectionDate || "";
 
-    const summaryData: (string | number)[][] = []
-    summaryData.push(["DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)"]) // title
-    summaryData.push(["END-OF-DAY COLLECTION SUMMARY"])
-    summaryData.push([""])
-    summaryData.push(["Date", date])
-    summaryData.push([""])
-    summaryData.push(["Total Collected", `₱${totalReceived.toLocaleString()}`])
-    summaryData.push(["Unpaid (Remaining)", `₱${totalRemaining.toLocaleString()}`])
-    summaryData.push(["Released", `₱${totalReleased.toLocaleString()}`])
-    summaryData.push([""])
-    summaryData.push(["Breakdown by Center"])
-    summaryData.push(["Center", "Collected", "Unpaid", "Released"])
+    const summaryData: (string | number)[][] = [];
+    summaryData.push(["DYNAMIC CREDIT AND LOAN SOLUTIONS (DCLA)"]); // title
+    summaryData.push(["END-OF-DAY COLLECTION SUMMARY"]);
+    summaryData.push([""]);
+    summaryData.push(["Date", date]);
+    summaryData.push([""]);
+    summaryData.push(["Total Collected", `₱${totalReceived.toLocaleString()}`]);
+    summaryData.push([
+      "Unpaid (Remaining)",
+      `₱${totalRemaining.toLocaleString()}`,
+    ]);
+    summaryData.push(["Released", `₱${totalReleased.toLocaleString()}`]);
+    summaryData.push([""]);
+    summaryData.push(["Breakdown by Center"]);
+    summaryData.push(["Center", "Collected", "Unpaid", "Released"]);
     for (const { group, members } of bundles) {
       const collected = (group.collections || []).reduce(
         (s, c: any) => s + (Number(c.paymentReceived ?? c.amountReceived) || 0),
+        0
+      );
+      const rem = Math.max(
         0,
-      )
-      const rem = Math.max(0, (members || []).reduce((s, m: any) => s + (Number(m.totalBalance) || 0), 0) - collected)
-      const released = (members || []).reduce((s, m: any) => s + (Number(m.netCashReleased) || 0), 0)
+        (members || []).reduce(
+          (s, m: any) => s + (Number(m.totalBalance) || 0),
+          0
+        ) - collected
+      );
+      const released = (members || []).reduce(
+        (s, m: any) => s + (Number(m.netCashReleased) || 0),
+        0
+      );
       summaryData.push([
         group.centerName,
         `₱${collected.toLocaleString()}`,
         `₱${rem.toLocaleString()}`,
         `₱${released.toLocaleString()}`,
-      ])
+      ]);
     }
 
     const { ws: summaryWs } = await (async () => {
-      const ws = XLSX.utils.aoa_to_sheet(summaryData)
-      ;(ws as any)["!merges"] = [
+      const ws = XLSX.utils.aoa_to_sheet(summaryData);
+      (ws as any)["!merges"] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
-      ]
-      const maxCols = summaryData.reduce((m, r) => Math.max(m, r.length), 0)
-      ;(ws as any)["!cols"] = new Array(maxCols).fill(0).map((_, _i) => ({ width: 22 }))
-      return { ws }
-    })()
-    XLSX.utils.book_append_sheet(workbook, summaryWs, "Summary")
+      ];
+      const maxCols = summaryData.reduce((m, r) => Math.max(m, r.length), 0);
+      (ws as any)["!cols"] = new Array(maxCols)
+        .fill(0)
+        .map((_, _i) => ({ width: 22 }));
+      return { ws };
+    })();
+    XLSX.utils.book_append_sheet(workbook, summaryWs, "Summary");
   } catch (e) {
-    console.warn("Failed to build Summary sheet", e)
+    console.warn("Failed to build Summary sheet", e);
   }
 
   for (const { group, members } of bundles) {
-    const { data, merges } = buildGroupSheetData(group, members)
+    // Sort members alphabetically per sheet
+    const sorted = [...(members || [])].sort((a, b) => {
+      const al = `${(a.lastName || "").toLowerCase()} ${(
+        a.firstName || ""
+      ).toLowerCase()}`.trim();
+      const bl = `${(b.lastName || "").toLowerCase()} ${(
+        b.firstName || ""
+      ).toLowerCase()}`.trim();
+      return al.localeCompare(bl);
+    });
+    const { data, merges } = buildGroupSheetData(group, sorted);
     // Build per-center unpaid section to append to data before creating worksheet
     const getMemberReceived = (m: any): number => {
-      const fromCollection = m?.collection?.amountReceived ?? m?.collection?.paymentReceived
-      if (fromCollection !== undefined) return Number(fromCollection) || 0
-      const activeLoan = (m?.loans || []).find((l: any) => l?.status === "active")
-      const amountPaidRaw = activeLoan?.amountPaid
-      if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0
-      const weeksPaid = Number(activeLoan?.weeksPaid || 0)
-      const weekly = Number(m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0)
-      return weeksPaid * weekly
-    }
-    const unpaidMembers = (members || []).filter((m: any) => (getMemberReceived(m) || 0) <= 0)
-    const unpaidTodayTotal = unpaidMembers.reduce((s: number, m: any) => s + Number(m.weeklyPaymentAmount || 0), 0)
-    const unpaidBalancesTotal = unpaidMembers.reduce((s: number, m: any) => s + Number(m.totalBalance || 0), 0)
+      const fromCollection =
+        m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
+      if (fromCollection !== undefined) return Number(fromCollection) || 0;
+      const activeLoan = (m?.loans || []).find(
+        (l: any) => l?.status === "active"
+      );
+      const amountPaidRaw = activeLoan?.amountPaid;
+      if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
+      const weeksPaid = Number(activeLoan?.weeksPaid || 0);
+      const weekly = Number(
+        m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0
+      );
+      return weeksPaid * weekly;
+    };
+    const unpaidMembers = (members || []).filter(
+      (m: any) => (getMemberReceived(m) || 0) <= 0
+    );
+    const unpaidTodayTotal = unpaidMembers.reduce(
+      (s: number, m: any) => s + Number(m.weeklyPaymentAmount || 0),
+      0
+    );
+    const unpaidBalancesTotal = unpaidMembers.reduce(
+      (s: number, m: any) => s + Number(m.totalBalance || 0),
+      0
+    );
 
-    data.push([""]) // spacer
-    data.push(["Unpaid Members (Today)"]) // section title
-    data.push(["Name", "Weekly Due", "Remaining Bal."])
+    data.push([""]); // spacer
+    data.push(["Unpaid Members (Today)"]); // section title
+    data.push(["Name", "Weekly Due", "Remaining Bal."]);
     unpaidMembers.forEach((m: any) => {
       data.push([
         `${m.firstName} ${m.middleName || ""} ${m.lastName}`.trim(),
         `₱${(Number(m.weeklyPaymentAmount) || 0).toLocaleString()}`,
         `₱${(Number(m.totalBalance) || 0).toLocaleString()}`,
-      ])
-    })
-    data.push(["Totals", `₱${unpaidTodayTotal.toLocaleString()}`, `₱${unpaidBalancesTotal.toLocaleString()}`])
-    const sheetTitleBase = `${group.centerName}`.trim()
-    const sheetName = sheetTitleBase.substring(0, 31) || "Collection" // Excel limit
-    const { ws } = await buildWorksheet(data, merges, sheetName)
-    XLSX.utils.book_append_sheet(workbook, ws, sheetName)
+      ]);
+    });
+    data.push([
+      "Totals",
+      `₱${unpaidTodayTotal.toLocaleString()}`,
+      `₱${unpaidBalancesTotal.toLocaleString()}`,
+    ]);
+    const sheetTitleBase = `${group.centerName}`.trim();
+    const sheetName = sheetTitleBase.substring(0, 31) || "Collection"; // Excel limit
+    const { ws } = await buildWorksheet(data, merges, sheetName);
+    XLSX.utils.book_append_sheet(workbook, ws, sheetName);
   }
 
-  const firstDate = bundles[0]?.group.collectionDate?.replace(/-/g, "_") || ""
-  const fileName = `${fileNamePrefix}_${firstDate}.xlsx`
+  const firstDate = bundles[0]?.group.collectionDate?.replace(/-/g, "_") || "";
+  const fileName = `${fileNamePrefix}_${firstDate}.xlsx`;
 
-  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" })
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
   const blob = new Blob([excelBuffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  })
-  FileSaver.saveAs(blob, fileName)
-}
+  });
+  FileSaver.saveAs(blob, fileName);
+};
