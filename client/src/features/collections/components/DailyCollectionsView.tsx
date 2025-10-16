@@ -244,6 +244,16 @@ export default function DailyCollectionsView({
     }
   };
 
+  const displayedData = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? data.filter((g) => (g.centerName || "").toLowerCase().includes(q))
+      : data;
+    return [...filtered].sort((a, b) =>
+      (a.centerName || "").localeCompare(b.centerName || "")
+    );
+  }, [data, search]);
+
   if (data.length === 0) {
     return (
       <Card
@@ -265,16 +275,6 @@ export default function DailyCollectionsView({
       </Card>
     );
   }
-
-  const displayedData = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const filtered = q
-      ? data.filter((g) => (g.centerName || "").toLowerCase().includes(q))
-      : data;
-    return [...filtered].sort((a, b) =>
-      (a.centerName || "").localeCompare(b.centerName || "")
-    );
-  }, [data, search]);
 
   return (
     <Box>

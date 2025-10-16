@@ -301,8 +301,6 @@ export default function CollectionDetailsModal({
     return `₱${amount.toLocaleString()}`;
   }, []);
 
-  if (!collectionGroup) return null;
-
   // Filtered + sorted members for table rendering
   const displayedMembers = useMemo(() => {
     const query = memberSearch.trim().toLowerCase();
@@ -329,6 +327,8 @@ export default function CollectionDetailsModal({
       return al.localeCompare(bl);
     });
   }, [members, memberSearch]);
+
+  if (!collectionGroup) return null;
 
   return (
     <>
