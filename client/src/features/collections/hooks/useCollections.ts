@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import collectionsService, {
   type CollectionsQuery,
   type PaginatedCollections,
-} from "../api.ts";
+} from "../api";
 import type {
   DailyCollectionGroup,
   Collection,

@@ -1,6 +1,6 @@
 import type React from "react";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -28,7 +28,15 @@ import {
   CardContent,
   FormControl,
 } from "@mui/material";
-import { Refresh, Assessment, Search, AccountBalance, TrendingUp, Groups, Download } from "@mui/icons-material";
+import {
+  Refresh,
+  Assessment,
+  Search,
+  AccountBalance,
+  TrendingUp,
+  Groups,
+  Download,
+} from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import DailyCollectionsView from "../components/DailyCollectionsView";
 import CollectionDetailsModal from "../components/CollectionDetailsModal";
@@ -110,6 +118,21 @@ export default function CollectionsPage() {
     setTabValue(newValue);
   };
 
+  // Fetch appropriate data when switching tabs
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (tabValue === 0) {
+          await refetchDaily();
+        } else {
+          await refetchAll();
+        }
+      } catch {}
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabValue]);
+
   const handleViewDetails = (group: DailyCollectionGroup) => {
     setSelectedCollectionGroup(group);
     setDetailsModalOpen(true);
@@ -158,6 +181,40 @@ export default function CollectionsPage() {
 
   const handleCloseSnackbar = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
+  };
+
+  // Build a lightweight DailyCollectionGroup from a center row
+  const buildGroupFromCenter = (
+    centerId: string,
+    centerName?: string
+  ): DailyCollectionGroup => {
+    const centerCollections = (items ?? []).filter(
+      (c) => c.centerId === centerId
+    );
+    const totalAmount = centerCollections.reduce(
+      (s, c) => s + Number(c.amount || 0),
+      0
+    );
+    const totalReceived = centerCollections.reduce(
+      (s, c) => s + Number(c.paymentReceived || 0),
+      0
+    );
+    const lastDate = centerCollections.reduce<string>((latest, c) => {
+      const d = c.collectionDate || "";
+      return latest && latest > d ? latest : d;
+    }, "");
+    return {
+      centerId,
+      centerName:
+        centerName || (centerCollections[0]?.center?.name ?? "Center"),
+      collectionDay: "",
+      collectionDate: lastDate || new Date().toISOString().split("T")[0],
+      totalMembers: 0,
+      collections: centerCollections as any,
+      pendingCollections: 0,
+      totalAmount,
+      totalReceived,
+    } as DailyCollectionGroup;
   };
 
   const getStatusColor = (collection: Collection) => {
@@ -209,10 +266,16 @@ export default function CollectionsPage() {
             borderRadius: 3,
             p: 4,
             mb: 3,
-            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            boxShadow:
+              "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
           }}
         >
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            mb={3}
+          >
             {/* Left side - Title and Description */}
             <Box display="flex" alignItems="center" gap={3}>
               <Box
@@ -220,7 +283,8 @@ export default function CollectionsPage() {
                   width: 56,
                   height: 56,
                   borderRadius: 2,
-                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -230,7 +294,12 @@ export default function CollectionsPage() {
                 <Assessment sx={{ fontSize: 28, color: "white" }} />
               </Box>
               <Box>
-                <Typography variant="h4" fontWeight="bold" color="#1e293b" mb={1}>
+                <Typography
+                  variant="h4"
+                  fontWeight="bold"
+                  color="#1e293b"
+                  mb={1}
+                >
                   Collection Analytics
                 </Typography>
                 <Typography variant="body1" color="#64748b">
@@ -265,11 +334,17 @@ export default function CollectionsPage() {
                   },
                 }}
               />
-              
+
               <FormControl size="small">
-                <Select 
-                  value={limit} 
-                  sx={{ 
+                <Select
+                  value={limit}
+                  onChange={(e) => {
+                    try {
+                      setPage(1);
+                      setLimit(Number(e.target.value));
+                    } catch {}
+                  }}
+                  sx={{
                     minWidth: 80,
                     backgroundColor: "white",
                     borderRadius: 2,
@@ -280,13 +355,14 @@ export default function CollectionsPage() {
                   <MenuItem value={50}>50</MenuItem>
                 </Select>
               </FormControl>
-              
+
               <Button
                 variant="contained"
                 startIcon={<Refresh />}
-                onClick={refetchDaily}
+                onClick={handleRefresh}
                 sx={{
-                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   borderRadius: 2,
                   px: 3,
                   py: 1.5,
@@ -294,7 +370,8 @@ export default function CollectionsPage() {
                   fontWeight: 600,
                   boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
                   "&:hover": {
-                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                    background:
+                      "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                     boxShadow: "0 6px 20px 0 rgba(59, 130, 246, 0.4)",
                   },
                 }}
@@ -303,7 +380,7 @@ export default function CollectionsPage() {
               </Button>
             </Box>
           </Box>
-          
+
           {/* Quick Stats */}
           <Grid container spacing={2}>
             <Grid item xs={12} sm={4}>
@@ -379,11 +456,11 @@ export default function CollectionsPage() {
             sx={{
               borderRadius: 3,
               border: "1px solid #e2e8f0",
-              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+              boxShadow:
+                "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
               overflow: "hidden",
             }}
           >
-
             {/* Tabs */}
             <Box sx={{ backgroundColor: "#ffffff" }}>
               <Tabs
@@ -412,7 +489,7 @@ export default function CollectionsPage() {
                   },
                 }}
               >
-                <Tab 
+                <Tab
                   label={
                     <Box display="flex" alignItems="center" gap={1}>
                       <Groups sx={{ fontSize: 20 }} />
@@ -431,9 +508,9 @@ export default function CollectionsPage() {
                         {dailyCollections?.length || 0}
                       </Box>
                     </Box>
-                  } 
+                  }
                 />
-                <Tab 
+                <Tab
                   label={
                     <Box display="flex" alignItems="center" gap={1}>
                       <AccountBalance sx={{ fontSize: 20 }} />
@@ -452,230 +529,273 @@ export default function CollectionsPage() {
                         {total || 0}
                       </Box>
                     </Box>
-                  } 
+                  }
                 />
               </Tabs>
             </Box>
 
-          {/* Daily Collections Tab */}
-          <TabPanel value={tabValue} index={0}>
-            <Box sx={{ p: 3 }}>
-              {dailyCollections?.length === 0 && search ? (
-                <Paper
-                  sx={{
-                    textAlign: "center",
-                    py: 6,
-                    background:
-                      "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-                    border: "1px solid #e2e8f0",
-                  }}
-                >
-                  <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No centers found matching "{search}"
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Try adjusting your search terms or check for typos.
-                  </Typography>
-                </Paper>
-              ) : (
-                <DailyCollectionsView
-                  data={dailyCollections ?? []}
-                  onViewDetails={handleViewDetails}
-                  loading={loading}
-                />
-              )}
-            </Box>
-          </TabPanel>
-
-          {/* All Collections Tab */}
-          <TabPanel value={tabValue} index={1}>
-            <Box sx={{ p: 3 }}>
-              {(items ?? []).length === 0 && search ? (
-                <Paper
-                  sx={{
-                    textAlign: "center",
-                    py: 6,
-                    background:
-                      "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-                    border: "1px solid #e2e8f0",
-                  }}
-                >
-                  <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No collections found matching "{search}"
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Try adjusting your search terms or check for typos.
-                  </Typography>
-                </Paper>
-              ) : (
-                <>
-                  <TableContainer
+            {/* Daily Collections Tab */}
+            <TabPanel value={tabValue} index={0}>
+              <Box sx={{ p: 3 }}>
+                {dailyCollections?.length === 0 && search ? (
+                  <Paper
                     sx={{
-                      borderRadius: 3,
+                      textAlign: "center",
+                      py: 6,
+                      background:
+                        "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
                       border: "1px solid #e2e8f0",
-                      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                      overflow: "hidden",
                     }}
                   >
-                    <Table>
-                      <TableHead sx={{ backgroundColor: "#f8fafc" }}>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>
-                            Date
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>
-                            Center
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>
-                            Member
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>
-                            Amount
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>
-                            Received
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>
-                            Balance
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>
-                            Status
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>
-                            Notes
-                          </TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(items ?? []).map((collection, index) => (
-                          <TableRow
-                            key={collection.id}
-                            hover
-                            sx={{
-                              "&:hover": {
-                                backgroundColor: "#f8fafc",
-                              },
-                              "&:nth-of-type(even)": {
-                                backgroundColor: "#fafbfc",
-                              },
-                            }}
-                          >
-                            <TableCell sx={{ color: "#374151", fontWeight: 500 }}>
-                              {collection.collectionDate}
+                    <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
+                    <Typography
+                      variant="h6"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      No centers found matching "{search}"
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Try adjusting your search terms or check for typos.
+                    </Typography>
+                  </Paper>
+                ) : (
+                  <DailyCollectionsView
+                    data={dailyCollections ?? []}
+                    onViewDetails={handleViewDetails}
+                    loading={loading}
+                  />
+                )}
+              </Box>
+            </TabPanel>
+
+            {/* All Collections Tab */}
+            <TabPanel value={tabValue} index={1}>
+              <Box sx={{ p: 3 }}>
+                {(items ?? []).length === 0 && search ? (
+                  <Paper
+                    sx={{
+                      textAlign: "center",
+                      py: 6,
+                      background:
+                        "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
+                    <Typography
+                      variant="h6"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      No collections found matching "{search}"
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Try adjusting your search terms or check for typos.
+                    </Typography>
+                  </Paper>
+                ) : (
+                  <>
+                    <TableContainer
+                      sx={{
+                        borderRadius: 3,
+                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <Table>
+                        <TableHead sx={{ backgroundColor: "#f8fafc" }}>
+                          <TableRow>
+                            <TableCell
+                              sx={{
+                                fontWeight: 700,
+                                color: "#374151",
+                                fontSize: "0.95rem",
+                              }}
+                            >
+                              Center
                             </TableCell>
-                            <TableCell sx={{ color: "#374151", fontWeight: 500 }}>
-                              {collection.center?.name}
+                            <TableCell
+                              sx={{
+                                fontWeight: 700,
+                                color: "#374151",
+                                fontSize: "0.95rem",
+                              }}
+                            >
+                              Last Collection Date
                             </TableCell>
-                            <TableCell sx={{ color: "#374151", fontWeight: 500 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{ fontWeight: 600 }}
-                              >
-                                {collection.member?.firstName}{" "}
-                                {collection.member?.lastName}
-                              </Typography>
+                            <TableCell
+                              sx={{
+                                fontWeight: 700,
+                                color: "#374151",
+                                fontSize: "0.95rem",
+                              }}
+                            >
+                              Collections (page)
                             </TableCell>
-                            <TableCell sx={{ color: "#374151", fontWeight: 500 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 700,
-                                  color: "#059669",
-                                  backgroundColor: "#ecfdf5",
-                                  px: 2,
-                                  py: 0.5,
-                                  borderRadius: 2,
-                                  display: "inline-block",
-                                }}
-                              >
-                                ₱{collection.amount.toLocaleString()}
-                              </Typography>
+                            <TableCell
+                              sx={{
+                                fontWeight: 700,
+                                color: "#374151",
+                                fontSize: "0.95rem",
+                              }}
+                            >
+                              Total Amount (page)
                             </TableCell>
-                            <TableCell sx={{ color: "#374151", fontWeight: 500 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 700,
-                                  color: "#2563eb",
-                                  backgroundColor: "#f0f9ff",
-                                  px: 2,
-                                  py: 0.5,
-                                  borderRadius: 2,
-                                  display: "inline-block",
-                                }}
-                              >
-                                ₱{collection.paymentReceived.toLocaleString()}
-                              </Typography>
+                            <TableCell
+                              sx={{
+                                fontWeight: 700,
+                                color: "#374151",
+                                fontSize: "0.95rem",
+                              }}
+                            >
+                              Total Received (page)
                             </TableCell>
-                            <TableCell sx={{ color: "#374151", fontWeight: 500 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 700,
-                                  color: collection.paymentReceived >= collection.amount ? "#059669" : "#dc2626",
-                                  backgroundColor: collection.paymentReceived >= collection.amount ? "#ecfdf5" : "#fef2f2",
-                                  px: 2,
-                                  py: 0.5,
-                                  borderRadius: 2,
-                                  display: "inline-block",
-                                }}
-                              >
-                                ₱{(collection.amount - collection.paymentReceived).toLocaleString()}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ color: "#374151", fontWeight: 500 }}>
-                              <Chip
-                                label={getStatusLabel(collection)}
-                                color={getStatusColor(collection)}
-                                size="small"
-                                sx={{ 
-                                  fontWeight: 600,
-                                  borderRadius: 2,
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell sx={{ color: "#374151", fontWeight: 500 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  maxWidth: 150,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {collection.notes || "-"}
-                              </Typography>
+                            <TableCell
+                              sx={{
+                                fontWeight: 700,
+                                color: "#374151",
+                                fontSize: "0.95rem",
+                              }}
+                            >
+                              Action
                             </TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      mt: 2,
-                    }}
-                  >
-                    <Typography variant="body2" color="text.secondary">
-                      Showing {items?.length ?? 0} of {total} records
-                    </Typography>
-                    <Pagination
-                      page={page}
-                      count={totalPages}
-                      onChange={(_, p) => setPage(p)}
-                      color="primary"
-                    />
-                  </Box>
-                </>
-              )}
-            </Box>
-          </TabPanel>
+                        </TableHead>
+                        <TableBody>
+                          {(() => {
+                            const map: Record<
+                              string,
+                              {
+                                centerId: string;
+                                centerName: string;
+                                count: number;
+                                amount: number;
+                                received: number;
+                                lastDate: string;
+                              }
+                            > = {};
+                            (items ?? []).forEach((c) => {
+                              const id = c.centerId;
+                              const name = c.center?.name || "Center";
+                              if (!map[id]) {
+                                map[id] = {
+                                  centerId: id,
+                                  centerName: name,
+                                  count: 0,
+                                  amount: 0,
+                                  received: 0,
+                                  lastDate: "",
+                                };
+                              }
+                              map[id].count += 1;
+                              map[id].amount += Number(c.amount || 0);
+                              map[id].received += Number(
+                                c.paymentReceived || 0
+                              );
+                              const d = c.collectionDate || "";
+                              map[id].lastDate =
+                                map[id].lastDate && map[id].lastDate > d
+                                  ? map[id].lastDate
+                                  : d;
+                            });
+                            const rows = Object.values(map).sort((a, b) =>
+                              a.centerName.localeCompare(b.centerName)
+                            );
+                            return rows.map((row) => (
+                              <TableRow
+                                key={row.centerId}
+                                hover
+                                sx={{
+                                  cursor: "pointer",
+                                  "&:hover": { backgroundColor: "#f8fafc" },
+                                  "&:nth-of-type(even)": {
+                                    backgroundColor: "#fafbfc",
+                                  },
+                                }}
+                                onClick={() =>
+                                  handleViewDetails(
+                                    buildGroupFromCenter(
+                                      row.centerId,
+                                      row.centerName
+                                    )
+                                  )
+                                }
+                              >
+                                <TableCell
+                                  sx={{ color: "#374151", fontWeight: 600 }}
+                                >
+                                  {row.centerName}
+                                </TableCell>
+                                <TableCell
+                                  sx={{ color: "#374151", fontWeight: 500 }}
+                                >
+                                  {row.lastDate || "-"}
+                                </TableCell>
+                                <TableCell
+                                  sx={{ color: "#374151", fontWeight: 500 }}
+                                >
+                                  {row.count}
+                                </TableCell>
+                                <TableCell
+                                  sx={{ color: "#374151", fontWeight: 500 }}
+                                >
+                                  ₱{row.amount.toLocaleString()}
+                                </TableCell>
+                                <TableCell
+                                  sx={{ color: "#374151", fontWeight: 500 }}
+                                >
+                                  ₱{row.received.toLocaleString()}
+                                </TableCell>
+                                <TableCell
+                                  sx={{ color: "#374151", fontWeight: 500 }}
+                                >
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleViewDetails(
+                                        buildGroupFromCenter(
+                                          row.centerId,
+                                          row.centerName
+                                        )
+                                      );
+                                    }}
+                                    sx={{ borderRadius: 2 }}
+                                  >
+                                    View
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ));
+                          })()}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        mt: 2,
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Showing {items?.length ?? 0} of {total} records
+                      </Typography>
+                      <Pagination
+                        page={page}
+                        count={totalPages}
+                        onChange={(_, p) => setPage(p)}
+                        color="primary"
+                      />
+                    </Box>
+                  </>
+                )}
+              </Box>
+            </TabPanel>
           </Paper>
         </Box>
 
