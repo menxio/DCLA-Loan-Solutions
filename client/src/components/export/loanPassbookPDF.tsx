@@ -41,7 +41,8 @@ export const generateLoanPassbookPDF = async (
 
   const principal = Number(loan.principalAmount);
   const weeklyPayment = Number(loan.weeklyPaymentAmount);
-  const savings = Number(loan.savings);
+  const savings =
+    Number(loan.savings) + Number((loan as any).existingSavings ?? 0);
   const termWeeks = Number(loan.termWeek);
   const weeksPaid = Number(loan.weeksPaid);
   const releaseDate = new Date(loan.createdAt);
