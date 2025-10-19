@@ -19,12 +19,12 @@ interface Loan {
 
 const styles = StyleSheet.create({
   page: { paddingTop: 18, paddingHorizontal: 28, paddingBottom: 18 },
-  headerText: { fontSize: 12, fontWeight: 'bold', textAlign: 'center', marginBottom: 6 },
+  headerText: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
   grid: { display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 6 },
   row: { display: 'flex', flexDirection: 'row' },
-  cell: { border: '0.75pt solid #000', padding: 4, fontSize: 7 },
-  cellBold: { border: '0.75pt solid #000', padding: 4, fontSize: 7, fontWeight: 'bold' },
-  footer: { marginTop: 10, textAlign: 'center', fontSize: 7, fontStyle: 'italic' },
+  cell: { border: '0.75pt solid #000', padding: 6, fontSize: 11 },
+  cellBold: { border: '0.75pt solid #000', padding: 6, fontSize: 11, fontWeight: 'bold' },
+  footer: { marginTop: 12, textAlign: 'center', fontSize: 10, fontStyle: 'italic' },
   // Note: React-PDF does not support percentage lengths; use absolute points
   watermark: { position: 'absolute', opacity: 0.08 },
   watermarkText: { position: 'absolute', opacity: 0.08, fontSize: 100, fontWeight: 'bold', color: '#000', transform: 'rotate(45deg)' },

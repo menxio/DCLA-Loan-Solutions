@@ -188,10 +188,11 @@ export class MembersService {
           .reduce((sum, loan) => sum + Number(loan.termWeeks), 0);
 
         // Calculate total savings (sum of all loans' savings)
-        const totalSavings = loans.reduce(
-          (sum, loan) => sum + Number(loan.savings),
-          0,
-        );
+        const totalSavings = loans.reduce((sum, loan) => {
+          const currentSavings = Number(loan.savings || 0);
+          const legacySavings = Number((loan as any).existingSavings || 0);
+          return sum + currentSavings + legacySavings;
+        }, 0);
 
         // Sum of net cash released across active loans only (reloans)
         const netCashReleased = loans

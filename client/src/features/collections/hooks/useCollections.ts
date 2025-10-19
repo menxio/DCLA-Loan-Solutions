@@ -1,187 +1,143 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import collectionsService, {
-  type CollectionsQuery,
-  type PaginatedCollections,
-} from "../api.ts";
+import collectionsService from "../api.ts";
 import type {
   DailyCollectionGroup,
-  Collection,
   CollectionFormData,
 } from "../types.ts";
+
+type LoadingKey = "daily" | "all" | "update";
 
 export function useCollections() {
   const [dailyCollections, setDailyCollections] = useState<
     DailyCollectionGroup[]
   >([]);
+  const [allCollections, setAllCollections] = useState<
+    DailyCollectionGroup[]
+  >([]);
 
-  // Paginated collections state
-  const [items, setItems] = useState<Collection[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
+  const [loadingMap, setLoadingMap] = useState<Record<LoadingKey, boolean>>({
+    daily: false,
+    all: false,
+    update: false,
+  });
 
-  // Filters
-  const [search, setSearch] = useState("");
-  const [centerId, setCenterId] = useState<string | undefined>(undefined);
-  const [memberId, setMemberId] = useState<string | undefined>(undefined);
-  const [startDate, setStartDate] = useState<string | undefined>(undefined);
-  const [endDate, setEndDate] = useState<string | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<string | undefined>("collectionDate");
-  const [sortOrder, setSortOrder] = useState<"ASC" | "DESC" | undefined>(
-    "DESC"
-  );
-
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Debounce search to avoid too many API calls
+  const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
+
+  const setLoading = useCallback((key: LoadingKey, value: boolean) => {
+    setLoadingMap((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-    }, 300); // 300ms debounce
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Validate and clean search parameter - focus on center names
   const validatedSearch = useMemo(() => {
     const trimmed = debouncedSearch.trim();
-    // Only include search if it's at least 2 characters long
     return trimmed.length >= 2 ? trimmed : undefined;
   }, [debouncedSearch]);
 
-  // Filter daily collections based on search
-  const filteredDailyCollections = useMemo(() => {
-    if (!validatedSearch) return dailyCollections;
-
-    return dailyCollections.filter((group) =>
-      group.centerName.toLowerCase().includes(validatedSearch.toLowerCase())
-    );
-  }, [dailyCollections, validatedSearch]);
-
   const fetchDailyCollections = useCallback(async () => {
+    setLoading("daily", true);
     try {
-      setLoading(true);
       setError(null);
       const data = await collectionsService.getTodayCollections();
       setDailyCollections(data);
     } catch (err) {
-      setError("Failed to fetch daily collections");
       console.error("Error fetching daily collections:", err);
+      setError("Failed to fetch daily collections");
     } finally {
-      setLoading(false);
+      setLoading("daily", false);
     }
-  }, []);
+  }, [setLoading]);
 
-  const fetchCollections = useCallback(async () => {
+  const fetchAllCollections = useCallback(async () => {
+    setLoading("all", true);
     try {
-      setLoading(true);
       setError(null);
-
-      // Build query object, excluding undefined values
-      const query: CollectionsQuery = {};
-
-      if (page) query.page = page;
-      if (limit) query.limit = limit;
-      if (validatedSearch) query.search = validatedSearch;
-      if (centerId) query.centerId = centerId;
-      if (memberId) query.memberId = memberId;
-      if (startDate) query.startDate = startDate;
-      if (endDate) query.endDate = endDate;
-      if (sortBy) query.sortBy = sortBy;
-      if (sortOrder) query.sortOrder = sortOrder;
-
-      console.log("Fetching collections with query:", query); // Debug log
-
-      const data: PaginatedCollections =
-        await collectionsService.getAllCollections(query);
-      setItems(data.items);
-      setTotal(data.total);
-      setTotalPages(data.totalPages);
-    } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.message || "Failed to fetch collections";
-      setError(errorMessage);
-      console.error("Error fetching collections:", err);
-      console.error("Error response:", err.response?.data); // Additional debug info
+      const data = await collectionsService.getAllCollectionGroups();
+      setAllCollections(data);
+    } catch (err) {
+      console.error("Error fetching all collections:", err);
+      setError("Failed to fetch all collections");
     } finally {
-      setLoading(false);
+      setLoading("all", false);
     }
-  }, [
-    page,
-    limit,
-    validatedSearch, // Use validated search instead of raw search
-    centerId,
-    memberId,
-    startDate,
-    endDate,
-    sortBy,
-    sortOrder,
-  ]);
-
-  const updateCollection = useCallback(
-    async (id: string, data: Partial<CollectionFormData>) => {
-      try {
-        setLoading(true);
-        setError(null);
-        await collectionsService.updateCollection(id, data);
-        await fetchDailyCollections();
-        await fetchCollections();
-      } catch (err) {
-        setError("Failed to update collection");
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [fetchDailyCollections, fetchCollections]
-  );
+  }, [setLoading]);
 
   useEffect(() => {
     fetchDailyCollections();
   }, [fetchDailyCollections]);
 
   useEffect(() => {
-    fetchCollections();
-  }, [fetchCollections]);
+    fetchAllCollections();
+  }, [fetchAllCollections]);
+
+  const filteredDailyCollections = useMemo(() => {
+    if (!validatedSearch) return dailyCollections;
+    return dailyCollections.filter((group) =>
+      group.centerName.toLowerCase().includes(validatedSearch.toLowerCase())
+    );
+  }, [dailyCollections, validatedSearch]);
+
+  const filteredAllCollections = useMemo(() => {
+    if (!validatedSearch) return allCollections;
+    return allCollections.filter((group) =>
+      group.centerName.toLowerCase().includes(validatedSearch.toLowerCase())
+    );
+  }, [allCollections, validatedSearch]);
+
+  const totalAllCollectionItems = useMemo(
+    () =>
+      allCollections.reduce(
+        (sum, group) => sum + (group.collections?.length ?? 0),
+        0
+      ),
+    [allCollections]
+  );
+
+  const updateCollection = useCallback(
+    async (id: string, data: Partial<CollectionFormData>) => {
+      setLoading("update", true);
+      setError(null);
+      try {
+        await collectionsService.updateCollection(id, data);
+        await Promise.all([fetchDailyCollections(), fetchAllCollections()]);
+      } catch (err) {
+        console.error("Failed to update collection:", err);
+        setError("Failed to update collection");
+        throw err;
+      } finally {
+        setLoading("update", false);
+      }
+    },
+    [fetchDailyCollections, fetchAllCollections, setLoading]
+  );
+
+  const loading =
+    loadingMap.daily || loadingMap.all || loadingMap.update;
 
   return {
-    // daily
-    dailyCollections: filteredDailyCollections, // Return filtered daily collections
-    refetchDaily: fetchDailyCollections,
-
-    // paginated list
-    items,
-    total,
-    page,
-    limit,
-    totalPages,
-    setPage,
-    setLimit,
-
-    // filters/sort
+    dailyCollections: filteredDailyCollections,
+    allCollections: filteredAllCollections,
+    totalDailyCenters: dailyCollections.length,
+    totalAllCenters: allCollections.length,
+    totalAllCollectionItems,
     search,
     setSearch,
-    centerId,
-    setCenterId,
-    memberId,
-    setMemberId,
-    startDate,
-    setStartDate,
-    endDate,
-    setEndDate,
-    sortBy,
-    setSortBy,
-    sortOrder,
-    setSortOrder,
-
-    // misc
     loading,
     error,
     updateCollection,
-    refetchAll: fetchCollections,
+    refetchDaily: fetchDailyCollections,
+    refetchAll: fetchAllCollections,
   };
 }

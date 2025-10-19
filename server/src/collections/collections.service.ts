@@ -31,6 +31,57 @@ export class CollectionsService {
     private readonly collectionsRepository: CollectionsRepository,
   ) {}
 
+  private weekdayToIndex(weekday: string): number | null {
+    const days = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+    const index = days.findIndex(
+      (day) => day.toLowerCase() === weekday?.toLowerCase(),
+    );
+    return index === -1 ? null : index;
+  }
+
+  private getNextCollectionDate(collectionDay: string) {
+    const targetIndex = this.weekdayToIndex(collectionDay);
+    if (targetIndex === null) {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    const today = new Date();
+    const diff = (targetIndex + 7 - today.getDay()) % 7;
+    const nextDate = new Date(today);
+    nextDate.setDate(today.getDate() + diff);
+    return nextDate.toISOString().split('T')[0];
+  }
+
+  private async calculateTotalReceivedForDate(centerId: string, date: string) {
+    const start = new Date(date);
+    const end = new Date(date);
+    end.setDate(end.getDate() + 1);
+
+    const raw = await this.repaymentRepo
+      .createQueryBuilder('repayment')
+      .select('COALESCE(SUM(repayment.amount), 0)', 'total')
+      .leftJoin('repayment.center', 'center')
+      .where('center.id = :centerId', { centerId })
+      .andWhere(
+        'repayment.createdAt >= :start AND repayment.createdAt < :end',
+        {
+          start: start.toISOString(),
+          end: end.toISOString(),
+        },
+      )
+      .getRawOne<{ total: string }>();
+
+    return Number(raw?.total ?? 0);
+  }
+
   async create(createCollectionDto: CreateCollectionDto) {
     const center = await this.centerRepo.findOneBy({
       id: createCollectionDto.centerId,
@@ -163,27 +214,148 @@ export class CollectionsService {
           (sum, c) => sum + Number(c.amount),
           0,
         ),
-        totalReceived: await (async () => {
-          const start = new Date(dateString);
-          const end = new Date(dateString);
-          end.setDate(end.getDate() + 1);
-          const reps = await this.repaymentRepo
-            .createQueryBuilder('repayment')
-            .leftJoin('repayment.center', 'center')
-            .where('center.id = :centerId', { centerId: center.id })
-            .andWhere('repayment.createdAt >= :start AND repayment.createdAt < :end', {
-              start: start.toISOString(),
-              end: end.toISOString(),
-            })
-            .getMany();
-          return reps.reduce((sum, r) => sum + Number(r.amount), 0);
-        })(),
+        totalReceived: await this.calculateTotalReceivedForDate(
+          center.id,
+          dateString,
+        ),
       };
 
       dailyCollections.push(centerCollectionList);
     }
 
     return dailyCollections;
+  }
+
+  async getAllCollectionsGrouped() {
+    const centers = await this.centerRepo.find();
+    const centerMap = new Map(centers.map((center) => [center.id, center]));
+
+    const centerMembers = await this.memberRepo.find({
+      relations: ['center'],
+    });
+
+    const membersMap = new Map<string, Member[]>();
+    for (const member of centerMembers) {
+      const memberCenterId = member.center?.id;
+      if (!memberCenterId) continue;
+      if (!membersMap.has(memberCenterId)) {
+        membersMap.set(memberCenterId, []);
+      }
+      membersMap.get(memberCenterId)!.push(member);
+    }
+
+    const collections = await this.collectionRepo.find({
+      relations: ['member'],
+      order: { collectionDate: 'ASC', createdAt: 'ASC' },
+    });
+
+    const grouped = new Map<
+      string,
+      {
+        centerId: string;
+        collectionDate: string;
+        collections: Collection[];
+      }
+    >();
+
+    for (const collection of collections) {
+      const key = `${collection.centerId}__${collection.collectionDate}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          centerId: collection.centerId,
+          collectionDate: collection.collectionDate,
+          collections: [],
+        });
+      }
+      grouped.get(key)!.collections.push(collection);
+    }
+
+    const aggregated = await Promise.all(
+      Array.from(grouped.values()).map(async (entry) => {
+        const center = centerMap.get(entry.centerId);
+        if (!center) {
+          this.logger.warn(
+            `Center ${entry.centerId} referenced in collections but not found`,
+          );
+          return null;
+        }
+
+        const members = membersMap.get(entry.centerId) ?? [];
+        const totalAmount = entry.collections.reduce(
+          (sum, c) => sum + Number(c.amount || 0),
+          0,
+        );
+        const totalReceived = await this.calculateTotalReceivedForDate(
+          entry.centerId,
+          entry.collectionDate,
+        );
+
+        return {
+          centerId: entry.centerId,
+          centerName: center.name,
+          collectionDay: center.collectionDay,
+          collectionDate: entry.collectionDate,
+          totalMembers: members.length,
+          pendingCollections: Math.max(
+            members.length - entry.collections.length,
+            0,
+          ),
+          totalAmount,
+          totalReceived,
+          collections: entry.collections,
+        };
+      }),
+    );
+
+    const existingGroups = aggregated.filter(
+      (group): group is NonNullable<typeof group> => Boolean(group),
+    );
+
+    const placeholders = centers
+      .filter(
+        (center) =>
+          !existingGroups.some((group) => group.centerId === center.id),
+      )
+      .map((center) => {
+        const members = membersMap.get(center.id) ?? [];
+        return {
+          centerId: center.id,
+          centerName: center.name,
+          collectionDay: center.collectionDay,
+          collectionDate: this.getNextCollectionDate(center.collectionDay),
+          totalMembers: members.length,
+          pendingCollections: members.length,
+          totalAmount: 0,
+          totalReceived: 0,
+          collections: [],
+        };
+      });
+
+    const allGroups = [...existingGroups, ...placeholders];
+
+    const today = new Date();
+    const todayMs = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    ).getTime();
+
+    return allGroups.sort((a, b) => {
+      const aTime = new Date(a.collectionDate).getTime();
+      const bTime = new Date(b.collectionDate).getTime();
+
+      const aDiff = Math.abs(aTime - todayMs);
+      const bDiff = Math.abs(bTime - todayMs);
+
+      if (aDiff === bDiff) {
+        if (aTime === bTime) {
+          return a.centerName.localeCompare(b.centerName);
+        }
+        return aTime - bTime;
+      }
+
+      return aDiff - bDiff;
+    });
   }
 
   /**

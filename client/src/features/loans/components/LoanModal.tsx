@@ -122,7 +122,9 @@ export default function LoanModal({
       principalAmount: activeLoan.principalAmount,
       weeklyPaymentAmount: activeLoan.weeklyPaymentAmount,
       termWeek: activeLoan.termWeeks,
-      savings: activeLoan.savings,
+      savings:
+        Number(activeLoan.savings || 0) +
+        Number((activeLoan as any).existingSavings || 0),
       weeksPaid: activeLoan.weeksPaid,
       createdAt: releaseDate.toISOString(), // Use loan creation date for accurate passbook
     };
@@ -356,7 +358,10 @@ export default function LoanModal({
                     </Typography>
                   </Box>
                   <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                    {formatCurrency(activeLoan!.savings)}
+                    {formatCurrency(
+                      Number(activeLoan!.savings || 0) +
+                        Number((activeLoan as any).existingSavings || 0)
+                    )}
                   </Typography>
                 </Grid>
 

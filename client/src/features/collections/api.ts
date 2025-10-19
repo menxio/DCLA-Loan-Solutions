@@ -117,6 +117,12 @@ export const collectionsService = {
     return response.data;
   },
 
+  // Get all collections grouped by center/date
+  getAllCollectionGroups: async (): Promise<DailyCollectionGroup[]> => {
+    const response = await collectionsApi.get("/grouped");
+    return response.data;
+  },
+
   // Get collections by date
   getCollectionsByDate: async (date: string): Promise<Collection[]> => {
     const response = await collectionsApi.get(`/date/${date}`);

@@ -50,6 +50,9 @@ export default function LoanForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [serviceCharge, setServiceCharge] = useState<number>(0);
   const [useCustomDate, setUseCustomDate] = useState<boolean>(false);
+  const [includeExistingSavings, setIncludeExistingSavings] =
+    useState<boolean>(false);
+  const [existingSavingsInput, setExistingSavingsInput] = useState<string>("");
 
   // Calculate loan details when form data changes
   useEffect(() => {
@@ -61,17 +64,32 @@ export default function LoanForm({
     }
   }, [formData.principalAmount, formData.termWeeks]);
 
-  const handleInputChange = (field: keyof LoanFormData) => (
-    e: React.ChangeEvent<HTMLInputElement | { value: unknown }>
-  ) => {
-    const value = field === "principalAmount" || field === "savings"
-      ? Number((e as React.ChangeEvent<HTMLInputElement>).target.value)
-      : (e as React.ChangeEvent<{ value: unknown }>).target.value;
+  const handleInputChange =
+    (field: "principalAmount" | "savings") =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const rawValue = e.target.value;
 
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+      setFormData((prev) => {
+        if (field === "principalAmount") {
+          const numeric = Number(rawValue);
+          const cleaned = Number.isNaN(numeric) ? 0 : numeric;
+          return {
+            ...prev,
+            principalAmount: cleaned,
+          };
+        }
+
+        const numeric =
+          rawValue === "" ? undefined : Number(rawValue);
+        const cleaned =
+          numeric === undefined || Number.isNaN(numeric)
+            ? undefined
+            : numeric;
+        return {
+          ...prev,
+          savings: cleaned,
+        };
+      });
 
     if (errors[field]) {
       setErrors((prev) => ({
@@ -85,6 +103,12 @@ export default function LoanForm({
     }
   };
 
+  const handleExistingSavingsChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setExistingSavingsInput(e.target.value);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -93,10 +117,15 @@ export default function LoanForm({
     if (!formData.principalAmount || formData.principalAmount <= 0) {
       (newErrors as any).principalAmount = "Principal amount must be greater than 0";
     }
-    if (isFirstLoan) {
-      if (formData.savings === undefined || formData.savings === null || Number(formData.savings) <= 0) {
-        (newErrors as any).savings = "Savings amount is required for first loan";
-      }
+    const baseSavingsForValidation = Number(formData.savings || 0);
+    const legacySavingsForValidation = includeExistingSavings
+      ? Math.max(0, Number(existingSavingsInput || 0))
+      : 0;
+    const combinedSavingsForValidation =
+      baseSavingsForValidation + legacySavingsForValidation;
+    if (isFirstLoan && combinedSavingsForValidation <= 0) {
+      (newErrors as any).savings =
+        "Total savings (including existing) must be greater than 0 for first loan";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -105,16 +134,34 @@ export default function LoanForm({
     }
 
     try {
-      await onSubmit({ ...formData, serviceCharge });
+      const baseSavings = Number(formData.savings || 0);
+      const legacySavings = includeExistingSavings
+        ? Math.max(0, Number(existingSavingsInput || 0))
+        : 0;
+      const combinedSavings = baseSavings + legacySavings;
+
+      await onSubmit({
+        ...formData,
+        savings: baseSavings,
+        existingSavings: legacySavings,
+        serviceCharge,
+      });
     } catch (err) {
       setSubmitError("Failed to create loan. Please try again.");
     }
   };
 
   // Compute net cash released preview for new loan
+  const savingsAmount = Math.max(0, Number(formData.savings || 0));
+  const existingSavingsAmount = includeExistingSavings
+    ? Math.max(0, Number(existingSavingsInput || 0))
+    : 0;
+  const savingsDeduction = savingsAmount;
   const netCashReleased = Math.max(
     0,
-    Number(formData.principalAmount || 0) - Number(serviceCharge || 0) - Number(formData.savings || 0)
+    Number(formData.principalAmount || 0) -
+      Number(serviceCharge || 0) -
+      savingsDeduction
   );
 
   return (
@@ -156,7 +203,7 @@ export default function LoanForm({
               type="number"
               value={formData.principalAmount || ""}
               onChange={handleInputChange("principalAmount")}
-              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*", min: 0 }}
               error={Boolean(errors.principalAmount)}
               helperText={errors.principalAmount}
               disabled={loading}
@@ -227,7 +274,7 @@ export default function LoanForm({
           </Grid>
 
           {/* Loan Creation Date */}
-          <Grid item xs={12}>
+          <Grid item xs={12} md={6}>
             <FormControlLabel
               control={
                 <Checkbox
@@ -243,32 +290,64 @@ export default function LoanForm({
               }
               label="Set custom loan creation date"
             />
+            {useCustomDate && (
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Loan Creation Date"
+                    value={formData.loanCreatedDate}
+                    onChange={(newValue) => {
+                      if (newValue) {
+                        setFormData(prev => ({ ...prev, loanCreatedDate: newValue }));
+                      }
+                    }}
+                    maxDate={new Date()} // Cannot be in the future
+                    minDate={new Date(new Date().getFullYear() - 2, 0, 1)} // Max 2 years ago
+                    disabled={loading}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        helperText: "When was this loan originally given to the member?",
+                      },
+                    }}
+                  />
+                </LocalizationProvider>
+            )}
           </Grid>
 
-          {useCustomDate && (
-            <Grid item xs={12} md={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
-                  label="Loan Creation Date"
-                  value={formData.loanCreatedDate}
-                  onChange={(newValue) => {
-                    if (newValue) {
-                      setFormData(prev => ({ ...prev, loanCreatedDate: newValue }));
+          <Grid item xs={12} md={6}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={includeExistingSavings}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIncludeExistingSavings(checked);
+                    if (!checked) {
+                      setExistingSavingsInput("");
                     }
                   }}
-                  maxDate={new Date()} // Cannot be in the future
-                  minDate={new Date(new Date().getFullYear() - 2, 0, 1)} // Max 2 years ago
                   disabled={loading}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      helperText: "When was this loan originally given to the member?",
-                    },
-                  }}
                 />
-              </LocalizationProvider>
-            </Grid>
-          )}
+              }
+              label="Add existing savings"
+            />
+            {includeExistingSavings && (
+              <TextField
+                fullWidth
+                label="Existing Savings Amount"
+                type="number"
+                value={existingSavingsInput}
+                onChange={handleExistingSavingsChange}
+                inputProps={{ inputMode: "numeric", pattern: "[0-9]*", min: 0 }}
+                onWheel={(e) => e.currentTarget.blur()}
+                disabled={loading}
+                InputProps={{
+                  startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
+                }}
+                helperText="Optional: capture savings accumulated before the system."
+              />
+            )}
+          </Grid>
 
           {/* Loan Calculation Preview */}
           {calculation && (
@@ -375,8 +454,13 @@ export default function LoanForm({
                       <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(Number(serviceCharge || 0))}</Typography>
                     </Grid>
                     <Grid item xs={12} md={4}>
-                      <Typography variant="body2" color="text.secondary">Less: Savings:</Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(Number(formData.savings || 0))}</Typography>
+                      <Typography variant="body2" color="text.secondary">Less: Savings Deducted:</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(savingsDeduction)}</Typography>
+                      {includeExistingSavings && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                          Existing savings recorded: {formatCurrency(existingSavingsAmount)}
+                        </Typography>
+                      )}
                     </Grid>
                   </Grid>
                   <Divider sx={{ my: 1 }} />

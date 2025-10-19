@@ -32,6 +32,11 @@ export class CollectionsController {
     return this.collectionService.getTodayCollections();
   }
 
+  @Get('grouped')
+  getAllCollectionsGrouped() {
+    return this.collectionService.getAllCollectionsGrouped();
+  }
+
   @Get('date/:date')
   getCollectionsByDate(@Param('date') date: string) {
     return this.collectionService.getCollectionsByDate(date);

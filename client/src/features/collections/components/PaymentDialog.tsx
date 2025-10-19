@@ -23,6 +23,7 @@ interface Loan {
   status: string;
   weeklyPaymentAmount?: number;
   savings?: number;
+  existingSavings?: number;
 }
 
 interface Collection {
@@ -115,7 +116,8 @@ export function PaymentDialog({
   const activeLoan = member.loans.find((l) => l.status === "active");
   const weeklyPayment =
     activeLoan?.weeklyPaymentAmount || member.weeklyPaymentAmount || 0;
-  const availableSavings = activeLoan?.savings || 0;
+  const availableSavings =
+    (activeLoan?.savings || 0) + (activeLoan?.existingSavings || 0);
   const paymentAmountNum = Number.parseFloat(paymentAmount) || 0;
   const shortfall = Math.max(0, weeklyPayment - paymentAmountNum);
   const canUseSavings = shortfall > 0 && availableSavings > 0;

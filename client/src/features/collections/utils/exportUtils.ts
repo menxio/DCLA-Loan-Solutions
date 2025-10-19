@@ -604,17 +604,18 @@ export const exportToExcel = async (
   collectionGroup: DailyCollectionGroup,
   members: MemberWithLoans[]
 ): Promise<void> => {
+  // Ensure alphabetical order in export (LastName, FirstName)
+  const sortedMembers = [...members].sort((a, b) => {
+    const al = `${(a.lastName || "").toLowerCase()} ${(
+      a.firstName || ""
+    ).toLowerCase()}`.trim();
+    const bl = `${(b.lastName || "").toLowerCase()} ${(
+      b.firstName || ""
+    ).toLowerCase()}`.trim();
+    return al.localeCompare(bl);
+  });
+
   try {
-    // Ensure alphabetical order in export (LastName, FirstName)
-    const sortedMembers = [...members].sort((a, b) => {
-      const al = `${(a.lastName || "").toLowerCase()} ${(
-        a.firstName || ""
-      ).toLowerCase()}`.trim();
-      const bl = `${(b.lastName || "").toLowerCase()} ${(
-        b.firstName || ""
-      ).toLowerCase()}`.trim();
-      return al.localeCompare(bl);
-    });
     // Try using ExcelJS for better styling support
     console.log("Attempting to use ExcelJS for styling...");
     const ExcelJS = await import("exceljs");

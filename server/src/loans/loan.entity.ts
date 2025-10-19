@@ -46,6 +46,9 @@ export class Loan {
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
   savings: number;
 
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  existingSavings: number;
+
   @Column('int', { default: 0 })
   weeksPaid: number;
 
