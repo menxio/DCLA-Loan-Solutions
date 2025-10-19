@@ -24,6 +24,9 @@ import { PortfolioModule } from './portfolio/portfolio.module';
       synchronize: process.env.TYPEORM_SYNC === 'true',
       migrationsRun: process.env.TYPEORM_RUN_MIGRATIONS === 'true',
       migrations: ['dist/migrations/*.js'],
+      ssl: {
+        rejectUnauthorized: false,
+      },
     }),
     UsersModule,
     AuthModule,
