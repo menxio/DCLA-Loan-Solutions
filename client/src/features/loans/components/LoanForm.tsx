@@ -50,9 +50,6 @@ export default function LoanForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [serviceCharge, setServiceCharge] = useState<number>(0);
   const [useCustomDate, setUseCustomDate] = useState<boolean>(false);
-  const [includeExistingSavings, setIncludeExistingSavings] =
-    useState<boolean>(false);
-  const [existingSavingsInput, setExistingSavingsInput] = useState<string>("");
 
   // Calculate loan details when form data changes
   useEffect(() => {
@@ -103,12 +100,6 @@ export default function LoanForm({
     }
   };
 
-  const handleExistingSavingsChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setExistingSavingsInput(e.target.value);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -117,15 +108,10 @@ export default function LoanForm({
     if (!formData.principalAmount || formData.principalAmount <= 0) {
       (newErrors as any).principalAmount = "Principal amount must be greater than 0";
     }
-    const baseSavingsForValidation = Number(formData.savings || 0);
-    const legacySavingsForValidation = includeExistingSavings
-      ? Math.max(0, Number(existingSavingsInput || 0))
-      : 0;
-    const combinedSavingsForValidation =
-      baseSavingsForValidation + legacySavingsForValidation;
-    if (isFirstLoan && combinedSavingsForValidation <= 0) {
+    const savingsForValidation = Number(formData.savings || 0);
+    if (isFirstLoan && savingsForValidation <= 0) {
       (newErrors as any).savings =
-        "Total savings (including existing) must be greater than 0 for first loan";
+        "Savings contribution must be greater than 0 for first loan";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -134,16 +120,11 @@ export default function LoanForm({
     }
 
     try {
-      const baseSavings = Number(formData.savings || 0);
-      const legacySavings = includeExistingSavings
-        ? Math.max(0, Number(existingSavingsInput || 0))
-        : 0;
-      const combinedSavings = baseSavings + legacySavings;
+      const savingsContribution = Math.max(0, Number(formData.savings || 0));
 
       await onSubmit({
         ...formData,
-        savings: baseSavings,
-        existingSavings: legacySavings,
+        savings: savingsContribution,
         serviceCharge,
       });
     } catch (err) {
@@ -153,9 +134,6 @@ export default function LoanForm({
 
   // Compute net cash released preview for new loan
   const savingsAmount = Math.max(0, Number(formData.savings || 0));
-  const existingSavingsAmount = includeExistingSavings
-    ? Math.max(0, Number(existingSavingsInput || 0))
-    : 0;
   const savingsDeduction = savingsAmount;
   const netCashReleased = Math.max(
     0,
@@ -314,41 +292,6 @@ export default function LoanForm({
             )}
           </Grid>
 
-          <Grid item xs={12} md={6}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={includeExistingSavings}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setIncludeExistingSavings(checked);
-                    if (!checked) {
-                      setExistingSavingsInput("");
-                    }
-                  }}
-                  disabled={loading}
-                />
-              }
-              label="Add existing savings"
-            />
-            {includeExistingSavings && (
-              <TextField
-                fullWidth
-                label="Existing Savings Amount"
-                type="number"
-                value={existingSavingsInput}
-                onChange={handleExistingSavingsChange}
-                inputProps={{ inputMode: "numeric", pattern: "[0-9]*", min: 0 }}
-                onWheel={(e) => e.currentTarget.blur()}
-                disabled={loading}
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
-                }}
-                helperText="Optional: capture savings accumulated before the system."
-              />
-            )}
-          </Grid>
-
           {/* Loan Calculation Preview */}
           {calculation && (
             <>
@@ -456,11 +399,6 @@ export default function LoanForm({
                     <Grid item xs={12} md={4}>
                       <Typography variant="body2" color="text.secondary">Less: Savings Deducted:</Typography>
                       <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(savingsDeduction)}</Typography>
-                      {includeExistingSavings && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                          Existing savings recorded: {formatCurrency(existingSavingsAmount)}
-                        </Typography>
-                      )}
                     </Grid>
                   </Grid>
                   <Divider sx={{ my: 1 }} />

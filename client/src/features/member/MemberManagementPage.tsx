@@ -26,6 +26,7 @@ import { useMembers } from "./hooks/useMember";
 import type { Member, MemberFormData } from "./types";
 import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
+import SavingsDepositDialog from "@features/savings/components/SavingsDepositDialog";
 
 export default function MembersPage() {
   const { members, total, page, limit, setPage, setLimit, loading, error, createMember, updateMember, deleteMember, refetch } = useMembers();
@@ -46,6 +47,8 @@ export default function MembersPage() {
   const [loadingCenters, setLoadingCenters] = useState(false);
   const [loanModalOpen, setLoanModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [savingsDialogOpen, setSavingsDialogOpen] = useState(false);
+  const [savingsMember, setSavingsMember] = useState<Member | null>(null);
   const [searchMember, setSearchMember] = useState("");
 
   // Reset to page 1 and refetch when filters change
@@ -120,9 +123,19 @@ export default function MembersPage() {
     setLoanModalOpen(true);
   };
 
+  const handleOpenSavingsDialog = (member: Member) => {
+    setSavingsMember(member);
+    setSavingsDialogOpen(true);
+  };
+
   const handleCloseLoanModal = () => {
     setLoanModalOpen(false);
     setSelectedMember(null);
+  };
+
+  const handleCloseSavingsDialog = () => {
+    setSavingsDialogOpen(false);
+    setSavingsMember(null);
   };
 
   const handleLoanCreated = () => {
@@ -319,6 +332,7 @@ export default function MembersPage() {
         onEdit={handleEdit} 
         onDelete={handleDelete} 
         onViewLoan={handleViewLoan}
+        onAddSavings={handleOpenSavingsDialog}
         loading={loading} 
         />
 
@@ -351,6 +365,15 @@ export default function MembersPage() {
           />
         )}
 
+        {/* Savings Deposit Dialog */}
+        <SavingsDepositDialog
+          open={savingsDialogOpen}
+          member={savingsMember}
+          onClose={handleCloseSavingsDialog}
+          onSuccess={handleSavingsSuccess}
+          formatCurrency={formatCurrency}
+        />
+
         {/* Success/Error Snackbar */}
         <Snackbar
           open={snackbar.open}
@@ -366,3 +389,20 @@ export default function MembersPage() {
     </DashboardLayout>
   );
 }
+  const formatCurrency = (amount: number): string =>
+    `₱${Number(amount || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const handleSavingsSuccess = async () => {
+    const query = {
+      page,
+      limit,
+      search: searchMember.trim() || undefined,
+      centerId: selectedCenterId || undefined,
+    } as any;
+    await refetch(query);
+    showSnackbar("Savings deposit recorded!");
+    handleCloseSavingsDialog();
+  };

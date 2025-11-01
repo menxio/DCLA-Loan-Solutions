@@ -37,7 +37,20 @@ export class RepaymentsService {
     useSavings?: boolean;
   }) {
     const { loanId, memberId, centerId, amount, notes, useSavings = false } = body;
-    if (amount <= 0) throw new BadRequestException('Amount must be > 0');
+
+    if (amount === undefined || amount === null || Number.isNaN(Number(amount))) {
+      throw new BadRequestException('Amount must be provided as a number');
+    }
+
+    if (Number(amount) < 0) {
+      throw new BadRequestException('Amount must be >= 0');
+    }
+
+    if (Number(amount) === 0 && !useSavings) {
+      throw new BadRequestException(
+        'Amount must be > 0 when not using savings to cover the payment',
+      );
+    }
 
     const [loan, member, center] = await Promise.all([
       this.loanRepo.findOne({ where: { id: loanId }, relations: ['borrower'] }),
@@ -49,7 +62,7 @@ export class RepaymentsService {
     if (!member) throw new NotFoundException('Member not found');
     if (!center) throw new NotFoundException('Center not found');
 
-    await this.loansService.applyRepayment(loanId, amount, useSavings);
+    await this.loansService.applyRepayment(loanId, Number(amount), useSavings);
 
     // Update the collection's paymentReceived to reflect the cumulative amount paid
     const updatedLoan = await this.loanRepo.findOne({ where: { id: loanId } });

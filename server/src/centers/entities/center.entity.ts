@@ -7,6 +7,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Collection } from '../../collections/entities/collection.entity';
+import { Member } from '../../members/entities/member.entity';
 
 @Entity()
 export class Center {
@@ -21,6 +22,9 @@ export class Center {
 
   @OneToMany(() => Collection, (collection) => collection.center)
   collections: Collection[];
+
+  @OneToMany(() => Member, (member) => member.center)
+  members: Member[];
 
   @Column({ nullable: true })
   address: string;

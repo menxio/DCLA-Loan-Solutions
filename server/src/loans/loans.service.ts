@@ -46,13 +46,21 @@ export class LoansService {
     };
   }
 
+  private async findLatestLoanForMember(
+    borrowerId: string,
+  ): Promise<Loan | null> {
+    return this.loanRepository.findOne({
+      where: { borrower: { id: borrowerId } },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async create(createLoanDto: CreateLoanDto): Promise<Loan> {
     const {
       borrowerId,
       principalAmount,
       termWeeks,
       savings,
-      existingSavings,
       serviceCharge,
       loanCreatedDate,
     } =
@@ -75,23 +83,23 @@ export class LoansService {
     }
 
     // Determine if this is the borrower's first loan (no prior loans at all)
-    const priorLoansCount = await this.loanRepository.count({
-      where: { borrower: { id: borrowerId } },
-    });
-    const isFirstLoan = priorLoansCount === 0;
+    const latestLoan = await this.findLatestLoanForMember(borrowerId);
+    const isFirstLoan = !latestLoan;
 
     // Validate savings per business rule
     const providedSavings =
-      typeof savings === 'number' ? Number(savings) : undefined;
-    const existingSavingsAmount =
-      existingSavings !== undefined && existingSavings !== null
-        ? Number(existingSavings)
-        : 0;
-    if (isNaN(existingSavingsAmount) || existingSavingsAmount < 0) {
-      throw new BadRequestException(
-        'Existing savings must be >= 0 when provided',
-      );
+      savings !== undefined && savings !== null ? Number(savings) : undefined;
+    if (
+      providedSavings !== undefined &&
+      (isNaN(providedSavings) || providedSavings < 0)
+    ) {
+      throw new BadRequestException('savings must be >= 0 when provided');
     }
+
+    const previousSavingsTotal = latestLoan
+      ? Number(latestLoan.savings || 0)
+      : 0;
+    const newSavingsContribution = Number(providedSavings ?? 0);
 
     // Validate service charge if provided
     const fee =
@@ -101,11 +109,10 @@ export class LoansService {
     if (isNaN(fee) || fee < 0) {
       throw new BadRequestException('serviceCharge must be >= 0 when provided');
     }
-    const totalSavingsForValidation =
-      Number(providedSavings ?? 0) + existingSavingsAmount;
-    if (isFirstLoan && totalSavingsForValidation <= 0) {
+    const totalSavingsForValidation = previousSavingsTotal + newSavingsContribution;
+    if (isFirstLoan && newSavingsContribution <= 0) {
       throw new BadRequestException(
-        'Total savings (including existing) must be > 0 for the first loan',
+        'Savings contribution must be greater than 0 for the first loan',
       );
     }
 
@@ -122,8 +129,8 @@ export class LoansService {
       totalAmount,
       weeklyPaymentAmount,
       balance: totalAmount,
-      savings: providedSavings ?? 0,
-      existingSavings: existingSavingsAmount,
+      savings: totalSavingsForValidation,
+      existingSavings: 0,
       weeksPaid: 0,
       amountPaid: 0,
       advancePaymentBuffer: 0,
@@ -132,7 +139,7 @@ export class LoansService {
     });
 
     // Compute net cash released for all loans: principal - fee - savings (never below 0)
-    const savingsForCalc = Number(providedSavings ?? 0);
+    const savingsForCalc = newSavingsContribution;
     const net = Number(principalAmount) - fee - savingsForCalc;
     const netCashReleased = net > 0 ? net : 0;
     (loan as any).netCashReleased = netCashReleased;
@@ -157,8 +164,19 @@ export class LoansService {
     amount: number,
     useSavings: boolean = false,
   ): Promise<Loan> {
-    if (amount <= 0) {
-      throw new BadRequestException('Payment amount must be greater than zero');
+    if (amount === undefined || amount === null || Number.isNaN(Number(amount))) {
+      throw new BadRequestException('Payment amount must be provided');
+    }
+
+    const cashAmount = Number(amount);
+    if (cashAmount < 0) {
+      throw new BadRequestException('Payment amount must be >= 0');
+    }
+
+    if (cashAmount === 0 && !useSavings) {
+      throw new BadRequestException(
+        'Payment amount must be greater than zero when not using savings',
+      );
     }
 
     const loan = await this.findOne(loanId);
@@ -168,23 +186,23 @@ export class LoansService {
 
     const weekly = Number(loan.weeklyPaymentAmount);
     const currentBuffer = Number(loan.advancePaymentBuffer || 0);
-    const currentSavings = Number(loan.savings || 0);
-    const legacySavings = Number(loan.existingSavings || 0);
+    const availableSavings = Number(loan.savings || 0);
 
     // If payment is short and useSavings is true, deduct from savings
-    let totalPayment = amount;
-    let savingsUsedFromCurrent = 0;
-    let savingsUsedFromLegacy = 0;
+    let totalPayment = cashAmount;
+    let savingsUsed = 0;
 
-    if (useSavings && amount < weekly) {
-      const shortfall = weekly - amount;
-      const totalAvailableSavings = currentSavings + legacySavings;
-      if (totalAvailableSavings > 0) {
-        const required = Math.min(shortfall, totalAvailableSavings);
-        savingsUsedFromCurrent = Math.min(required, currentSavings);
-        savingsUsedFromLegacy = required - savingsUsedFromCurrent;
-        totalPayment = amount + required;
+    if (useSavings && cashAmount < weekly) {
+      const shortfall = weekly - cashAmount;
+      if (availableSavings <= 0) {
+        throw new BadRequestException(
+          'No savings available to cover the payment shortfall',
+        );
       }
+
+      const required = Math.min(shortfall, availableSavings);
+      savingsUsed = required;
+      totalPayment = cashAmount + required;
       totalPayment = Math.min(totalPayment, weekly);
     }
 
@@ -197,11 +215,8 @@ export class LoansService {
     loan.advancePaymentBuffer = remainingBuffer;
     loan.amountPaid = Number(loan.amountPaid) + totalPayment;
     loan.balance = Math.max(0, Number(loan.balance) - totalPayment);
-    loan.savings = Math.max(0, currentSavings - savingsUsedFromCurrent);
-    loan.existingSavings = Math.max(
-      0,
-      legacySavings - savingsUsedFromLegacy,
-    );
+    loan.savings = Math.max(0, availableSavings - savingsUsed);
+    loan.existingSavings = 0;
 
     if (loan.balance === 0) {
       loan.status = 'paid';
@@ -306,6 +321,7 @@ export class LoansService {
       throw new BadRequestException('savings must be >= 0 when provided');
     }
 
+    // Combine any accumulated savings on the old loan for carry-over.
     // Compute old remaining balance
     const oldRemaining = Number(loan.balance);
 
@@ -321,6 +337,8 @@ export class LoansService {
       borrowerId,
       principalAmount: Number(newPrincipalAmount),
       termWeeks: newTermWeeks,
+      savings: savingsAmount,
+      serviceCharge: fee,
     } as any;
     const newLoan = await this.create(tempCreate);
 

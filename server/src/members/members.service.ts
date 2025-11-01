@@ -187,12 +187,11 @@ export class MembersService {
           .filter((loan) => loan.status === 'active')
           .reduce((sum, loan) => sum + Number(loan.termWeeks), 0);
 
-        // Calculate total savings (sum of all loans' savings)
-        const totalSavings = loans.reduce((sum, loan) => {
-          const currentSavings = Number(loan.savings || 0);
-          const legacySavings = Number((loan as any).existingSavings || 0);
-          return sum + currentSavings + legacySavings;
-        }, 0);
+        // Total savings equals the highest recorded savings balance across loans (cumulative per loan)
+        const totalSavings = loans.reduce(
+          (max, loan) => Math.max(max, Number(loan.savings || 0)),
+          0,
+        );
 
         // Sum of net cash released across active loans only (reloans)
         const netCashReleased = loans

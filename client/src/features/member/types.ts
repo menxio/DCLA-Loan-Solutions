@@ -41,6 +41,7 @@ export interface MemberCardsProps {
   onEdit: (member: Member) => void;
   onDelete: (id: string) => Promise<void>;
   onViewLoan?: (member: Member) => void;
+  onAddSavings?: (member: Member) => void;
   loading?: boolean;
 }
 

@@ -23,7 +23,6 @@ interface Loan {
   status: string;
   weeklyPaymentAmount?: number;
   savings?: number;
-  existingSavings?: number;
 }
 
 interface Collection {
@@ -75,15 +74,15 @@ export function PaymentDialog({
   }, [open, member]);
 
   const handleSubmit = async () => {
-    if (!member || !paymentAmount) return;
+    if (!member) return;
 
     setProcessing(true);
     setError(null);
 
     try {
-      const amount = Number.parseFloat(paymentAmount);
-      if (amount <= 0) {
-        throw new Error("Payment amount must be greater than 0");
+      const amount = Number.parseFloat(paymentAmount || "0");
+      if (Number.isNaN(amount) || amount < 0) {
+        throw new Error("Payment amount must be a positive number or zero");
       }
 
       const activeLoan = member.loans.find((l) => l.status === "active");
@@ -91,11 +90,40 @@ export function PaymentDialog({
         throw new Error("No active loan found for member");
       }
 
+      const weeklyPaymentDue =
+        activeLoan.weeklyPaymentAmount || member.weeklyPaymentAmount || 0;
+      const availableSavings = Number(activeLoan.savings || 0);
+      const numericAmount = Math.max(amount, 0);
+      const shortfall = Math.max(0, weeklyPaymentDue - numericAmount);
+      const savingsToApply = useSavings
+        ? Math.min(shortfall, Math.max(availableSavings, 0))
+        : 0;
+
+      if (!useSavings && numericAmount <= 0) {
+        throw new Error("Payment amount must be greater than 0");
+      }
+
+      if (useSavings) {
+        if (availableSavings <= 0) {
+          throw new Error("No savings available to apply to this payment");
+        }
+        if (shortfall <= 0) {
+          throw new Error(
+            "Cash payment already covers the weekly amount. Reduce the amount or disable savings."
+          );
+        }
+        if (savingsToApply <= 0) {
+          throw new Error(
+            "Savings cannot cover the payment shortfall. Adjust the payment amount."
+          );
+        }
+      }
+
       await collectionsService.createRepayment({
         loanId: activeLoan.id,
         memberId: member.id,
         centerId,
-        amount,
+        amount: numericAmount,
         notes: paymentNotes,
         useSavings,
       });
@@ -116,11 +144,18 @@ export function PaymentDialog({
   const activeLoan = member.loans.find((l) => l.status === "active");
   const weeklyPayment =
     activeLoan?.weeklyPaymentAmount || member.weeklyPaymentAmount || 0;
-  const availableSavings =
-    (activeLoan?.savings || 0) + (activeLoan?.existingSavings || 0);
-  const paymentAmountNum = Number.parseFloat(paymentAmount) || 0;
+  const availableSavings = Number(activeLoan?.savings ?? 0);
+  const parsedAmount = Number.parseFloat(paymentAmount || "0");
+  const paymentAmountNum = Number.isNaN(parsedAmount) ? 0 : parsedAmount;
   const shortfall = Math.max(0, weeklyPayment - paymentAmountNum);
   const canUseSavings = shortfall > 0 && availableSavings > 0;
+  const savingsToApply = useSavings
+    ? Math.min(shortfall, Math.max(availableSavings, 0))
+    : 0;
+  const isSubmitDisabled =
+    processing ||
+    (!useSavings && paymentAmountNum <= 0) ||
+    (useSavings && (shortfall <= 0 || availableSavings <= 0));
 
   return (
     <Dialog
@@ -328,8 +363,8 @@ export function PaymentDialog({
           />
         </Box>
 
-        {/* Payment Summary */}
-        {paymentAmountNum > 0 && (
+       {/* Payment Summary */}
+        {(paymentAmountNum > 0 || (useSavings && savingsToApply > 0)) && (
           <Card
             sx={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0" }}
           >
@@ -343,7 +378,7 @@ export function PaymentDialog({
                     Cash Payment:
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    {formatCurrency(paymentAmountNum)}
+                    {formatCurrency(Math.max(paymentAmountNum, 0))}
                   </Typography>
                 </Grid>
                 {useSavings && (
@@ -355,7 +390,7 @@ export function PaymentDialog({
                       variant="h6"
                       sx={{ fontWeight: 600, color: "#f59e0b" }}
                     >
-                      {formatCurrency(Math.min(shortfall, availableSavings))}
+                      {formatCurrency(savingsToApply)}
                     </Typography>
                   </Grid>
                 )}
@@ -369,8 +404,8 @@ export function PaymentDialog({
                     sx={{ fontWeight: 700, color: "#10b981" }}
                   >
                     {formatCurrency(
-                      paymentAmountNum +
-                        (useSavings ? Math.min(shortfall, availableSavings) : 0)
+                      Math.max(paymentAmountNum, 0) +
+                        (useSavings ? savingsToApply : 0)
                     )}
                   </Typography>
                 </Grid>
@@ -387,7 +422,7 @@ export function PaymentDialog({
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={!paymentAmount || processing}
+          disabled={isSubmitDisabled}
           startIcon={processing ? <CircularProgress size={16} /> : <Payment />}
           size="large"
           sx={{

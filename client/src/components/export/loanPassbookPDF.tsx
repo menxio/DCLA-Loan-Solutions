@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
   headerText: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
   grid: { display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 6 },
   row: { display: 'flex', flexDirection: 'row' },
-  cell: { border: '0.75pt solid #000', padding: 6, fontSize: 11 },
+  cell: { border: '0.75pt solid #000', padding: 6, fontSize: 10, fontWeight: 'bold' },
   cellBold: { border: '0.75pt solid #000', padding: 6, fontSize: 11, fontWeight: 'bold' },
   footer: { marginTop: 12, textAlign: 'center', fontSize: 10, fontStyle: 'italic' },
   // Note: React-PDF does not support percentage lengths; use absolute points
@@ -41,8 +41,7 @@ export const generateLoanPassbookPDF = async (
 
   const principal = Number(loan.principalAmount);
   const weeklyPayment = Number(loan.weeklyPaymentAmount);
-  const savings =
-    Number(loan.savings) + Number((loan as any).existingSavings ?? 0);
+  const savings = Number(loan.savings);
   const termWeeks = Number(loan.termWeek);
   const weeksPaid = Number(loan.weeksPaid);
   const releaseDate = new Date(loan.createdAt);
