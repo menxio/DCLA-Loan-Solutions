@@ -37,6 +37,12 @@ interface CollectionSummaryCardsProps {
   members: MemberWithLoans[];
   computedStats: ComputedStats | null;
   formatCurrency: (amount: number) => string;
+  totalsOverride?: {
+    totalMembers: number;
+    totalAmount: number;
+    totalReceived: number;
+    pendingCollections: number;
+  };
 }
 
 export function CollectionSummaryCards({
@@ -44,11 +50,19 @@ export function CollectionSummaryCards({
   members,
   computedStats,
   formatCurrency,
+  totalsOverride,
 }: CollectionSummaryCardsProps) {
+  const totalMembers =
+    totalsOverride?.totalMembers ?? collectionGroup.totalMembers;
+  const totalAmount =
+    totalsOverride?.totalAmount ?? collectionGroup.totalAmount ?? 0;
+  const totalReceived =
+    totalsOverride?.totalReceived ?? collectionGroup.totalReceived ?? 0;
+
   const summaryCards = [
     {
       title: "Total Members",
-      value: collectionGroup.totalMembers,
+      value: totalMembers,
       icon: People,
       color: "#1e3a8a",
       bgColor: "#eff6ff",
@@ -80,7 +94,9 @@ export function CollectionSummaryCards({
     {
       title: "Overall Amount",
       subtitle: "Principal + Interest",
-      value: formatCurrency(computedStats?.totalOverallAmount || 0),
+      value: formatCurrency(
+        computedStats?.totalOverallAmount || totalAmount || 0
+      ),
       icon: AccountBalance,
       color: "#8b5cf6",
       bgColor: "#faf5ff",
@@ -88,7 +104,7 @@ export function CollectionSummaryCards({
     {
       title: "Payment Received",
       subtitle: "Today's Collections",
-      value: formatCurrency(Number((collectionGroup as any)?.totalReceived || 0)),
+      value: formatCurrency(Number(totalReceived || 0)),
       icon: AttachMoney,
       color: "#10b981",
       bgColor: "#f0fdf4",

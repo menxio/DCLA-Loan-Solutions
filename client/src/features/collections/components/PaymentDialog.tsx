@@ -47,6 +47,7 @@ interface PaymentDialogProps {
   onSuccess: () => void;
   formatCurrency: (amount: number) => string;
   centerId: string;
+  collectionDate: string;
 }
 
 export function PaymentDialog({
@@ -56,6 +57,7 @@ export function PaymentDialog({
   onSuccess,
   formatCurrency,
   centerId,
+  collectionDate,
 }: PaymentDialogProps) {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
@@ -124,6 +126,7 @@ export function PaymentDialog({
         memberId: member.id,
         centerId,
         amount: numericAmount,
+        collectionDate,
         notes: paymentNotes,
         useSavings,
       });

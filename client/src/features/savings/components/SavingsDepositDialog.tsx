@@ -12,6 +12,7 @@ import {
   Card,
   CardContent,
   Divider,
+  Snackbar,
 } from "@mui/material";
 import { Savings } from "@mui/icons-material";
 import { useEffect, useMemo, useState } from "react";
@@ -49,6 +50,7 @@ export function SavingsDepositDialog({
   const [summary, setSummary] = useState<SavingsSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const previewAmount = Number.parseFloat(amount || "0");
   const currentSavings = summary?.activeLoanSavings ?? 0;
@@ -137,6 +139,7 @@ export function SavingsDepositDialog({
         activeLoanId: updatedLoanId,
         activeLoanSavings: updatedSavings,
       });
+      setSuccessMessage("Savings deposit recorded successfully.");
       onSuccess();
     } catch (err: any) {
       const message =
@@ -151,6 +154,10 @@ export function SavingsDepositDialog({
     }
   };
 
+  const handleSuccessClose = () => {
+    setSuccessMessage(null);
+  };
+
   const disableSubmit =
     processing ||
     summaryLoading ||
@@ -160,7 +167,18 @@ export function SavingsDepositDialog({
     !summary?.activeLoanId;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <>
+      <Snackbar
+        open={Boolean(successMessage)}
+        autoHideDuration={3000}
+        onClose={handleSuccessClose}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert onClose={handleSuccessClose} severity="success" sx={{ width: "100%" }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
+      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <Savings sx={{ color: "#f59e0b" }} />
         Record Savings Deposit
@@ -276,6 +294,7 @@ export function SavingsDepositDialog({
         </Button>
       </DialogActions>
     </Dialog>
+    </>
   );
 }
 

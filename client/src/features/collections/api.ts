@@ -203,6 +203,7 @@ export const collectionsService = {
     memberId: string;
     centerId: string;
     amount: number;
+    collectionDate?: string;
     notes?: string;
     useSavings?: boolean;
   }): Promise<any> => {

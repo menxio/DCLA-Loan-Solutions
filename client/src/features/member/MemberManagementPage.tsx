@@ -198,7 +198,7 @@ export default function MembersPage() {
                   Members
                 </Typography>
                 <Typography variant="body1" color="#64748b">
-                  {total || 0} of {total || 0} member{(total || 0) !== 1 ? "s" : ""} registered
+                  Members management and overview
                 </Typography>
               </Box>
             </Box>
@@ -261,63 +261,7 @@ export default function MembersPage() {
               </Button>
             </Box>
           </Box>
-          
-          {/* Quick Stats */}
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(59, 130, 246, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(59, 130, 246, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Total Members
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#1e40af">
-                  {total || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(16, 185, 129, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(16, 185, 129, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Active Members
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#059669">
-                  {members?.length || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(245, 158, 11, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(245, 158, 11, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Centers
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#d97706">
-                  {centers?.length || 0}
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
         </Paper>
-
         {/* Error Alert */}
         {error && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
