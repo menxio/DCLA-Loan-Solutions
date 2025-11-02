@@ -197,7 +197,7 @@ export default function CentersPage() {
           
           {/* Quick Stats */}
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={6}>
               <Box
                 sx={{
                   backgroundColor: "rgba(59, 130, 246, 0.05)",
@@ -214,24 +214,7 @@ export default function CentersPage() {
                 </Typography>
               </Box>
             </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(16, 185, 129, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(16, 185, 129, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Active Centers
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#059669">
-                  {centers?.length || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={6}>
               <Box
                 sx={{
                   backgroundColor: "rgba(245, 158, 11, 0.05)",
@@ -278,15 +261,22 @@ export default function CentersPage() {
           >
             {/* Centers Table */}
             <Box p={3}>
-              <CenterTable
-                centers={centers}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                loading={loading}
-              />
-              
-              {/* Pagination */}
-              <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: { xs: "flex-start", sm: "center" },
+                  flexDirection: { xs: "column", sm: "row" },
+                  gap: 2,
+                  mb: 2,
+                }}
+              >
+                <Typography variant="h5" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                  Centers List{" "}
+                  <Typography component="span" sx={{ fontWeight: 600, color: "#2563eb" }}>
+                    {total}
+                  </Typography>
+                </Typography>
                 <Pagination
                   count={Math.ceil(total / limit) || 1}
                   page={page}
@@ -299,6 +289,12 @@ export default function CentersPage() {
                   }}
                 />
               </Box>
+              <CenterTable
+                centers={centers}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                loading={loading}
+              />
             </Box>
           </Paper>
         </Box>

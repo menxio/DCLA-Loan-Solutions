@@ -1,7 +1,6 @@
 import type React from "react";
 import {
   Grid,
-  Paper,
   Typography,
   Box,
   Card,
@@ -10,6 +9,9 @@ import {
   Chip,
   CircularProgress,
   Alert,
+  Stack,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -23,6 +25,7 @@ import {
 import PrivateLayout from "@components/layout/PrivateLayout";
 import { useAuthStore } from "@features/auth/authStore";
 import { useDashboardData } from "../hooks/useDashboardData";
+import ActivityLogList from "@features/activity/components/ActivityLogList";
 
 interface StatCardProps {
   title: string;
@@ -107,11 +110,15 @@ function StatCard({ title, value, icon, color, trend }: StatCardProps) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  const { stats, loading, error, refetch } = useDashboardData();
+  const { stats, loading, error } = useDashboardData();
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const formatCurrency = (amount: number): string => {
-    return `₱${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+  const formatCurrency = (amount: number): string =>
+    `₱${amount.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   if (loading) {
     return (
@@ -174,25 +181,18 @@ export default function DashboardPage() {
       color: "secondary" as const,
       trend: "Pending collections",
     },
-    {
-      title: "Collection Rate",
-      value: `${stats.collectionRate.toFixed(1)}%`,
-      icon: <Assessment />,
-      color: stats.collectionRate >= 80 ? "success" as const : "warning" as const,
-      trend: stats.collectionRate >= 80 ? "Excellent performance" : "Needs improvement",
-    },
-    {
-      title: "Projected Interest",
-      value: formatCurrency(stats.totalInterestIncome),
-      icon: <TrendingDown />,
-      color: "primary" as const,
-      trend: "20% interest rate",
-    },
   ];
 
   return (
     <PrivateLayout>
-      <Box sx={{ mb: 4 }}>
+      <Stack
+        direction="column"
+        spacing={1.5}
+        sx={{
+          mb: isSmall ? 3 : 4,
+          textAlign: isSmall ? "center" : "left",
+        }}
+      >
         <Typography
           variant="h3"
           component="h1"
@@ -207,15 +207,10 @@ export default function DashboardPage() {
         >
           Dashboard
         </Typography>
-        <Typography
-          variant="h6"
-          color="text.secondary"
-          sx={{ fontWeight: 400 }}
-        >
-          Welcome back, {user?.email}! Here's what's happening with your loans
-          today.
+        <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 400 }}>
+          Welcome back, {user?.email}! Here's what's happening with your loans today.
         </Typography>
-      </Box>
+      </Stack>
 
       <Grid container spacing={3}>
         {dashboardStats.map((stat, index) => (
@@ -225,85 +220,16 @@ export default function DashboardPage() {
         ))}
       </Grid>
 
-      <Grid container spacing={3} sx={{ mt: 2 }}>
-        <Grid item xs={12} md={8}>
-          <Paper
-            sx={{
-              p: 4,
-              height: 400,
-              background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            <Typography
-              variant="h5"
-              gutterBottom
-              sx={{
-                fontWeight: 600,
-                color: "#1e293b",
-                mb: 3,
-              }}
-            >
-              Recent Loan Applications
-            </Typography>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "75%",
-                color: "text.secondary",
-                backgroundColor: "#f8fafc",
-                borderRadius: 2,
-                border: "2px dashed #cbd5e1",
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                Chart/Table component would go here
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Paper
-            sx={{
-              p: 4,
-              height: 400,
-              background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            <Typography
-              variant="h5"
-              gutterBottom
-              sx={{
-                fontWeight: 600,
-                color: "#1e293b",
-                mb: 3,
-              }}
-            >
-              Quick Actions
-            </Typography>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "75%",
-                color: "text.secondary",
-                backgroundColor: "#f8fafc",
-                borderRadius: 2,
-                border: "2px dashed #cbd5e1",
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                Quick action buttons would go here
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
-      </Grid>
+      <Box
+        sx={{
+          mt: isSmall ? 4 : 5,
+          display: "flex",
+          flexDirection: "column",
+          gap: isSmall ? 2 : 3,
+        }}
+      >
+        <ActivityLogList title="Transaction History" limit={20} />
+      </Box>
     </PrivateLayout>
   );
 }

@@ -52,10 +52,10 @@ export default function DashboardLayout({ children }: LayoutProps) {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
           width: "100%",
-          height: "100vh", // Full viewport height
-          overflow: "auto", // Enable scrolling
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
           background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
           marginLeft: {
             xs: 0,
@@ -65,9 +65,14 @@ export default function DashboardLayout({ children }: LayoutProps) {
         }}
       >
         <Toolbar sx={{ minHeight: "70px !important" }} />
-        <Box sx={{ pb: 3 }}>
-          {" "}
-          {/* Add padding bottom for better spacing */}
+        <Box
+          sx={{
+            flex: 1,
+            overflowY: "auto",
+            px: { xs: 2, md: 3 },
+            pb: 3,
+          }}
+        >
           {children}
         </Box>
       </Box>
