@@ -9,6 +9,7 @@ import { Savings } from './savings.entity';
 import { Member } from '../members/entities/member.entity';
 import { Loan } from '../loans/loan.entity';
 import { DepositSavingsDto } from './dto/deposit-savings.dto';
+import { ActivityLogService } from '../activity/activity-log.service';
 
 @Injectable()
 export class SavingsService {
@@ -19,7 +20,17 @@ export class SavingsService {
     private readonly memberRepository: Repository<Member>,
     @InjectRepository(Loan)
     private readonly loanRepository: Repository<Loan>,
+    private readonly activityLogService: ActivityLogService,
   ) {}
+
+  private formatMemberName(
+    member: Pick<Member, 'firstName' | 'middleName' | 'lastName'>,
+  ): string {
+    const parts = [member.firstName, member.middleName, member.lastName].filter(
+      (part) => part && part.trim().length > 0,
+    );
+    return parts.join(' ').trim();
+  }
 
   async deposit(dto: DepositSavingsDto) {
     const { memberId, loanId, amount, remarks } = dto;
@@ -64,6 +75,8 @@ export class SavingsService {
       throw new BadRequestException('Unable to resolve loan for deposit');
     }
 
+    const memberName = this.formatMemberName(member);
+
     const savingsEntry = this.savingsRepository.create({
       borrower: member,
       loan: loan ?? undefined,
@@ -77,6 +90,21 @@ export class SavingsService {
     const updatedSavings = currentSavings + numericAmount;
     loan.savings = updatedSavings;
     await this.loanRepository.save(loan);
+
+    await this.activityLogService.log({
+      entityType: 'savings',
+      entityId: savedEntry.id,
+      memberId: member.id,
+      centerId: member.centerId ?? null,
+      loanId: loan.id,
+      action: 'savings_deposit',
+      amount: numericAmount,
+      description: `Savings deposit by ${memberName}`,
+      payload: {
+        memberName,
+        loanId: loan.id,
+      },
+    });
 
     return {
       entry: this.mapSavings(savedEntry, memberId),
@@ -138,3 +166,5 @@ export class SavingsService {
     };
   }
 }
+
+

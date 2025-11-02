@@ -7,9 +7,13 @@ import { Repayment } from '../repayments/repayment.entity';
 import { Savings } from '../savings/savings.entity';
 import { MembersService } from './members.service';
 import { MembersController } from './members.controller';
+import { ActivityModule } from '../activity/activity.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Member, Center, Loan, Repayment, Savings])],
+  imports: [
+    TypeOrmModule.forFeature([Member, Center, Loan, Repayment, Savings]),
+    ActivityModule,
+  ],
   controllers: [MembersController],
   providers: [MembersService],
 })

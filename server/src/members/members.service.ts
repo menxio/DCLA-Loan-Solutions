@@ -9,6 +9,7 @@ import { Savings } from '../savings/savings.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { FindMembersQueryDto } from './dto/find-members-query.dto';
+import { ActivityLogService } from '../activity/activity-log.service';
 
 @Injectable()
 export class MembersService {
@@ -24,7 +25,17 @@ export class MembersService {
     @InjectRepository(Savings)
     private readonly savingsRepository: Repository<Savings>,
     private readonly dataSource: DataSource,
+    private readonly activityLogService: ActivityLogService,
   ) {}
+
+  private formatMemberName(
+    member: Pick<Member, 'firstName' | 'middleName' | 'lastName'>,
+  ): string {
+    const parts = [member.firstName, member.middleName, member.lastName].filter(
+      (part) => part && part.trim().length > 0,
+    );
+    return parts.join(' ').trim();
+  }
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
     const { centerId, ...memberData } = createMemberDto;
@@ -41,7 +52,23 @@ export class MembersService {
       ...memberData,
       center,
     });
-    return this.memberRepository.save(member);
+    const saved = await this.memberRepository.save(member);
+
+    const memberName = this.formatMemberName(saved);
+    await this.activityLogService.log({
+      entityType: 'member',
+      entityId: saved.id,
+      memberId: saved.id,
+      centerId: saved.centerId ?? null,
+      action: 'member_created',
+      description: `Member ${memberName} created`,
+      payload: {
+        memberName,
+        centerId: saved.centerId ?? null,
+      },
+    });
+
+    return saved;
   }
 
   async findAll(query?: FindMembersQueryDto): Promise<{
@@ -113,39 +140,92 @@ export class MembersService {
       center,
     });
     if (!member) throw new NotFoundException(`Member #${id} not found`);
-    return this.memberRepository.save(member);
+    const saved = await this.memberRepository.save(member);
+
+    const updatedName = this.formatMemberName(saved);
+    await this.activityLogService.log({
+      entityType: 'member',
+      entityId: saved.id,
+      memberId: saved.id,
+      centerId: saved.centerId ?? null,
+      action: 'member_updated',
+      description: `Member ${updatedName} updated`,
+      payload: {
+        memberName: updatedName,
+        updates: updateMemberDto,
+      },
+    });
+
+    return saved;
   }
 
   async remove(id: string): Promise<void> {
+    type MemberSnapshot = {
+      id: string;
+      firstName: string;
+      middleName: string | null;
+      lastName: string;
+      centerId: string | null;
+    };
+
     // Use a transaction to ensure all deletions succeed or none do
-    await this.dataSource.transaction(async (manager) => {
-      // First, check if the member exists
-      const member = await manager.findOne(Member, { where: { id } });
-      if (!member) {
-        throw new NotFoundException(`Member #${id} not found`);
-      }
-
-      // Get all loans for this member
-      const loans = await manager.find(Loan, { where: { borrower: { id } } });
-      
-      // Delete all repayments for this member's loans
-      if (loans.length > 0) {
-        for (const loan of loans) {
-          await manager.delete(Repayment, { loan: { id: loan.id } });
+    const snapshot = await this.dataSource.transaction<MemberSnapshot | null>(
+      async (manager) => {
+        // First, check if the member exists
+        const member = await manager.findOne(Member, { where: { id } });
+        if (!member) {
+          throw new NotFoundException(`Member #${id} not found`);
         }
-      }
 
-      // Delete all repayments directly associated with this member
-      await manager.delete(Repayment, { member: { id } });
+        const memberSnapshot: MemberSnapshot = {
+          id: member.id,
+          firstName: member.firstName,
+          middleName: member.middleName ?? null,
+          lastName: member.lastName,
+          centerId: member.centerId ?? null,
+        };
 
-      // Delete all loans for this member
-      await manager.delete(Loan, { borrower: { id } });
+        // Get all loans for this member
+        const loans = await manager.find(Loan, { where: { borrower: { id } } });
 
-      // Delete all savings for this member
-      await manager.delete(Savings, { borrower: { id } });
+        // Delete all repayments for this member's loans
+        if (loans.length > 0) {
+          for (const loan of loans) {
+            await manager.delete(Repayment, { loan: { id: loan.id } });
+          }
+        }
 
-      // Finally, delete the member
-      await manager.delete(Member, { id });
+        // Delete all repayments directly associated with this member
+        await manager.delete(Repayment, { member: { id } });
+
+        // Delete all loans for this member
+        await manager.delete(Loan, { borrower: { id } });
+
+        // Delete all savings for this member
+        await manager.delete(Savings, { borrower: { id } });
+
+        // Finally, delete the member
+        await manager.delete(Member, { id });
+
+        return memberSnapshot;
+      },
+    );
+
+    if (!snapshot) {
+      return;
+    }
+
+    const deletedName = this.formatMemberName({ firstName: snapshot.firstName, middleName: snapshot.middleName ?? "", lastName: snapshot.lastName });
+    await this.activityLogService.log({
+      entityType: 'member',
+      entityId: snapshot.id,
+      memberId: snapshot.id,
+      centerId: snapshot.centerId ?? null,
+      action: 'member_deleted',
+      description: `Member ${deletedName} deleted`,
+      payload: {
+        memberName: deletedName,
+      },
     });
   }
 

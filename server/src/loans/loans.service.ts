@@ -11,6 +11,7 @@ import { Collection } from '../collections/entities/collection.entity';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { ReloanDto } from './dto/reloan.dto';
+import { ActivityLogService } from '../activity/activity-log.service';
 
 @Injectable()
 export class LoansService {
@@ -21,7 +22,16 @@ export class LoansService {
     private readonly memberRepository: Repository<Member>,
     @InjectRepository(Collection)
     private readonly collectionRepository: Repository<Collection>,
+    private readonly activityLogService: ActivityLogService,
   ) {}
+
+  private formatMemberName(member: Member | null | undefined): string {
+    if (!member) return 'Unknown Member';
+    const parts = [member.firstName, member.middleName, member.lastName].filter(
+      (part) => part && part.trim().length > 0,
+    );
+    return parts.join(' ').trim() || member.id;
+  }
 
   // Business logic for interest rates
   private getInterestRate(termWeeks: number): number {
@@ -152,6 +162,27 @@ export class LoansService {
       { paymentReceived: 0 }
     );
 
+    const borrowerName = this.formatMemberName(borrower);
+
+    await this.activityLogService.log({
+      entityType: 'loan',
+      entityId: savedLoan.id,
+      loanId: savedLoan.id,
+      memberId: borrower.id,
+      centerId: borrower.centerId ?? null,
+      action: 'loan_created',
+      amount: Number(principalAmount),
+      description: `Loan created for ${borrowerName} (${termWeeks} weeks)`,
+      payload: {
+        memberName: borrowerName,
+        termWeeks,
+        serviceCharge: fee,
+        savingsContribution: newSavingsContribution,
+        interestRate,
+        loanCreatedDate: loan.loanCreatedDate,
+      },
+    });
+
     return savedLoan;
   }
 
@@ -222,7 +253,32 @@ export class LoansService {
       loan.status = 'paid';
     }
 
-    return this.loanRepository.save(loan);
+    const saved = await this.loanRepository.save(loan);
+
+    const memberName = this.formatMemberName(loan.borrower);
+
+    await this.activityLogService.log({
+      entityType: 'loan',
+      entityId: loan.id,
+      loanId: loan.id,
+      memberId: loan.borrower?.id ?? null,
+      centerId: loan.borrower?.centerId ?? null,
+      action: 'repayment_applied',
+      amount: totalPayment,
+      description: `Repayment applied for ${memberName}${
+        savingsUsed > 0 ? ' (with savings)' : ''
+      }`,
+      payload: {
+        memberName,
+        cashAmount,
+        savingsUsed,
+        weeksPaid: loan.weeksPaid,
+        balance: loan.balance,
+        useSavings,
+      },
+    });
+
+    return saved;
   }
 
   async findAll(): Promise<Loan[]> {
@@ -330,6 +386,22 @@ export class LoansService {
     loan.balance = 0;
     loan.advancePaymentBuffer = 0;
     await this.loanRepository.save(loan);
+    const memberName = this.formatMemberName(loan.borrower);
+    await this.activityLogService.log({
+      entityType: 'loan',
+      entityId: loan.id,
+      loanId: loan.id,
+      memberId: loan.borrower?.id ?? null,
+      centerId: loan.borrower?.centerId ?? null,
+      action: 'loan_closed',
+      description: `Loan closed for ${memberName} via ${mode}`,
+      payload: {
+        memberName,
+        mode,
+        oldRemaining,
+        savingsCarried: loan.savings,
+      },
+    });
 
     // Create the new loan
     const borrowerId = loan.borrower.id;
@@ -341,6 +413,24 @@ export class LoansService {
       serviceCharge: fee,
     } as any;
     const newLoan = await this.create(tempCreate);
+
+    await this.activityLogService.log({
+      entityType: 'loan',
+      entityId: newLoan.id,
+      loanId: newLoan.id,
+      memberId: borrowerId,
+      centerId: loan.borrower?.centerId ?? null,
+      action: 'loan_reloaned',
+      amount: Number(newPrincipalAmount),
+      description: `Reloan processed for ${memberName} (${mode})`,
+      payload: {
+        memberName,
+        previousLoanId: loanId,
+        mode,
+        serviceCharge: fee,
+        savingsAmount,
+      },
+    });
 
     // Reset any existing collections' paymentReceived to 0 for this member (already done in create, but being explicit)
     await this.collectionRepository.update(
