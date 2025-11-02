@@ -17,7 +17,6 @@ import {
   Chip,
   Card,
   CardContent,
-  CardActions,
   Menu,
   MenuItem,
   ListItemIcon,
@@ -33,6 +32,7 @@ import {
   MoreVert as MoreVertIcon,
   Business as BusinessIcon,
   AccountBalance as AccountBalanceIcon,
+  Savings as SavingsIcon,
 } from "@mui/icons-material";
 import type { MemberCardsProps, Member } from "../types";
 
@@ -51,6 +51,7 @@ export default function MemberCards({
   onEdit,
   onDelete,
   onViewLoan,
+  onAddSavings,
   loading = false,
 }: MemberCardsProps) {
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -301,25 +302,51 @@ export default function MemberCards({
                 </Box>
                </CardContent>
 
-               {/* View Loan Button */}
+               {/* Action Buttons */}
                <Box sx={{ px: 2, pb: 2 }}>
-                 <Button
-                   variant="outlined"
-                   fullWidth
-                   startIcon={<AccountBalanceIcon />}
-                   onClick={() => onViewLoan?.(member)}
+                 <Box
                    sx={{
-                     borderColor: "#3b82f6",
-                     color: "#3b82f6",
-                     "&:hover": {
-                       borderColor: "#2563eb",
-                       backgroundColor: "#dbeafe",
-                     },
-                     fontWeight: 500,
+                     display: "flex",
+                     flexDirection: { xs: "column", sm: "row" },
+                     gap: 1,
                    }}
                  >
-                   View Loan
-                 </Button>
+                   <Button
+                     variant="outlined"
+                     startIcon={<SavingsIcon />}
+                     onClick={() => onAddSavings?.(member)}
+                     disabled={!onAddSavings}
+                     sx={{
+                       flex: 1,
+                       borderColor: "#3b82f6",
+                       color: "#3b82f6",
+                       "&:hover": {
+                         borderColor: "#2563eb",
+                         backgroundColor: "#dbeafe",
+                       },
+                       fontWeight: 500,
+                     }}
+                   >
+                     Add Savings
+                   </Button>
+                   <Button
+                     variant="outlined"
+                     startIcon={<AccountBalanceIcon />}
+                     onClick={() => onViewLoan?.(member)}
+                     sx={{
+                       flex: 1,
+                       borderColor: "#3b82f6",
+                       color: "#3b82f6",
+                       "&:hover": {
+                         borderColor: "#2563eb",
+                         backgroundColor: "#dbeafe",
+                       },
+                       fontWeight: 500,
+                     }}
+                   >
+                     View Loan
+                   </Button>
+                 </Box>
                </Box>
              </Card>
           </Grid>

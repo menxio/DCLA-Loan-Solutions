@@ -29,11 +29,6 @@ export class CreateLoanDto {
   @Min(0)
   serviceCharge?: number;
 
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  existingSavings?: number;
-
   // Optional loan creation date; defaults to current date if not provided
   @IsOptional()
   @IsDateString()

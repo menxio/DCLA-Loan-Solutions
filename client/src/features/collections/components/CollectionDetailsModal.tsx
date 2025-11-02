@@ -44,6 +44,10 @@ interface Loan {
   weeksPaid?: number;
   weeklyPaymentAmount?: number;
   savings?: number;
+  amountPaid?: number;
+  termWeeks?: number;
+  loanCreatedDate?: string;
+  createdAt?: string;
 }
 
 interface MemberWithLoans extends Member {
@@ -80,6 +84,12 @@ export default function CollectionDetailsModal({
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
+  const [latestCollections, setLatestCollections] = useState<Collection[]>(
+    collectionGroup?.collections ?? []
+  );
+  const [totalCenterMembers, setTotalCenterMembers] = useState(
+    collectionGroup?.totalMembers ?? 0
+  );
 
   // Dialog states
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -87,6 +97,20 @@ export default function CollectionDetailsModal({
   const [selectedMember, setSelectedMember] = useState<MemberWithLoans | null>(
     null
   );
+
+  const collectionByMemberId = useMemo(() => {
+    const map = new Map<string, Collection>();
+    const source =
+      latestCollections && latestCollections.length > 0
+        ? latestCollections
+        : collectionGroup?.collections ?? [];
+    if (source.length) {
+      source.forEach((collection) => {
+        map.set(collection.memberId, collection);
+      });
+    }
+    return map;
+  }, [collectionGroup, latestCollections]);
 
   const computedStats = useMemo(() => {
     if (!collectionGroup || !members.length) return null;
@@ -97,19 +121,35 @@ export default function CollectionDetailsModal({
     const eligibleMembers = members.filter(hasActiveLoan);
 
     const getReceived = (m: any): number => {
-      const v =
-        (m?.collection as any)?.amountReceived ??
-        (m?.collection as any)?.paymentReceived;
-      return v !== undefined ? Number(v) || 0 : 0;
+      const collection =
+        collectionByMemberId.get(m.id) || (m?.collection as any);
+      const value =
+        collection?.amountReceived ?? collection?.paymentReceived ?? 0;
+      return Number(value) || 0;
     };
 
-    const paidCount = eligibleMembers.filter(
-      (m) => getReceived(m) >= Number(m.weeklyPaymentAmount || 0)
-    ).length;
+    const getDue = (m: any): number => {
+      const collection =
+        collectionByMemberId.get(m.id) || (m?.collection as any);
+      const activeLoan = Array.isArray(m.loans)
+        ? m.loans.find((loan: any) => loan.status === "active")
+        : undefined;
+      const value =
+        collection?.amount ??
+        m.weeklyPaymentAmount ??
+        (activeLoan as any)?.weeklyPaymentAmount ??
+        0;
+      return Number(value) || 0;
+    };
+
+    const paidCount = eligibleMembers.filter((m) => {
+      const due = getDue(m);
+      return due > 0 && getReceived(m) >= due;
+    }).length;
     const partialCount = eligibleMembers.filter((m) => {
       const r = getReceived(m);
-      const w = Number(m.weeklyPaymentAmount || 0);
-      return r > 0 && r < w;
+      const due = getDue(m);
+      return due > 0 && r > 0 && r < due;
     }).length;
     const unpaidCount = eligibleMembers.filter(
       (m) => getReceived(m) <= 0
@@ -131,7 +171,7 @@ export default function CollectionDetailsModal({
       totalOverallAmount,
       totalRemainingBalance,
     };
-  }, [collectionGroup, members]);
+  }, [collectionGroup, collectionByMemberId, members]);
 
   const fetchCenterMembers = useCallback(async () => {
     if (!collectionGroup) return;
@@ -143,12 +183,40 @@ export default function CollectionDetailsModal({
       const centerMembers = await collectionsService.getCenterMembers(
         collectionGroup.centerId
       );
+      setTotalCenterMembers(centerMembers.length);
+      let refreshedCollections: Collection[] = collectionGroup.collections ?? [];
+      try {
+        refreshedCollections =
+          (await collectionsService.getCenterCollectionsByDate(
+            collectionGroup.centerId,
+            collectionGroup.collectionDate
+          )) ?? refreshedCollections;
+      } catch (innerErr) {
+        console.warn(
+          "Failed to refresh center collections, using existing data:",
+          innerErr
+        );
+      }
+      const normalisedCollections = refreshedCollections.map((col) => ({
+        ...col,
+        amount: Number(col.amount ?? 0),
+        paymentReceived: Number(col.paymentReceived ?? 0),
+        netRelease: Number(col.netRelease ?? 0),
+        numberOfPayments: Number(col.numberOfPayments ?? 0),
+        advancePaymentAmount: Number(col.advancePaymentAmount ?? 0),
+      }));
+      setLatestCollections(normalisedCollections);
+      const collectionsMap = new Map(
+        normalisedCollections.map((col) => [col.memberId, col])
+      );
 
       const membersWithCollections = centerMembers.map((member: any) => ({
         ...member,
-        collection: collectionGroup.collections.find(
-          (c) => c.memberId === member.id
-        ),
+        collection:
+          collectionsMap.get(member.id) ??
+          collectionGroup.collections?.find(
+            (c) => c.memberId === member.id
+          ),
       }));
 
       // Alphabetical sort: Last Name, First Name
@@ -171,6 +239,22 @@ export default function CollectionDetailsModal({
       setMembers([]);
     } finally {
       setLoading(false);
+    }
+  }, [collectionGroup]);
+
+  useEffect(() => {
+    if (collectionGroup?.collections) {
+      setLatestCollections(
+        collectionGroup.collections.map((col) => ({
+          ...col,
+          amount: Number(col.amount ?? 0),
+          paymentReceived: Number(col.paymentReceived ?? 0),
+          netRelease: Number(col.netRelease ?? 0),
+          numberOfPayments: Number(col.numberOfPayments ?? 0),
+          advancePaymentAmount: Number(col.advancePaymentAmount ?? 0),
+        }))
+      );
+      setTotalCenterMembers(collectionGroup.totalMembers ?? 0);
     }
   }, [collectionGroup]);
 
@@ -252,54 +336,154 @@ export default function CollectionDetailsModal({
     }
   }, [collectionGroup, members]);
 
-  const getStatusColor = useCallback(
-    (member: MemberWithLoans): "default" | "success" | "warning" | "error" => {
-      const received = (() => {
-        const fromCollection =
-          (member.collection as any)?.amountReceived ??
-          (member.collection as any)?.paymentReceived;
-        if (fromCollection !== undefined) return Number(fromCollection) || 0;
-        const activeLoan = member.loans?.find((l) => l.status === "active");
-        const amountPaidRaw = (activeLoan as any)?.amountPaid;
-        if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
-        const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0;
-        const weekly =
-          member.weeklyPaymentAmount ||
-          (activeLoan as any)?.weeklyPaymentAmount ||
-          0;
-        return Number(weeksPaid) * Number(weekly);
-      })();
-      if (received >= member.weeklyPaymentAmount) return "success";
-      if (received > 0) return "warning";
-      return "error";
+  const referenceDate = useMemo(() => {
+    if (!collectionGroup?.collectionDate) return null;
+    return new Date(`${collectionGroup.collectionDate}T00:00:00Z`);
+  }, [collectionGroup?.collectionDate]);
+
+  const computeMemberPaymentInfo = useCallback(
+    (member: MemberWithLoans) => {
+      const loans = Array.isArray(member.loans) ? member.loans : [];
+      const fallbackWeekly = loans.reduce(
+        (sum, loan) => sum + Number(loan.weeklyPaymentAmount || 0),
+        0
+      );
+      let expectedTotal = 0;
+      let totalPaid = 0;
+
+      const ref = referenceDate ?? new Date();
+      loans.forEach((loan) => {
+        const weekly = Number(loan.weeklyPaymentAmount || 0);
+        if (weekly <= 0) return;
+        const amountPaid = Number(loan.amountPaid || 0);
+        totalPaid += amountPaid;
+
+        const termWeeks = Number(loan.termWeeks || 0);
+        const startRaw =
+          (loan as any)?.loanCreatedDate ?? (loan as any)?.createdAt;
+        if (!startRaw) return;
+        const startDate = new Date(startRaw);
+        const diffMs = ref.getTime() - startDate.getTime();
+        if (diffMs < 0) return;
+        const weeksElapsed = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
+        const cappedWeeks =
+          termWeeks > 0 ? Math.min(weeksElapsed, termWeeks) : weeksElapsed;
+        if (cappedWeeks > 0) {
+          expectedTotal += cappedWeeks * weekly;
+        }
+      });
+
+      const weeklyDue =
+        Number(member.weeklyPaymentAmount || 0) || fallbackWeekly || 0;
+      const shortfall = Math.max(
+        0,
+        Number((expectedTotal - totalPaid).toFixed(2))
+      );
+
+      return {
+        weeklyDue,
+        shortfall,
+      };
     },
-    []
+    [referenceDate]
   );
 
-  const getStatusLabel = useCallback((member: MemberWithLoans): string => {
-    const received = (() => {
-      const fromCollection =
-        (member.collection as any)?.amountReceived ??
-        (member.collection as any)?.paymentReceived;
-      if (fromCollection !== undefined) return Number(fromCollection) || 0;
-      const activeLoan = member.loans?.find((l) => l.status === "active");
-      const amountPaidRaw = (activeLoan as any)?.amountPaid;
-      if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
-      const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0;
-      const weekly =
-        member.weeklyPaymentAmount ||
-        (activeLoan as any)?.weeklyPaymentAmount ||
+  const getCollectionMetrics = useCallback(
+    (member: MemberWithLoans) => {
+      const perDayCollection =
+        collectionByMemberId.get(member.id) || (member.collection as any);
+      const receivedRaw =
+        perDayCollection?.amountReceived ??
+        perDayCollection?.paymentReceived ??
         0;
-      return Number(weeksPaid) * Number(weekly);
-    })();
-    if (received >= member.weeklyPaymentAmount) return "PAID";
-    if (received > 0) return "PARTIAL";
-    return "UNPAID";
-  }, []);
+      const received = Number(receivedRaw) || 0;
+
+      const paymentInfo = computeMemberPaymentInfo(member);
+      const collectionAmount = Number(perDayCollection?.amount ?? 0);
+      const due =
+        collectionAmount > 0 ? collectionAmount : paymentInfo.weeklyDue;
+
+      return { received, due, weeklyDue: paymentInfo.weeklyDue };
+    },
+    [collectionByMemberId, computeMemberPaymentInfo]
+  );
+
+  const getMemberStatus = useCallback(
+    (
+      member: MemberWithLoans
+    ): { label: "PAID" | "PARTIAL" | "UNPAID"; color: "success" | "warning" | "error" } => {
+      const epsilon = 0.01;
+      const { received, due, weeklyDue } = getCollectionMetrics(member);
+      const { shortfall } = computeMemberPaymentInfo(member);
+
+      if (weeklyDue <= epsilon) {
+        if (due > epsilon) {
+          if (received >= due - epsilon) {
+            return { label: "PAID", color: "success" };
+          }
+          if (received > epsilon) {
+            return { label: "PARTIAL", color: "warning" };
+          }
+          return { label: "UNPAID", color: "error" };
+        }
+        return { label: "PAID", color: "success" };
+      }
+
+      if (shortfall <= epsilon) {
+        if (due > epsilon && received > epsilon && received < due - epsilon) {
+          return { label: "PARTIAL", color: "warning" };
+        }
+        return { label: "PAID", color: "success" };
+      }
+
+      if (shortfall < weeklyDue - epsilon) {
+        return { label: "PARTIAL", color: "warning" };
+      }
+
+      return { label: "UNPAID", color: "error" };
+    },
+    [computeMemberPaymentInfo, getCollectionMetrics]
+  );
+
+  const getStatusColor = useCallback(
+    (member: MemberWithLoans): "default" | "success" | "warning" | "error" => {
+      return getMemberStatus(member).color;
+    },
+    [getMemberStatus]
+  );
+
+  const getStatusLabel = useCallback(
+    (member: MemberWithLoans): string => {
+      return getMemberStatus(member).label;
+    },
+    [getMemberStatus]
+  );
 
   const formatCurrency = useCallback((amount: number): string => {
     return `₱${amount.toLocaleString()}`;
   }, []);
+
+  const totalsOverride = useMemo(() => {
+    const totalAmount = latestCollections.reduce(
+      (sum, collection) => sum + Number(collection.amount ?? 0),
+      0
+    );
+    const totalReceived = latestCollections.reduce(
+      (sum, collection) => sum + Number(collection.paymentReceived ?? 0),
+      0
+    );
+    const pendingCollections = Math.max(
+      totalCenterMembers - latestCollections.length,
+      0
+    );
+
+    return {
+      totalMembers: totalCenterMembers,
+      totalAmount,
+      totalReceived,
+      pendingCollections,
+    };
+  }, [latestCollections, totalCenterMembers]);
 
   // Filtered + sorted members for table rendering
   const displayedMembers = useMemo(() => {
@@ -497,6 +681,7 @@ export default function CollectionDetailsModal({
                 members={members}
                 computedStats={computedStats}
                 formatCurrency={formatCurrency}
+                totalsOverride={totalsOverride}
               />
 
               <Box sx={{ px: 3, pb: 1 }}>
@@ -519,6 +704,9 @@ export default function CollectionDetailsModal({
                 members={displayedMembers}
                 getStatusColor={(m: any) => getStatusColor(m as any)}
                 getStatusLabel={(m: any) => getStatusLabel(m as any)}
+                getCollectionMetrics={(m: any) =>
+                  getCollectionMetrics(m as any)
+                }
                 formatCurrency={formatCurrency}
                 onOpenPaymentDialog={(m: any) =>
                   handleOpenPaymentDialog(m as any)
@@ -563,6 +751,7 @@ export default function CollectionDetailsModal({
         onSuccess={handlePaymentSuccess}
         formatCurrency={formatCurrency}
         centerId={collectionGroup.centerId}
+        collectionDate={collectionGroup.collectionDate}
       />
 
       <ReloanDialog

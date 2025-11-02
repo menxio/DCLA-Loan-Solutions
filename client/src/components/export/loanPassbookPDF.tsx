@@ -19,15 +19,44 @@ interface Loan {
 
 const styles = StyleSheet.create({
   page: { paddingTop: 18, paddingHorizontal: 28, paddingBottom: 18 },
-  headerText: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
+  headerText: { fontSize: 14, fontWeight: 'bold', textAlign: 'center', marginBottom: 8, color: '#0f172a' },
   grid: { display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 6 },
   row: { display: 'flex', flexDirection: 'row' },
-  cell: { border: '0.75pt solid #000', padding: 6, fontSize: 11 },
-  cellBold: { border: '0.75pt solid #000', padding: 6, fontSize: 11, fontWeight: 'bold' },
-  footer: { marginTop: 12, textAlign: 'center', fontSize: 10, fontStyle: 'italic' },
-  // Note: React-PDF does not support percentage lengths; use absolute points
+  cell: {
+    border: '0.75pt solid #000',
+    padding: 5,
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#0f172a',
+  },
+  labelCell: {
+    border: '0.75pt solid #000',
+    padding: 5,
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#0f172a',
+    backgroundColor: '#e2e8f0',
+  },
+  headerCell: {
+    border: '0.75pt solid #000',
+    padding: 5,
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#0f172a',
+    backgroundColor: '#cbd5f5',
+  },
+  amountText: { color: '#19b414ff'},
+  highlightText: { color: '#f01f22ff' },
+  footer: { marginTop: 12, textAlign: 'center', fontSize: 8, fontWeight: 'bold', color: '#0f172a' },
   watermark: { position: 'absolute', opacity: 0.08 },
-  watermarkText: { position: 'absolute', opacity: 0.08, fontSize: 100, fontWeight: 'bold', color: '#000', transform: 'rotate(45deg)' },
+  watermarkText: {
+    position: 'absolute',
+    opacity: 0.08,
+    fontSize: 100,
+    fontWeight: 'bold',
+    color: '#000',
+    transform: 'rotate(45deg)',
+  },
   passbook: { marginBottom: 10, padding: 6, border: '0pt solid transparent' },
   divider: { marginVertical: 4 },
 });
@@ -41,8 +70,7 @@ export const generateLoanPassbookPDF = async (
 
   const principal = Number(loan.principalAmount);
   const weeklyPayment = Number(loan.weeklyPaymentAmount);
-  const savings =
-    Number(loan.savings) + Number((loan as any).existingSavings ?? 0);
+  const savings = Number(loan.savings);
   const termWeeks = Number(loan.termWeek);
   const weeksPaid = Number(loan.weeksPaid);
   const releaseDate = new Date(loan.createdAt);
@@ -96,18 +124,36 @@ export const generateLoanPassbookPDF = async (
     <View style={{ display: 'flex', flexDirection: 'row' }}>
       <Text style={[styles.cell, { width: 35 }]}>{s.week.toString()}</Text>
       <Text style={[styles.cell, { flexGrow: 1, width: 150 }]}>{s.date}</Text>
-      <Text style={[styles.cell, { width: 90 }]}>{s.amount}</Text>
+      <Text style={[styles.cell, styles.highlightText, { width: 90 }]}>{s.amount}</Text>
       <Text style={[styles.cell, { width: 160 }]}>{s.signature}</Text>
-      <Text style={[styles.cell, { width: 90 }]}>{s.paid ? 'Paid' : ''}</Text>
+      <Text style={[styles.cell, { width: 90 }]}>{s.paid ? 'PAID' : ''}</Text>
     </View>
   );
 
   const InfoRow = (props: { label1: string; value1: string; label2: string; value2: string }) => (
     <View style={styles.row}>
-      <Text style={[styles.cellBold, { width: 120 }]}>{props.label1}</Text>
-      <Text style={[styles.cell, { width: 200 }]}>{props.value1}</Text>
-      <Text style={[styles.cellBold, { width: 120 }]}>{props.label2}</Text>
-      <Text style={[styles.cell, { width: 120 }]}>{props.value2}</Text>
+      <Text style={[styles.labelCell, { width: 120 }]}>{props.label1}</Text>
+      <Text
+        style={[
+          styles.cell,
+          { width: 200 },
+          (props.label1.toLowerCase().includes('amount') || props.label1.toLowerCase().includes('savings')) &&
+            styles.amountText,
+        ]}
+      >
+        {props.value1}
+      </Text>
+      <Text style={[styles.labelCell, { width: 120 }]}>{props.label2}</Text>
+      <Text
+        style={[
+          styles.cell,
+          { width: 120 },
+          (props.label2.toLowerCase().includes('amount') || props.label2.toLowerCase().includes('savings')) &&
+            styles.amountText,
+        ]}
+      >
+        {props.value2}
+      </Text>
     </View>
   );
 
@@ -126,11 +172,11 @@ export const generateLoanPassbookPDF = async (
 
         <View>
           <View style={styles.row}>
-            <Text style={[styles.cellBold, { width: 35 }]}>#</Text>
-            <Text style={[styles.cellBold, { flexGrow: 1, width: 150 }]}>Date</Text>
-            <Text style={[styles.cellBold, { width: 90 }]}>Amount</Text>
-            <Text style={[styles.cellBold, { width: 160 }]}>BM/AO Signature</Text>
-            <Text style={[styles.cellBold, { width: 90 }]}>Remarks</Text>
+            <Text style={[styles.headerCell, { width: 35 }]}>#</Text>
+            <Text style={[styles.headerCell, { flexGrow: 1, width: 150 }]}>Date</Text>
+            <Text style={[styles.headerCell, { width: 90 }]}>Amount</Text>
+            <Text style={[styles.headerCell, { width: 160 }]}>BM/AO Signature</Text>
+            <Text style={[styles.headerCell, { width: 90 }]}>Remarks</Text>
           </View>
           {schedule.map((s) => (
             <ScheduleRow key={s.week} s={s} />

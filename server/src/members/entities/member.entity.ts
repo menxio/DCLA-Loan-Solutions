@@ -6,6 +6,7 @@ import {
   ManyToOne,
   CreateDateColumn,
   UpdateDateColumn,
+  JoinColumn,
 } from 'typeorm';
 import { Loan } from '../../loans/loan.entity';
 import { Savings } from '../../savings/savings.entity';
@@ -40,8 +41,15 @@ export class Member {
   @OneToMany(() => Savings, (savings) => savings.borrower)
   savings: Savings[];
 
-  @ManyToOne(() => Center, { nullable: true })
-  center: Center;
+  @ManyToOne(() => Center, (center) => center.members, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'centerId' })
+  center: Center | null;
+
+  @Column({ name: 'centerId', type: 'uuid', nullable: true })
+  centerId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

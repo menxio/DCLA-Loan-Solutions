@@ -113,6 +113,7 @@ export default function CenterTable({
     );
   }
 
+  console.log(centers);
   return (
     <>
       <Paper
@@ -134,15 +135,6 @@ export default function CenterTable({
             }}
           >
             Centers List
-            <Chip
-              label={centers.length}
-              size="small"
-              sx={{
-                backgroundColor: "#1e3a8a",
-                color: "white",
-                fontWeight: 600,
-              }}
-            />
           </Typography>
         </Box>
 

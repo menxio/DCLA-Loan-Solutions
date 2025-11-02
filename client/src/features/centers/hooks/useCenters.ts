@@ -7,6 +7,7 @@ export function useCenters() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(3);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,7 +15,7 @@ export function useCenters() {
     try {
       setLoading(true);
       setError(null);
-      const merged: CentersQuery = { page, limit, ...(query || {}) };
+      const merged: CentersQuery = { page, limit, search, ...(query || {}) };
       const data: PaginatedCenters | Center[] = await CentersAPI.getAll(merged);
       if (Array.isArray(data)) {
         setCenters(data);
@@ -29,7 +30,7 @@ export function useCenters() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit]);
+  }, [page, limit, search]);
 
   const createCenter = useCallback(
     async (data: CenterFormData) => {
@@ -86,6 +87,11 @@ export function useCenters() {
     fetchCenters();
   }, [fetchCenters]);
 
+  const handleSearchChange = useCallback((value: string) => {
+    setPage(1);
+    setSearch(value);
+  }, []);
+
   return {
     centers,
     total,
@@ -93,6 +99,8 @@ export function useCenters() {
     limit,
     setPage,
     setLimit,
+    search,
+    setSearch: handleSearchChange,
     loading,
     error,
     createCenter,

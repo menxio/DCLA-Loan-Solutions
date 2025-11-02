@@ -4,10 +4,12 @@ import {
   Column,
   ManyToOne,
   CreateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { Loan } from '../loans/loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Center } from '../centers/entities/center.entity';
+import { LoanRepaymentAllocation } from './entities/loan-repayment-allocation.entity';
 
 @Entity()
 export class Repayment {
@@ -31,4 +33,10 @@ export class Repayment {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @OneToMany(
+    () => LoanRepaymentAllocation,
+    (allocation) => allocation.repayment,
+  )
+  allocations: LoanRepaymentAllocation[];
 }

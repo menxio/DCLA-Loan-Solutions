@@ -47,6 +47,11 @@ interface MembersTableProps {
   members: any[];
   getStatusColor: (member: any) => "default" | "success" | "warning" | "error";
   getStatusLabel: (member: any) => string;
+  getCollectionMetrics: (member: any) => {
+    received: number;
+    due: number;
+    weeklyDue?: number;
+  };
   formatCurrency: (amount: number) => string;
   onOpenPaymentDialog: (member: any) => void;
   onOpenReloanDialog: (member: any) => void;
@@ -56,6 +61,7 @@ export function MembersTable({
   members,
   getStatusColor,
   getStatusLabel,
+  getCollectionMetrics,
   formatCurrency,
   onOpenPaymentDialog,
   onOpenReloanDialog,
@@ -126,6 +132,7 @@ export function MembersTable({
               const activeLoan = member.loans?.find(
                 (l: any) => l.status === "active"
               ) as any;
+              const { received, due } = getCollectionMetrics(member);
               const weeksPaid =
                 (activeLoan as any)?.weeksPaid ??
                 member.collection?.numberOfPayments ??
@@ -133,8 +140,20 @@ export function MembersTable({
               const hasActive = Boolean(activeLoan);
               const principal = Number(activeLoan?.principalAmount ?? 0);
               const totalAmount = Number(activeLoan?.totalAmount ?? 0);
-              const weekly = Number(activeLoan?.weeklyPaymentAmount ?? 0);
+              const weekly =
+                due ||
+                Number(activeLoan?.weeklyPaymentAmount ?? member.weeklyPaymentAmount ?? 0);
               const balance = Number(activeLoan?.balance ?? 0);
+              const paymentColor =
+                due > 0
+                  ? received >= due
+                    ? "#10b981"
+                    : received > 0
+                      ? "#f59e0b"
+                      : "#6b7280"
+                  : received > 0
+                    ? "#f59e0b"
+                    : "#6b7280";
 
               return (
                 <TableRow
@@ -209,38 +228,10 @@ export function MembersTable({
                       variant="body2"
                       sx={{
                         fontWeight: 600,
-                        color: (() => {
-                          const received =
-                            (member.collection as any)?.amountReceived ??
-                            (member.collection as any)?.paymentReceived ??
-                            0;
-                          return received ? "#10b981" : "#6b7280";
-                        })(),
+                        color: paymentColor,
                       }}
                     >
-                      {(() => {
-                        const fromCollection =
-                          (member.collection as any)?.amountReceived ??
-                          (member.collection as any)?.paymentReceived;
-                        if (fromCollection !== undefined) {
-                          return formatCurrency(Number(fromCollection) || 0);
-                        }
-                        const activeLoan = member.loans?.find(
-                          (l: any) => l.status === "active"
-                        );
-                        const amountPaidRaw = (activeLoan as any)?.amountPaid;
-                        if (amountPaidRaw !== undefined) {
-                          return formatCurrency(Number(amountPaidRaw) || 0);
-                        }
-                        const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0;
-                        const weekly =
-                          member.weeklyPaymentAmount ||
-                          (activeLoan as any)?.weeklyPaymentAmount ||
-                          0;
-                        return formatCurrency(
-                          hasActive ? Number(weeksPaid) * Number(weekly) : 0
-                        );
-                      })()}
+                      {formatCurrency(received)}
                     </Typography>
                   </TableCell>
 

@@ -8,8 +8,6 @@ import {
   Paper, 
   Pagination,
   Grid,
-  Card,
-  CardContent,
   TextField,
   InputAdornment,
   Select,
@@ -24,7 +22,7 @@ import { useCenters } from "../hooks/useCenters";
 import type { Center, CenterFormData } from "../types";
 
 export default function CentersPage() {
-  const { centers, total, page, limit, setPage, loading, error, createCenter, updateCenter, deleteCenter } =
+  const { centers, total, page, limit, setPage, setLimit, search, setSearch, loading, error, createCenter, updateCenter, deleteCenter } =
     useCenters();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCenter, setEditingCenter] = useState<Center | undefined>(
@@ -131,7 +129,7 @@ export default function CentersPage() {
                   Collection Centers
                 </Typography>
                 <Typography variant="body1" color="#64748b">
-                  {centers.length} of {total} center{total !== 1 ? "s" : ""} configured
+                  Centers management and overview
                 </Typography>
               </Box>
             </Box>
@@ -141,6 +139,8 @@ export default function CentersPage() {
               <TextField
                 size="small"
                 placeholder="Search centers..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -160,12 +160,17 @@ export default function CentersPage() {
               <FormControl size="small">
                 <Select 
                   value={limit} 
+                  onChange={(event) => {
+                    setPage(1);
+                    setLimit(Number(event.target.value));
+                  }}
                   sx={{ 
                     minWidth: 80,
                     backgroundColor: "white",
                     borderRadius: 2,
                   }}
                 >
+                  <MenuItem value={3}>3</MenuItem>
                   <MenuItem value={10}>10</MenuItem>
                   <MenuItem value={25}>25</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
@@ -194,61 +199,6 @@ export default function CentersPage() {
               </Button>
             </Box>
           </Box>
-          
-          {/* Quick Stats */}
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(59, 130, 246, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(59, 130, 246, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Total Centers
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#1e40af">
-                  {total || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(16, 185, 129, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(16, 185, 129, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Active Centers
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#059669">
-                  {centers?.length || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(245, 158, 11, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(245, 158, 11, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Total Members
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#d97706">
-                  {centers?.length || 0}
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
         </Paper>
 
         {/* Error Alert */}
@@ -278,15 +228,30 @@ export default function CentersPage() {
           >
             {/* Centers Table */}
             <Box p={3}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 2,
+                  mb: 2,
+                  flexWrap: "wrap",
+                }}
+              >
+              </Box>
               <CenterTable
                 centers={centers}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 loading={loading}
               />
-              
-              {/* Pagination */}
-              <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+              <Box
+                sx={{
+                  mt: 3,
+                  display: "flex",
+                  justifyContent: "center",
+                }}
+              >
                 <Pagination
                   count={Math.ceil(total / limit) || 1}
                   page={page}

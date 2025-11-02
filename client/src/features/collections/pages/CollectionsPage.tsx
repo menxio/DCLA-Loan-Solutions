@@ -257,61 +257,6 @@ export default function CollectionsPage() {
               </Button>
             </Box>
           </Box>
-          
-          {/* Quick Stats */}
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(59, 130, 246, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(59, 130, 246, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Daily Collections
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#1e40af">
-                  {totalDailyCenters || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(16, 185, 129, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(16, 185, 129, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Total Collections
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#059669">
-                  {totalAllCollectionItems || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(245, 158, 11, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(245, 158, 11, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Active Centers
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#d97706">
-                  {totalAllCenters || 0}
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
         </Paper>
 
         {/* Error Alert */}

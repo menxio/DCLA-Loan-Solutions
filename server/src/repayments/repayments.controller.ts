@@ -13,7 +13,9 @@ export class RepaymentsController {
       memberId: string;
       centerId: string;
       amount: number;
+      collectionDate?: string;
       notes?: string;
+      useSavings?: boolean;
     },
   ) {
     return this.repaymentsService.create(body);

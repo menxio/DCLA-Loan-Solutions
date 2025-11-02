@@ -5,8 +5,10 @@ import {
   ManyToOne,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { Member } from '../members/entities/member.entity';
+import { LoanRepaymentSchedule } from '../repayments/entities/loan-repayment-schedule.entity';
 
 @Entity()
 export class Loan {
@@ -63,4 +65,10 @@ export class Loan {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(
+    () => LoanRepaymentSchedule,
+    (schedule) => schedule.loan,
+  )
+  repaymentSchedule: LoanRepaymentSchedule[];
 }

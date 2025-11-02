@@ -29,7 +29,6 @@ export interface Loan {
   amountPaid: number;
   balance: number;
   savings: number;
-  existingSavings: number;
   weeksPaid: number;
   status: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
   netCashReleased?: number | null;
@@ -40,7 +39,8 @@ export interface Loan {
 
 export interface Savings {
   id: string;
-  borrowerId: string;
+  borrowerId?: string | null;
+  loanId?: string | null;
   amount: number;
   remarks?: string;
   createdAt: string;
@@ -52,7 +52,6 @@ export interface CreateLoanData {
   principalAmount: number;
   termWeeks: 4 | 8 | 12;
   savings?: number;
-  existingSavings?: number;
   serviceCharge?: number;
   loanCreatedDate?: Date;
 }
@@ -63,7 +62,6 @@ export interface LoanFormData {
   savings?: number;
   serviceCharge?: number;
   loanCreatedDate?: Date;
-  existingSavings?: number;
 }
 
 export interface LoanCalculation {

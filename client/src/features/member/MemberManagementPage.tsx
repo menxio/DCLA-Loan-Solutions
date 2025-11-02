@@ -26,6 +26,7 @@ import { useMembers } from "./hooks/useMember";
 import type { Member, MemberFormData } from "./types";
 import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
+import SavingsDepositDialog from "@features/savings/components/SavingsDepositDialog";
 
 export default function MembersPage() {
   const { members, total, page, limit, setPage, setLimit, loading, error, createMember, updateMember, deleteMember, refetch } = useMembers();
@@ -46,6 +47,8 @@ export default function MembersPage() {
   const [loadingCenters, setLoadingCenters] = useState(false);
   const [loanModalOpen, setLoanModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [savingsDialogOpen, setSavingsDialogOpen] = useState(false);
+  const [savingsMember, setSavingsMember] = useState<Member | null>(null);
   const [searchMember, setSearchMember] = useState("");
 
   // Reset to page 1 and refetch when filters change
@@ -120,9 +123,19 @@ export default function MembersPage() {
     setLoanModalOpen(true);
   };
 
+  const handleOpenSavingsDialog = (member: Member) => {
+    setSavingsMember(member);
+    setSavingsDialogOpen(true);
+  };
+
   const handleCloseLoanModal = () => {
     setLoanModalOpen(false);
     setSelectedMember(null);
+  };
+
+  const handleCloseSavingsDialog = () => {
+    setSavingsDialogOpen(false);
+    setSavingsMember(null);
   };
 
   const handleLoanCreated = () => {
@@ -185,7 +198,7 @@ export default function MembersPage() {
                   Members
                 </Typography>
                 <Typography variant="body1" color="#64748b">
-                  {total || 0} of {total || 0} member{(total || 0) !== 1 ? "s" : ""} registered
+                  Members management and overview
                 </Typography>
               </Box>
             </Box>
@@ -248,63 +261,7 @@ export default function MembersPage() {
               </Button>
             </Box>
           </Box>
-          
-          {/* Quick Stats */}
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(59, 130, 246, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(59, 130, 246, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Total Members
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#1e40af">
-                  {total || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(16, 185, 129, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(16, 185, 129, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Active Members
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#059669">
-                  {members?.length || 0}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box
-                sx={{
-                  backgroundColor: "rgba(245, 158, 11, 0.05)",
-                  borderRadius: 2,
-                  p: 2,
-                  border: "1px solid rgba(245, 158, 11, 0.1)",
-                }}
-              >
-                <Typography variant="body2" color="#64748b" mb={1}>
-                  Centers
-                </Typography>
-                <Typography variant="h5" fontWeight="bold" color="#d97706">
-                  {centers?.length || 0}
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
         </Paper>
-
         {/* Error Alert */}
         {error && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
@@ -319,6 +276,7 @@ export default function MembersPage() {
         onEdit={handleEdit} 
         onDelete={handleDelete} 
         onViewLoan={handleViewLoan}
+        onAddSavings={handleOpenSavingsDialog}
         loading={loading} 
         />
 
@@ -351,6 +309,15 @@ export default function MembersPage() {
           />
         )}
 
+        {/* Savings Deposit Dialog */}
+        <SavingsDepositDialog
+          open={savingsDialogOpen}
+          member={savingsMember}
+          onClose={handleCloseSavingsDialog}
+          onSuccess={handleSavingsSuccess}
+          formatCurrency={formatCurrency}
+        />
+
         {/* Success/Error Snackbar */}
         <Snackbar
           open={snackbar.open}
@@ -366,3 +333,20 @@ export default function MembersPage() {
     </DashboardLayout>
   );
 }
+  const formatCurrency = (amount: number): string =>
+    `₱${Number(amount || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const handleSavingsSuccess = async () => {
+    const query = {
+      page,
+      limit,
+      search: searchMember.trim() || undefined,
+      centerId: selectedCenterId || undefined,
+    } as any;
+    await refetch(query);
+    showSnackbar("Savings deposit recorded!");
+    handleCloseSavingsDialog();
+  };
