@@ -142,6 +142,24 @@ export default function MembersPage() {
     showSnackbar("Loan created successfully!");
   };
 
+  const formatCurrency = (amount: number): string =>
+    `₱${Number(amount || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const handleSavingsSuccess = async () => {
+    const query = {
+      page,
+      limit,
+      search: searchMember.trim() || undefined,
+      centerId: selectedCenterId || undefined,
+    } as any;
+    await refetch(query);
+    showSnackbar("Savings deposit recorded!");
+    handleCloseSavingsDialog();
+  };
+
   // Load centers on component mount
   useEffect(() => {
     const loadCenters = async () => {
@@ -333,20 +351,3 @@ export default function MembersPage() {
     </DashboardLayout>
   );
 }
-  const formatCurrency = (amount: number): string =>
-    `₱${Number(amount || 0).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-
-  const handleSavingsSuccess = async () => {
-    const query = {
-      page,
-      limit,
-      search: searchMember.trim() || undefined,
-      centerId: selectedCenterId || undefined,
-    } as any;
-    await refetch(query);
-    showSnackbar("Savings deposit recorded!");
-    handleCloseSavingsDialog();
-  };

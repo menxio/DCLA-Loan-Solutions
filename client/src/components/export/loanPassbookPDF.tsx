@@ -137,8 +137,10 @@ export const generateLoanPassbookPDF = async (
         style={[
           styles.cell,
           { width: 200 },
-          (props.label1.toLowerCase().includes('amount') || props.label1.toLowerCase().includes('savings')) &&
-            styles.amountText,
+          ...(props.label1.toLowerCase().includes('amount') ||
+          props.label1.toLowerCase().includes('savings')
+            ? [styles.amountText]
+            : []),
         ]}
       >
         {props.value1}
@@ -148,8 +150,10 @@ export const generateLoanPassbookPDF = async (
         style={[
           styles.cell,
           { width: 120 },
-          (props.label2.toLowerCase().includes('amount') || props.label2.toLowerCase().includes('savings')) &&
-            styles.amountText,
+          ...(props.label2.toLowerCase().includes('amount') ||
+          props.label2.toLowerCase().includes('savings')
+            ? [styles.amountText]
+            : []),
         ]}
       >
         {props.value2}
