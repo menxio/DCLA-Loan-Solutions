@@ -51,6 +51,13 @@ interface MembersTableProps {
     received: number;
     due: number;
     weeklyDue?: number;
+    weeksCovered?: number;
+  };
+  getPaymentInfo: (member: any) => {
+    weeklyDue: number;
+    shortfall: number;
+    totalPaid: number;
+    weeksCovered: number;
   };
   formatCurrency: (amount: number) => string;
   onOpenPaymentDialog: (member: any) => void;
@@ -62,6 +69,7 @@ export function MembersTable({
   getStatusColor,
   getStatusLabel,
   getCollectionMetrics,
+  getPaymentInfo,
   formatCurrency,
   onOpenPaymentDialog,
   onOpenReloanDialog,
@@ -133,10 +141,8 @@ export function MembersTable({
                 (l: any) => l.status === "active"
               ) as any;
               const { received, due } = getCollectionMetrics(member);
-              const weeksPaid =
-                (activeLoan as any)?.weeksPaid ??
-                member.collection?.numberOfPayments ??
-                0;
+              const paymentInfo = getPaymentInfo(member);
+              const weeksPaid = paymentInfo.weeksCovered ?? 0;
               const hasActive = Boolean(activeLoan);
               const principal = Number(activeLoan?.principalAmount ?? 0);
               const totalAmount = Number(activeLoan?.totalAmount ?? 0);

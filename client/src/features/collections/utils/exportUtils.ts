@@ -1,5 +1,28 @@
 import type { DailyCollectionGroup, MemberWithLoans } from "../types";
 
+type MemberExportComputed = {
+  paymentInfo: {
+    weeklyDue: number;
+    shortfall: number;
+    totalPaid: number;
+    weeksCovered: number;
+  };
+  collectionMetrics: {
+    received: number;
+    due: number;
+    weeklyDue?: number;
+    weeksCovered?: number;
+  };
+  status: {
+    label: string;
+    color: string;
+  };
+};
+
+type ExportableMember = MemberWithLoans & {
+  __computed?: MemberExportComputed;
+};
+
 // Types for batch export
 export type CollectionExportBundle = {
   group: DailyCollectionGroup;
@@ -626,30 +649,85 @@ export const exportToExcel = async (
     const worksheet = workbook.addWorksheet("Group Report");
     console.log("Workbook and worksheet created successfully");
 
-    // Helper functions for data calculations
-    const getMemberReceived = (m: any): number => {
+    // Helper functions for data calculations rooted in modal logic
+    const asExportable = (member: MemberWithLoans): ExportableMember =>
+      member as ExportableMember;
+
+    const getMemberReceived = (member: MemberWithLoans): number => {
+      const enriched = asExportable(member);
+      const computedValue =
+        enriched.__computed?.collectionMetrics?.received ?? null;
+      if (computedValue !== null && computedValue !== undefined) {
+        return Number(computedValue) || 0;
+      }
+
+      const collection = enriched.collection as
+        | (typeof enriched.collection & { amountReceived?: number })
+        | undefined;
       const fromCollection =
-        m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
-      if (fromCollection !== undefined) return Number(fromCollection) || 0;
-      const activeLoan = (m?.loans || []).find(
-        (l: any) => l?.status === "active"
-      );
-      const amountPaidRaw = activeLoan?.amountPaid;
-      if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
-      const weeksPaid = Number(activeLoan?.weeksPaid || 0);
-      const weekly = Number(
-        m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0
-      );
-      return weeksPaid * weekly;
+        collection?.amountReceived ?? collection?.paymentReceived;
+      if (fromCollection !== undefined && fromCollection !== null) {
+        return Number(fromCollection) || 0;
+      }
+
+      return 0;
     };
 
-    const getMemberWeeksPaid = (m: any): number => {
-      const activeLoan = (m?.loans || []).find(
-        (l: any) => l?.status === "active"
-      );
-      const weeksPaid =
-        activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0;
-      return Number(weeksPaid) || 0;
+    const getMemberDue = (member: MemberWithLoans): number => {
+      const enriched = asExportable(member);
+      const computedDue =
+        enriched.__computed?.collectionMetrics?.due ??
+        enriched.__computed?.collectionMetrics?.weeklyDue;
+      if (computedDue !== undefined && computedDue !== null) {
+        return Number(computedDue) || 0;
+      }
+
+      const collectionAmount = enriched.collection?.amount;
+      if (collectionAmount !== undefined && collectionAmount !== null) {
+        return Number(collectionAmount) || 0;
+      }
+
+      return Number(enriched.weeklyPaymentAmount ?? 0) || 0;
+    };
+
+    const getMemberWeeksPaid = (member: MemberWithLoans): number => {
+      const enriched = asExportable(member);
+      const computedWeeks =
+        enriched.__computed?.paymentInfo?.weeksCovered ??
+        enriched.__computed?.collectionMetrics?.weeksCovered;
+      if (computedWeeks !== undefined && computedWeeks !== null) {
+        return Number(computedWeeks) || 0;
+      }
+
+      const fromCollection = enriched.collection?.numberOfPayments;
+      if (fromCollection !== undefined && fromCollection !== null) {
+        return Number(fromCollection) || 0;
+      }
+
+      const activeLoan = (enriched.loans || []).find(
+        (loan) => (loan as any)?.status === "active"
+      ) as any;
+      return Number(activeLoan?.weeksPaid ?? 0) || 0;
+    };
+
+    const getMemberStatusLabel = (member: MemberWithLoans): string => {
+      const enriched = asExportable(member);
+      const label = enriched.__computed?.status?.label;
+      if (label) return label;
+
+      const due = getMemberDue(member);
+      const received = getMemberReceived(member);
+      const epsilon = 0.01;
+      if (due <= epsilon) {
+        return received > epsilon ? "PAID" : "UNPAID";
+      }
+      if (received >= due - epsilon) {
+        return "PAID";
+      }
+      if (received > epsilon) {
+        return "PARTIAL";
+      }
+      return "UNPAID";
     };
 
     // Set column widths with better spacing
@@ -746,11 +824,13 @@ export const exportToExcel = async (
       const row = worksheet.getRow(rowIndex);
 
       const received = getMemberReceived(member as any);
+      const due = getMemberDue(member as any);
       const weeksPaid = getMemberWeeksPaid(member as any);
       const netRelease =
         (member as any)?.collection?.netRelease ??
         (member as any)?.netCashReleased ??
         0;
+      const statusLabel = getMemberStatusLabel(member as any);
 
       const rowData = [
         index + 1,
@@ -761,17 +841,13 @@ export const exportToExcel = async (
         `₱${member.totalLoanAmount?.toLocaleString() || "0"}`,
         `₱${member.overallAmount?.toLocaleString() || "0"}`,
         member.totalTermWeeks || "0",
-        `₱${member.weeklyPaymentAmount?.toLocaleString() || "0"}`,
+        `₱${Number(due || 0).toLocaleString()}`,
         `₱${(Number(received) || 0).toLocaleString()}`,
         `₱${(Number(netRelease) || 0).toLocaleString()}`,
         weeksPaid || "0",
         `₱${member.totalSavings?.toLocaleString() || "0"}`,
         `₱${member.totalBalance?.toLocaleString() || "0"}`,
-        (Number(received) || 0) >= (member.weeklyPaymentAmount || 0)
-          ? "PAID"
-          : (Number(received) || 0) > 0
-          ? "PARTIAL"
-          : "UNPAID",
+        statusLabel,
       ];
 
       rowData.forEach((value, colIndex) => {
@@ -828,10 +904,10 @@ export const exportToExcel = async (
       (sum, m) => sum + (Number(m.overallAmount) || 0),
       0
     );
-    const totalWeeklyPayments = sortedMembers.reduce(
-      (sum, m) => sum + (Number(m.weeklyPaymentAmount) || 0),
-      0
-    );
+    const totalWeeklyPayments = sortedMembers.reduce((sum, m) => {
+      const due = getMemberDue(m as any);
+      return sum + Number(due || 0);
+    }, 0);
     const totalPaymentReceived = sortedMembers.reduce((sum, m) => {
       const received = getMemberReceived(m as any);
       return sum + received;

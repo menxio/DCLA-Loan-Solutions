@@ -323,7 +323,28 @@ export default function CollectionDetailsModal({
         (m) =>
           Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
       );
-      await exportToExcel(collectionGroup, eligibleMembers);
+      const exportReadyMembers = eligibleMembers.map((member) => {
+        const paymentInfo = computeMemberPaymentInfo(member);
+        const collectionMetrics = getCollectionMetrics(member);
+        const status = getMemberStatus(member);
+
+        return {
+          ...member,
+          __computed: {
+            paymentInfo,
+            collectionMetrics,
+            status,
+          },
+        } as MemberWithLoans & {
+          __computed: {
+            paymentInfo: ReturnType<typeof computeMemberPaymentInfo>;
+            collectionMetrics: ReturnType<typeof getCollectionMetrics>;
+            status: ReturnType<typeof getMemberStatus>;
+          };
+        };
+      });
+
+      await exportToExcel(collectionGroup, exportReadyMembers);
     } catch (error) {
       console.error("Export failed:", error);
       setExportError(
@@ -344,23 +365,38 @@ export default function CollectionDetailsModal({
   const computeMemberPaymentInfo = useCallback(
     (member: MemberWithLoans) => {
       const loans = Array.isArray(member.loans) ? member.loans : [];
-      const fallbackWeekly = loans.reduce(
-        (sum, loan) => sum + Number(loan.weeklyPaymentAmount || 0),
+      const activeLoans = loans.filter((loan: any) => {
+        const status = (loan?.status || "").toLowerCase();
+        if (status === "active") return true;
+        const balance = Number((loan as any)?.balance ?? 0);
+        return balance > 0 && status !== "paid";
+      });
+      const relevantLoans =
+        activeLoans.length > 0
+          ? activeLoans
+          : loans.length > 0
+            ? [loans[0]]
+            : [];
+      const fallbackWeekly = relevantLoans.reduce(
+        (sum, loan) =>
+          sum + Number((loan as any)?.weeklyPaymentAmount || 0),
         0
       );
       let expectedTotal = 0;
       let totalPaid = 0;
 
       const ref = referenceDate ?? new Date();
-      loans.forEach((loan) => {
-        const weekly = Number(loan.weeklyPaymentAmount || 0);
+      relevantLoans.forEach((loan: any) => {
+        const weekly = Number(loan?.weeklyPaymentAmount || 0);
         if (weekly <= 0) return;
-        const amountPaid = Number(loan.amountPaid || 0);
+        const amountPaid = Number(loan?.amountPaid || 0);
         totalPaid += amountPaid;
 
-        const termWeeks = Number(loan.termWeeks || 0);
+        const termWeeks = Number(loan?.termWeeks || 0);
         const startRaw =
-          (loan as any)?.loanCreatedDate ?? (loan as any)?.createdAt;
+          loan?.loanCreatedDate ??
+          loan?.createdAt ??
+          (loan as any)?.dueDate;
         if (!startRaw) return;
         const startDate = new Date(startRaw);
         const diffMs = ref.getTime() - startDate.getTime();
@@ -379,10 +415,14 @@ export default function CollectionDetailsModal({
         0,
         Number((expectedTotal - totalPaid).toFixed(2))
       );
+      const weeksCovered =
+        weeklyDue > 0 ? Math.floor(totalPaid / weeklyDue) : 0;
 
       return {
         weeklyDue,
         shortfall,
+        totalPaid,
+        weeksCovered,
       };
     },
     [referenceDate]
@@ -403,7 +443,12 @@ export default function CollectionDetailsModal({
       const due =
         collectionAmount > 0 ? collectionAmount : paymentInfo.weeklyDue;
 
-      return { received, due, weeklyDue: paymentInfo.weeklyDue };
+      return {
+        received,
+        due,
+        weeklyDue: paymentInfo.weeklyDue,
+        weeksCovered: paymentInfo.weeksCovered,
+      };
     },
     [collectionByMemberId, computeMemberPaymentInfo]
   );
@@ -706,6 +751,9 @@ export default function CollectionDetailsModal({
                 getStatusLabel={(m: any) => getStatusLabel(m as any)}
                 getCollectionMetrics={(m: any) =>
                   getCollectionMetrics(m as any)
+                }
+                getPaymentInfo={(m: any) =>
+                  computeMemberPaymentInfo(m as any)
                 }
                 formatCurrency={formatCurrency}
                 onOpenPaymentDialog={(m: any) =>
