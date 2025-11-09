@@ -13,6 +13,8 @@ import {
   CardContent,
   Divider,
   Snackbar,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import { Savings } from "@mui/icons-material";
 import { useEffect, useMemo, useState } from "react";
@@ -45,6 +47,7 @@ export function SavingsDepositDialog({
   formatCurrency,
 }: SavingsDepositDialogProps) {
   const [amount, setAmount] = useState("");
+  const [mode, setMode] = useState<"deposit" | "withdraw">("deposit");
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<SavingsSummary | null>(null);
@@ -54,12 +57,17 @@ export function SavingsDepositDialog({
 
   const previewAmount = Number.parseFloat(amount || "0");
   const currentSavings = summary?.activeLoanSavings ?? 0;
+  const isWithdraw = mode === "withdraw";
   const projectedSavings = useMemo(() => {
     if (Number.isNaN(previewAmount) || previewAmount <= 0) {
       return currentSavings;
     }
-    return currentSavings + previewAmount;
-  }, [currentSavings, previewAmount]);
+    return isWithdraw
+      ? Math.max(currentSavings - previewAmount, 0)
+      : currentSavings + previewAmount;
+  }, [currentSavings, previewAmount, isWithdraw]);
+  const insufficientFunds =
+    isWithdraw && previewAmount > 0 && previewAmount > currentSavings;
 
   useEffect(() => {
     if (!open || !member) {
@@ -67,11 +75,13 @@ export function SavingsDepositDialog({
       setSummaryError(null);
       setAmount("");
       setError(null);
+      setMode("deposit");
       return;
     }
 
     setAmount("");
     setError(null);
+    setMode("deposit");
 
     setSummaryLoading(true);
     setSummaryError(null);
@@ -119,19 +129,30 @@ export function SavingsDepositDialog({
       return;
     }
 
+    if (isWithdraw && numericAmount > currentSavings) {
+      setError("Withdrawal amount cannot exceed available savings.");
+      return;
+    }
+
     setProcessing(true);
     setError(null);
 
     try {
-      const response = await savingsService.deposit({
+      const payload = {
         memberId: member.id,
         loanId: summary.activeLoanId || undefined,
         amount: numericAmount,
-      });
+      };
 
-      const updatedSavings = Number(
-        response?.loan?.savings ?? currentSavings + numericAmount
-      );
+      const response = isWithdraw
+        ? await savingsService.withdraw(payload)
+        : await savingsService.deposit(payload);
+
+      const updatedSavings =
+        response?.loan?.savings ??
+        (isWithdraw
+          ? Math.max(currentSavings - numericAmount, 0)
+          : currentSavings + numericAmount);
       const updatedLoanId =
         response?.loan?.id ?? summary.activeLoanId ?? null;
 
@@ -139,13 +160,18 @@ export function SavingsDepositDialog({
         activeLoanId: updatedLoanId,
         activeLoanSavings: updatedSavings,
       });
-      setSuccessMessage("Savings deposit recorded successfully.");
+      setSuccessMessage(
+        isWithdraw
+          ? "Savings withdrawal recorded successfully."
+          : "Savings deposit recorded successfully."
+      );
+      setAmount("");
       onSuccess();
     } catch (err: any) {
       const message =
         err?.response?.data?.message ||
         err?.message ||
-        "Unable to record savings deposit. Please try again.";
+        `Unable to record savings ${isWithdraw ? "withdrawal" : "deposit"}. Please try again.`;
       setError(
         Array.isArray(message) ? (message[0] as string) : String(message)
       );
@@ -164,7 +190,8 @@ export function SavingsDepositDialog({
     !amount.trim() ||
     Number.isNaN(previewAmount) ||
     previewAmount <= 0 ||
-    !summary?.activeLoanId;
+    !summary?.activeLoanId ||
+    insufficientFunds;
 
   return (
     <>
@@ -179,121 +206,147 @@ export function SavingsDepositDialog({
         </Alert>
       </Snackbar>
       <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <Savings sx={{ color: "#f59e0b" }} />
-        Record Savings Deposit
-      </DialogTitle>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Savings sx={{ color: "#f59e0b" }} />
+          Manage Savings
+        </DialogTitle>
 
-      <DialogContent dividers>
-        {summaryError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {summaryError}
-          </Alert>
-        )}
+        <DialogContent dividers>
+          {summaryError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {summaryError}
+            </Alert>
+          )}
 
-        {!summaryLoading && !summary?.activeLoanId && !summaryError ? (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This member does not currently have an active loan. A savings
-            deposit requires an active loan to attach funds to.
-          </Alert>
-        ) : null}
+          {!summaryLoading && !summary?.activeLoanId && !summaryError ? (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              This member does not currently have an active loan. Savings
+              transactions require an active loan to attach funds to.
+            </Alert>
+          ) : null}
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
+          {error && (
+            <Alert
+              severity="error"
+              sx={{ mb: 2 }}
+              onClose={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          )}
 
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <Card
-            variant="outlined"
-            sx={{
-              backgroundColor: "#fffbeb",
-              borderColor: "#f59e0b",
-            }}
-          >
-            <CardContent>
-              <Typography
-                variant="subtitle1"
-                sx={{ fontWeight: 600, color: "#92400e", mb: 1 }}
-              >
-                Current Savings Balance
-              </Typography>
-              {summaryLoading ? (
-                <CircularProgress size={24} />
-              ) : (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <ToggleButtonGroup
+              color="primary"
+              value={mode}
+              exclusive
+              onChange={(_, value) => value && setMode(value)}
+              sx={{ alignSelf: "center" }}
+            >
+              <ToggleButton value="deposit">Deposit</ToggleButton>
+              <ToggleButton value="withdraw">Withdraw</ToggleButton>
+            </ToggleButtonGroup>
+
+            <Card
+              variant="outlined"
+              sx={{
+                backgroundColor: "#fffbeb",
+                borderColor: "#f59e0b",
+              }}
+            >
+              <CardContent>
                 <Typography
-                  variant="h4"
-                  sx={{ fontWeight: 700, color: "#92400e" }}
+                  variant="subtitle1"
+                  sx={{ fontWeight: 600, color: "#92400e", mb: 1 }}
                 >
-                  {formatCurrency(currentSavings)}
+                  Current Savings Balance
                 </Typography>
-              )}
-            </CardContent>
-          </Card>
+                {summaryLoading ? (
+                  <CircularProgress size={24} />
+                ) : (
+                  <Typography
+                    variant="h4"
+                    sx={{ fontWeight: 700, color: "#92400e" }}
+                  >
+                    {formatCurrency(currentSavings)}
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
 
-          <TextField
-            label="Deposit Amount"
-            type="number"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            InputProps={{
-              startAdornment: (
-                <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>
-              ),
-            }}
-            helperText="Enter the amount to add to the member's savings."
-            fullWidth
-            inputProps={{ min: 0, step: "0.01" }}
-          />
-          <Card variant="outlined" sx={{ backgroundColor: "#f8fafc" }}>
-            <CardContent>
-              <Typography variant="subtitle2" sx={{ color: "#64748b" }}>
-                Active Loan Overview
-              </Typography>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="body2" sx={{ color: "#1e293b" }}>
-                Loan Status:{" "}
-                <strong>
-                  {summary?.activeLoanId ? "Active" : "Not Available"}
-                </strong>
-              </Typography>
-              <Typography variant="body2" sx={{ color: "#1e293b" }}>
-                Savings After Deposit:
-                <strong> {formatCurrency(projectedSavings)}</strong>
-              </Typography>
-            </CardContent>
-          </Card>
-        </Box>
-      </DialogContent>
+            <TextField
+              label={isWithdraw ? "Withdrawal Amount" : "Deposit Amount"}
+              type="number"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>
+                ),
+              }}
+              helperText={
+                isWithdraw
+                  ? insufficientFunds
+                    ? "Withdrawal amount exceeds available savings."
+                    : "Enter the amount to withdraw from the member's savings."
+                  : "Enter the amount to add to the member's savings."
+              }
+              error={insufficientFunds}
+              fullWidth
+              inputProps={{ min: 0, step: "0.01" }}
+            />
+            <Card variant="outlined" sx={{ backgroundColor: "#f8fafc" }}>
+              <CardContent>
+                <Typography variant="subtitle2" sx={{ color: "#64748b" }}>
+                  Active Loan Overview
+                </Typography>
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="body2" sx={{ color: "#1e293b" }}>
+                  Loan Status:{" "}
+                  <strong>
+                    {summary?.activeLoanId ? "Active" : "Not Available"}
+                  </strong>
+                </Typography>
+                <Typography variant="body2" sx={{ color: "#1e293b" }}>
+                  Savings After Transaction:
+                  <strong> {formatCurrency(projectedSavings)}</strong>
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
+        </DialogContent>
 
-      <DialogActions
-        sx={{
-          p: 3,
-          backgroundColor: "#f8fafc",
-          borderTop: "1px solid #e2e8f0",
-        }}
-      >
-        <Button onClick={onClose} size="large">
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
-          size="large"
-          disabled={disableSubmit}
-          startIcon={processing ? <CircularProgress size={18} /> : <Savings />}
+        <DialogActions
           sx={{
-            background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-            "&:hover": {
-              background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
-            },
+            p: 3,
+            backgroundColor: "#f8fafc",
+            borderTop: "1px solid #e2e8f0",
           }}
         >
-          {processing ? "Saving..." : "Add Savings"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+          <Button onClick={onClose} size="large">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            variant="contained"
+            size="large"
+            disabled={disableSubmit}
+            startIcon={processing ? <CircularProgress size={18} /> : <Savings />}
+            sx={{
+              background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
+              },
+            }}
+          >
+            {processing
+              ? "Processing..."
+              : mode === "withdraw"
+                ? "Withdraw"
+                : "Deposit"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

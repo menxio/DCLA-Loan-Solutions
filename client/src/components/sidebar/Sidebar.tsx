@@ -18,7 +18,7 @@ import {
   ExpandMore,
   Groups,
   Person4,
-  Settings,
+  // Settings,
   AccountBalance,
 } from "@mui/icons-material";
 import { useState } from "react";
@@ -62,12 +62,12 @@ const sidebarItems: SidebarItem[] = [
     icon: AccountBalance,
     path: "/portfolio",
   },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: Settings,
-    path: "/settings",
-  },
+  // {
+  //   id: "settings",
+  //   label: "Settings",
+  //   icon: Settings,
+  //   path: "/settings",
+  // },
 ];
 
 export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {

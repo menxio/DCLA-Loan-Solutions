@@ -11,6 +11,10 @@ import { Collection } from '../collections/entities/collection.entity';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { ReloanDto } from './dto/reloan.dto';
+import {
+  LoanRepaymentSchedule,
+  LoanRepaymentStatus,
+} from '../repayments/entities/loan-repayment-schedule.entity';
 
 @Injectable()
 export class LoansService {
@@ -21,11 +25,15 @@ export class LoansService {
     private readonly memberRepository: Repository<Member>,
     @InjectRepository(Collection)
     private readonly collectionRepository: Repository<Collection>,
+    @InjectRepository(LoanRepaymentSchedule)
+    private readonly scheduleRepository: Repository<LoanRepaymentSchedule>,
   ) {}
 
   // Business logic for interest rates
   private getInterestRate(termWeeks: number): number {
-    return termWeeks === 8 ? 0.2 : 0.3;
+    if (termWeeks === 4) return 0.1;
+    if (termWeeks === 8) return 0.2;
+    return 0.3;
   }
 
   // Calculate loan details
@@ -392,6 +400,51 @@ export class LoansService {
     return this.loanRepository.save(loan);
   }
 
+  async updateTermWeeks(id: string, newTermWeeks: number): Promise<Loan> {
+    const loan = await this.findOne(id);
+
+    if (loan.status !== 'active') {
+      throw new BadRequestException(
+        'Only active loans can have their term updated',
+      );
+    }
+
+    if (Number(loan.weeksPaid || 0) > 0 || Number(loan.amountPaid || 0) > 0) {
+      throw new BadRequestException(
+        'Cannot change term weeks after repayments have been recorded',
+      );
+    }
+
+    const { interestRate, totalAmount, weeklyPaymentAmount } =
+      this.calculateLoanDetails(Number(loan.principalAmount), newTermWeeks);
+
+    loan.termWeeks = newTermWeeks;
+    loan.interestRate = interestRate;
+    loan.totalAmount = totalAmount;
+    loan.weeklyPaymentAmount = weeklyPaymentAmount;
+    loan.balance = totalAmount;
+    loan.amountPaid = 0;
+    loan.weeksPaid = 0;
+    loan.advancePaymentBuffer = 0;
+
+    await this.loanRepository.save(loan);
+
+    const borrower = await this.memberRepository.findOne({
+      where: { id: loan.borrower.id },
+      relations: ['center'],
+    });
+
+    if (!borrower) {
+      throw new NotFoundException(
+        `Borrower #${loan.borrower.id} not found while rebuilding schedule`,
+      );
+    }
+
+    await this.rebuildRepaymentSchedule(loan, borrower);
+
+    return this.findOne(id);
+  }
+
   async remove(id: string): Promise<void> {
     const result = await this.loanRepository.delete(id);
     if (result.affected === 0) {
@@ -428,5 +481,96 @@ export class LoansService {
       reason: 'Member has active loan that needs to be paid off or net off',
       activeLoan,
     };
+  }
+
+  private normalizeDate(input: Date | string | null | undefined): Date {
+    const raw =
+      typeof input === 'string'
+        ? new Date(input)
+        : input instanceof Date
+          ? new Date(input.getTime())
+          : new Date();
+    return new Date(
+      Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate()),
+    );
+  }
+
+  private addDays(date: Date, days: number): Date {
+    const clone = new Date(date.getTime());
+    clone.setUTCDate(clone.getUTCDate() + days);
+    return clone;
+  }
+
+  private formatDate(date: Date): string {
+    return date.toISOString().split('T')[0];
+  }
+
+  private getWeekdayIndex(day: string | null | undefined): number {
+    if (!day) return -1;
+    const lookup: Record<string, number> = {
+      sunday: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+    };
+    return lookup[day.toLowerCase()] ?? -1;
+  }
+
+  private computeFirstDueDate(
+    loan: Loan,
+    member: Member,
+    center: Member['center'] | null,
+  ): Date {
+    const baseDate = this.normalizeDate(
+      loan.loanCreatedDate ?? loan.createdAt ?? new Date(),
+    );
+    const collectionDay =
+      center?.collectionDay ?? (member as any)?.center?.collectionDay ?? null;
+    const targetIndex = this.getWeekdayIndex(collectionDay);
+    if (targetIndex < 0) {
+      return baseDate;
+    }
+    const currentIndex = baseDate.getUTCDay();
+    const delta = (targetIndex - currentIndex + 7) % 7;
+    return this.addDays(baseDate, delta);
+  }
+
+  private async rebuildRepaymentSchedule(
+    loan: Loan,
+    member: Member,
+  ): Promise<void> {
+    await this.scheduleRepository.delete({ loanId: loan.id });
+
+    const termWeeks = Number(loan.termWeeks || 0);
+    const weeklyDue = Number(loan.weeklyPaymentAmount || 0);
+    if (termWeeks <= 0 || weeklyDue <= 0) {
+      return;
+    }
+
+    const center = (member as any)?.center ?? null;
+    const firstDueDate = this.computeFirstDueDate(loan, member, center);
+    const schedules: LoanRepaymentSchedule[] = [];
+
+    for (let i = 0; i < termWeeks; i += 1) {
+      const dueDate = this.addDays(firstDueDate, i * 7);
+      schedules.push(
+        this.scheduleRepository.create({
+          loanId: loan.id,
+          memberId: member.id,
+          centerId: center?.id ?? null,
+          weekNumber: i + 1,
+          dueDate: this.formatDate(dueDate),
+          amountDue: weeklyDue,
+          amountPaid: 0,
+          status: LoanRepaymentStatus.UNPAID,
+          advanceApplied: 0,
+        }),
+      );
+    }
+
+    await this.scheduleRepository.save(schedules);
   }
 }

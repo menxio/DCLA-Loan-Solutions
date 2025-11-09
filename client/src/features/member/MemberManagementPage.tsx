@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { 
   Box, 
   Typography, 
@@ -19,14 +19,18 @@ import {
 } from "@mui/material";
 import { Add, Group, FilterList, Person } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
-import MemberModal from "./components/MemberModal";
 import MemberCards from "./components/MemberCards";
-import LoanModal from "@features/loans/components/LoanModal";
 import { useMembers } from "./hooks/useMember";
 import type { Member, MemberFormData } from "./types";
 import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
-import SavingsDepositDialog from "@features/savings/components/SavingsDepositDialog";
+import FullScreenLoader from "@components/common/FullScreenLoader";
+
+const MemberModal = lazy(() => import("./components/MemberModal"));
+const LoanModal = lazy(() => import("@features/loans/components/LoanModal"));
+const SavingsDepositDialog = lazy(
+  () => import("@features/savings/components/SavingsDepositDialog")
+);
 
 export default function MembersPage() {
   const { members, total, page, limit, setPage, setLimit, loading, error, createMember, updateMember, deleteMember, refetch } = useMembers();
@@ -309,32 +313,38 @@ export default function MembersPage() {
         </Box>
 
         {/* Member Modal */}
-        <MemberModal
-          open={modalOpen}
-          member={editingMember}
-          onClose={handleCloseModal}
-          onSubmit={handleFormSubmit}
-          loading={loading}
-        />
+        <Suspense fallback={<FullScreenLoader />}>
+          <MemberModal
+            open={modalOpen}
+            member={editingMember}
+            onClose={handleCloseModal}
+            onSubmit={handleFormSubmit}
+            loading={loading}
+          />
+        </Suspense>
 
         {/* Loan Modal */}
         {selectedMember && (
-          <LoanModal
-            open={loanModalOpen}
-            member={selectedMember}
-            onClose={handleCloseLoanModal}
-            onLoanCreated={handleLoanCreated}
-          />
+          <Suspense fallback={<FullScreenLoader />}>
+            <LoanModal
+              open={loanModalOpen}
+              member={selectedMember}
+              onClose={handleCloseLoanModal}
+              onLoanCreated={handleLoanCreated}
+            />
+          </Suspense>
         )}
 
         {/* Savings Deposit Dialog */}
-        <SavingsDepositDialog
-          open={savingsDialogOpen}
-          member={savingsMember}
-          onClose={handleCloseSavingsDialog}
-          onSuccess={handleSavingsSuccess}
-          formatCurrency={formatCurrency}
-        />
+        <Suspense fallback={<FullScreenLoader />}>
+          <SavingsDepositDialog
+            open={savingsDialogOpen}
+            member={savingsMember}
+            onClose={handleCloseSavingsDialog}
+            onSuccess={handleSavingsSuccess}
+            formatCurrency={formatCurrency}
+          />
+        </Suspense>
 
         {/* Success/Error Snackbar */}
         <Snackbar

@@ -29,6 +29,15 @@ export const savingsService = {
     const response = await savingsApi.post("/deposit", data);
     return response.data;
   },
+  withdraw: async (data: {
+    memberId: string;
+    amount: number;
+    remarks?: string;
+    loanId?: string;
+  }) => {
+    const response = await savingsApi.post("/withdraw", data);
+    return response.data;
+  },
   getByMember: async (memberId: string) => {
     const response = await savingsApi.get(`/member/${memberId}`);
     return response.data;

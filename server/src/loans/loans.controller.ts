@@ -13,6 +13,7 @@ import { LoansService } from './loans.service';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { ReloanDto } from './dto/reloan.dto';
+import { UpdateLoanTermDto } from './dto/update-loan-term.dto';
 
 @Controller('loans')
 export class LoansController {
@@ -53,6 +54,14 @@ export class LoansController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateLoanDto: UpdateLoanDto) {
     return this.loansService.update(id, updateLoanDto);
+  }
+
+  @Patch(':id/term')
+  updateTerm(
+    @Param('id') id: string,
+    @Body() body: UpdateLoanTermDto,
+  ) {
+    return this.loansService.updateTermWeeks(id, body.termWeeks);
   }
 
   @Delete(':id')

@@ -9,6 +9,7 @@ import { Savings } from './savings.entity';
 import { Member } from '../members/entities/member.entity';
 import { Loan } from '../loans/loan.entity';
 import { DepositSavingsDto } from './dto/deposit-savings.dto';
+import { WithdrawSavingsDto } from './dto/withdraw-savings.dto';
 
 @Injectable()
 export class SavingsService {
@@ -75,6 +76,77 @@ export class SavingsService {
     // Update the active loan's savings balance
     const currentSavings = Number(loan.savings || 0);
     const updatedSavings = currentSavings + numericAmount;
+    loan.savings = updatedSavings;
+    await this.loanRepository.save(loan);
+
+    return {
+      entry: this.mapSavings(savedEntry, memberId),
+      loan: {
+        id: loan.id,
+        savings: updatedSavings,
+      },
+    };
+  }
+
+  async withdraw(dto: WithdrawSavingsDto) {
+    const { memberId, loanId, amount, remarks } = dto;
+    const numericAmount = Number(amount);
+
+    if (Number.isNaN(numericAmount) || numericAmount <= 0) {
+      throw new BadRequestException('amount must be greater than 0');
+    }
+
+    const member = await this.memberRepository.findOne({
+      where: { id: memberId },
+    });
+    if (!member) {
+      throw new NotFoundException(`Member #${memberId} not found`);
+    }
+
+    let loan: Loan | null = null;
+    if (loanId) {
+      loan = await this.loanRepository.findOne({
+        where: { id: loanId },
+        relations: ['borrower'],
+      });
+      if (!loan) {
+        throw new NotFoundException(`Loan #${loanId} not found`);
+      }
+      if (loan.borrower?.id !== memberId) {
+        throw new BadRequestException('Loan does not belong to the member');
+      }
+      if (loan.status !== 'active') {
+        throw new BadRequestException('Cannot withdraw from an inactive loan');
+      }
+    } else {
+      loan = await this.loanRepository.findOne({
+        where: { borrower: { id: memberId }, status: 'active' },
+      });
+      if (!loan) {
+        throw new BadRequestException('Member has no active loan');
+      }
+    }
+
+    if (!loan) {
+      throw new BadRequestException('Unable to resolve loan for withdrawal');
+    }
+
+    const currentSavings = Number(loan.savings || 0);
+    if (numericAmount > currentSavings) {
+      throw new BadRequestException(
+        'Cannot withdraw more than available savings',
+      );
+    }
+
+    const savingsEntry = this.savingsRepository.create({
+      borrower: member,
+      loan,
+      amount: -numericAmount,
+      remarks,
+    });
+    const savedEntry = await this.savingsRepository.save(savingsEntry);
+
+    const updatedSavings = currentSavings - numericAmount;
     loan.savings = updatedSavings;
     await this.loanRepository.save(loan);
 

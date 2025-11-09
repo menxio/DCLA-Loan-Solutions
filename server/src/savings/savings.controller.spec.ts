@@ -13,6 +13,7 @@ describe('SavingsController', () => {
           provide: SavingsService,
           useValue: {
             deposit: jest.fn(),
+            withdraw: jest.fn(),
             findByMember: jest.fn(),
           },
         },

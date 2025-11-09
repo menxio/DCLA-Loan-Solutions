@@ -1,5 +1,10 @@
 import api from "@utils/api";
-import type { CreateLoanData, Loan, ReloanEligibility } from "./types";
+import type {
+  CreateLoanData,
+  Loan,
+  ReloanEligibility,
+  UpdateLoanTermData,
+} from "./types";
 
 export const LoansAPI = {
   getAll: async (): Promise<Loan[]> => {
@@ -24,6 +29,11 @@ export const LoansAPI = {
 
   update: async (id: string, data: Partial<CreateLoanData>): Promise<Loan> => {
     const res = await api.patch(`/loans/${id}`, data);
+    return res.data;
+  },
+
+  updateTerm: async (id: string, data: UpdateLoanTermData): Promise<Loan> => {
+    const res = await api.patch(`/loans/${id}/term`, data);
     return res.data;
   },
 

@@ -327,7 +327,7 @@ export default function MemberCards({
                        fontWeight: 500,
                      }}
                    >
-                     Add Savings
+                     Savings
                    </Button>
                    <Button
                      variant="outlined"

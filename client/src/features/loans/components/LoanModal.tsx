@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -13,6 +13,9 @@ import {
   Paper,
   Grid,
   Chip,
+  Snackbar,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import {
   Close,
@@ -26,7 +29,7 @@ import type { Loan } from "../types";
 import type { Member } from "@features/member/types";
 import { LoansAPI } from "../api";
 import LoanForm from "./LoanForm";
-import { formatCurrency } from "../utils/loanCalculations";
+import { calculateLoanDetails, formatCurrency } from "../utils/loanCalculations";
 import { generateLoanPassbookPDF } from "@components/export/loanPassbookPDF";
 
 interface LoanModalProps {
@@ -46,10 +49,28 @@ export default function LoanModal({
   const [loading, setLoading] = useState(false);
   const [creatingLoan, setCreatingLoan] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [termDialogOpen, setTermDialogOpen] = useState(false);
+  const [termValue, setTermValue] = useState<4 | 8 | 12>(4);
+  const [termUpdating, setTermUpdating] = useState(false);
+  const [termMessage, setTermMessage] = useState<string | null>(null);
+  const [termError, setTermError] = useState<string | null>(null);
 
   // Get the active loan (should be only one)
   const activeLoan = loans.find(loan => loan.status === 'active');
   const hasActiveLoan = Boolean(activeLoan);
+  const canEditTerm =
+    hasActiveLoan && Number(activeLoan?.weeksPaid || 0) === 0;
+  const termPreview = useMemo(() => {
+    if (!activeLoan) return null;
+    const calc = calculateLoanDetails(
+      Number(activeLoan.principalAmount),
+      termValue
+    );
+    return calc.weeklyPaymentAmount;
+  }, [activeLoan?.principalAmount, termValue]);
+  const isSameTerm = activeLoan
+    ? termValue === (activeLoan.termWeeks as 4 | 8 | 12)
+    : true;
 
   // Load member's loans when modal opens
   useEffect(() => {
@@ -57,6 +78,12 @@ export default function LoanModal({
       loadLoans();
     }
   }, [open, member.id]);
+
+  useEffect(() => {
+    if (activeLoan) {
+      setTermValue(activeLoan.termWeeks as 4 | 8 | 12);
+    }
+  }, [activeLoan?.termWeeks]);
 
   const loadLoans = async () => {
     try {
@@ -75,6 +102,43 @@ export default function LoanModal({
       setLoading(false);
     }
   };
+
+  const handleOpenTermDialog = () => {
+    if (!activeLoan) return;
+    setTermValue(activeLoan.termWeeks as 4 | 8 | 12);
+    setTermError(null);
+    setTermDialogOpen(true);
+  };
+
+  const handleCloseTermDialog = () => {
+    if (termUpdating) return;
+    setTermDialogOpen(false);
+    setTermError(null);
+  };
+
+  const handleUpdateTerm = async () => {
+    if (!activeLoan) return;
+    setTermUpdating(true);
+    setTermError(null);
+    try {
+      await LoansAPI.updateTerm(activeLoan.id, { termWeeks: termValue });
+      setTermDialogOpen(false);
+      setTermMessage("Term weeks updated successfully.");
+      await loadLoans();
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Unable to update term weeks.";
+      setTermError(
+        Array.isArray(message) ? (message[0] as string) : String(message)
+      );
+    } finally {
+      setTermUpdating(false);
+    }
+  };
+
+  const handleCloseTermMessage = () => setTermMessage(null);
 
   const handleCreateLoan = async (formData: any) => {
     try {
@@ -170,6 +234,7 @@ export default function LoanModal({
   };
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={handleClose}
@@ -444,11 +509,97 @@ export default function LoanModal({
           <Button onClick={handleClose} sx={{ color: "#64748b" }}>
             Close
           </Button>
+          {canEditTerm && (
+            <Button
+              variant="outlined"
+              onClick={handleOpenTermDialog}
+              sx={{
+                borderColor: "#3b82f6",
+                color: "#3b82f6",
+                "&:hover": {
+                  borderColor: "#2563eb",
+                  backgroundColor: "#dbeafe",
+                },
+              }}
+            >
+              Adjust Term
+            </Button>
+          )}
           <Button variant="contained" onClick={handleExportPassbook}>
             Download Passbook
           </Button>
         </DialogActions>
       )}
     </Dialog>
+    <Dialog
+      open={termDialogOpen}
+      onClose={handleCloseTermDialog}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle>Adjust Term Weeks</DialogTitle>
+      <DialogContent dividers>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          This action is only available before the first repayment is recorded.
+        </Typography>
+        {termError && (
+          <Alert
+            severity="error"
+            sx={{ mb: 2 }}
+            onClose={() => setTermError(null)}
+          >
+            {termError}
+          </Alert>
+        )}
+        <ToggleButtonGroup
+          color="primary"
+          value={termValue}
+          exclusive
+          onChange={(_, value) => value && setTermValue(value)}
+          sx={{ mb: 2, display: "flex", justifyContent: "center" }}
+        >
+          {[4, 8, 12].map((term) => (
+            <ToggleButton key={term} value={term}>
+              {term} Weeks
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+        {termPreview !== null && (
+          <Box sx={{ textAlign: "center" }}>
+            <Typography variant="body2" color="text.secondary">
+              Weekly Payment Preview
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              {formatCurrency(termPreview)}
+            </Typography>
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleCloseTermDialog}>Cancel</Button>
+        <Button
+          variant="contained"
+          onClick={handleUpdateTerm}
+          disabled={termUpdating || isSameTerm}
+        >
+          {termUpdating ? "Updating..." : "Save"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+    <Snackbar
+      open={Boolean(termMessage)}
+      autoHideDuration={3000}
+      onClose={handleCloseTermMessage}
+      anchorOrigin={{ vertical: "top", horizontal: "center" }}
+    >
+      <Alert
+        onClose={handleCloseTermMessage}
+        severity="success"
+        sx={{ width: "100%" }}
+      >
+        {termMessage}
+      </Alert>
+    </Snackbar>
+    </>
   );
 } 

@@ -64,6 +64,10 @@ export interface LoanFormData {
   loanCreatedDate?: Date;
 }
 
+export interface UpdateLoanTermData {
+  termWeeks: 4 | 8 | 12;
+}
+
 export interface LoanCalculation {
   principalAmount: number;
   termWeeks: 4 | 8 | 12;
