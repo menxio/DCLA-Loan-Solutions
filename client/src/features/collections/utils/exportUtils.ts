@@ -962,20 +962,25 @@ export const exportToExcel = async (
     };
 
     // Calculate payment status counts
-    const paidMembers = sortedMembers.filter((m) => {
-      const received = getMemberReceived(m as any);
-      return received >= (Number(m.weeklyPaymentAmount) || 0);
-    }).length;
+    const getStatusBuckets = () => {
+      let paid = 0;
+      let partial = 0;
+      let unpaid = 0;
+      sortedMembers.forEach((member) => {
+        const status = getMemberStatusLabel(member as any);
+        if (status === "PAID") {
+          paid += 1;
+        } else if (status === "PARTIAL") {
+          partial += 1;
+        } else {
+          unpaid += 1;
+        }
+      });
+      return { paid, partial, unpaid };
+    };
 
-    const partialMembers = sortedMembers.filter((m) => {
-      const received = getMemberReceived(m as any);
-      return received > 0 && received < (Number(m.weeklyPaymentAmount) || 0);
-    }).length;
-
-    const unpaidMembers = sortedMembers.filter((m) => {
-      const received = getMemberReceived(m as any);
-      return received <= 0;
-    }).length;
+    const { paid: paidMembers, partial: partialMembers, unpaid: unpaidMembers } =
+      getStatusBuckets();
 
     // Add payment status data
     const statusData = [

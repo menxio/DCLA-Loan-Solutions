@@ -19,11 +19,15 @@ import {
   Visibility,
   FileDownload,
 } from "@mui/icons-material";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import CollectionStatsCard from "./CollectionStatsCard";
 import { exportAllCollectionsToExcel } from "../utils/exportUtils";
 import collectionsService from "../api";
 import type { DailyCollectionGroup, MemberWithLoans } from "../types";
+import {
+  evaluateMemberStatus,
+  hasActiveLoan,
+} from "../utils/memberStatus";
 
 interface DailyCollectionsViewProps {
   data: DailyCollectionGroup[];
@@ -90,7 +94,10 @@ export default function DailyCollectionsView({
     };
   }, [data]);
 
-  const getMembersFor = (centerId: string) => centerMembersMap[centerId] || [];
+  const getMembersFor = useCallback(
+    (centerId: string) => centerMembersMap[centerId] || [],
+    [centerMembersMap]
+  );
 
   const sumOverallAmount = (group: DailyCollectionGroup) => {
     const members = getMembersFor(group.centerId);
@@ -113,37 +120,44 @@ export default function DailyCollectionsView({
     return totalBalance - sumTotalReceived(group);
   };
 
-  const getPaidCount = (group: DailyCollectionGroup) => {
-    const members = getMembersFor(group.centerId);
-    if (members.length === 0) return 0;
-    return group.collections.filter((c) => {
-      const member = members.find((m) => m.id === c.memberId);
-      return member
-        ? c.paymentReceived >= (member.weeklyPaymentAmount || 0)
-        : false;
-    }).length;
-  };
+  const getStatusCounts = useCallback(
+    (group: DailyCollectionGroup) => {
+      const members = getMembersFor(group.centerId);
+      if (members.length === 0) {
+        return { paid: 0, partial: 0, unpaid: 0 };
+      }
+      const collectionMap = new Map(
+        group.collections.map((collection) => [collection.memberId, collection])
+      );
+      return members.reduce(
+        (acc, member) => {
+          if (!hasActiveLoan(member)) return acc;
+          const collection = collectionMap.get(member.id) || null;
+          const status = evaluateMemberStatus(member, {
+            collection: collection as any,
+            referenceDate: group.collectionDate,
+          });
+          if (status.label === "PAID") {
+            acc.paid += 1;
+          } else if (status.label === "PARTIAL") {
+            acc.partial += 1;
+          } else {
+            acc.unpaid += 1;
+          }
+          return acc;
+        },
+        { paid: 0, partial: 0, unpaid: 0 }
+      );
+    },
+    [getMembersFor]
+  );
 
-  const getPartialCount = (group: DailyCollectionGroup) => {
-    const members = getMembersFor(group.centerId);
-    if (members.length === 0) return 0;
-    return group.collections.filter((c) => {
-      const member = members.find((m) => m.id === c.memberId);
-      return member
-        ? c.paymentReceived > 0 &&
-            c.paymentReceived < (member.weeklyPaymentAmount || 0)
-        : false;
-    }).length;
-  };
-
-  const getUnpaidCount = (group: DailyCollectionGroup) => {
-    const members = getMembersFor(group.centerId);
-    if (members.length === 0) return 0;
-    return group.collections.filter((c) => {
-      const member = members.find((m) => m.id === c.memberId);
-      return member ? (c.paymentReceived || 0) <= 0 : false;
-    }).length;
-  };
+  const getPaidCount = (group: DailyCollectionGroup) =>
+    getStatusCounts(group).paid;
+  const getPartialCount = (group: DailyCollectionGroup) =>
+    getStatusCounts(group).partial;
+  const getUnpaidCount = (group: DailyCollectionGroup) =>
+    getStatusCounts(group).unpaid;
 
   // End-of-Day totals across all groups (for the selected date)
   const eod = (() => {
@@ -498,16 +512,16 @@ export default function DailyCollectionsView({
               </Grid>
               <Grid item xs={6} md={3}>
                 <CollectionStatsCard
-                  title="Unpaid"
-                  value={getUnpaidCount(group)}
-                  icon={<Schedule />}
+                  title="Partial"
+                  value={getPartialCount(group)}
+                  icon={<Warning />}
                   color="warning"
                 />
               </Grid>
               <Grid item xs={6} md={3}>
                 <CollectionStatsCard
-                  title="Partial"
-                  value={getPartialCount(group)}
+                  title="Unpaid"
+                  value={getUnpaidCount(group)}
                   icon={<Warning />}
                   color="error"
                 />

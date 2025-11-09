@@ -54,7 +54,7 @@ function StatCard({ title, value, icon, color, trend }: StatCardProps) {
       }}
     >
       <CardContent sx={{ p: 3 }}>
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", mb: 2}}>
           <Avatar
             sx={{
               bgcolor: colorMap[color],
@@ -173,20 +173,6 @@ export default function DashboardPage() {
       icon: <TrendingUp />,
       color: "secondary" as const,
       trend: "Pending collections",
-    },
-    {
-      title: "Collection Rate",
-      value: `${stats.collectionRate.toFixed(1)}%`,
-      icon: <Assessment />,
-      color: stats.collectionRate >= 80 ? "success" as const : "warning" as const,
-      trend: stats.collectionRate >= 80 ? "Excellent performance" : "Needs improvement",
-    },
-    {
-      title: "Projected Interest",
-      value: formatCurrency(stats.totalInterestIncome),
-      icon: <TrendingDown />,
-      color: "primary" as const,
-      trend: "20% interest rate",
     },
   ];
 
