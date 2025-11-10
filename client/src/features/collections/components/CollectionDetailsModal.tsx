@@ -24,12 +24,19 @@ import {
   LocationOn,
   People,
   Download,
+  PictureAsPdf,
 } from "@mui/icons-material";
 import { Search } from "@mui/icons-material";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type { DailyCollectionGroup, Collection, Member } from "../types";
+import type {
+  DailyCollectionGroup,
+  Collection,
+  Member,
+  CollectionScheduleEntry,
+} from "../types";
 import collectionsService from "../api";
 import { exportToExcel } from "../utils/exportUtils";
+import { exportCollectorPdf } from "../utils/exportCollectorPdf";
 import { PaymentDialog } from "./PaymentDialog";
 import { ReloanDialog } from "./ReloanDialog";
 import { CollectionSummaryCards } from "./CollectionSummaryCards";
@@ -87,6 +94,7 @@ export default function CollectionDetailsModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [pdfExporting, setPdfExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [latestCollections, setLatestCollections] = useState<Collection[]>(
@@ -342,6 +350,54 @@ export default function CollectionDetailsModal({
     [collectionByMemberId, referenceDate, collectionGroup?.collectionDate]
   );
 
+  const handleExportPdf = useCallback(async () => {
+    if (!collectionGroup || !members.length) return;
+
+    setPdfExporting(true);
+    setExportError(null);
+
+    try {
+      const pdfRows = members
+        .filter(hasActiveLoan)
+        .map((member) => {
+          const statusInfo = getMemberStatusInfo(member);
+          const activeLoan = member.loans?.find(
+            (loan) => (loan?.status || "").toLowerCase() === "active"
+          );
+          const principal = Number(
+            activeLoan?.principalAmount ?? member.totalLoanAmount ?? 0
+          );
+          return {
+            name: `${member.lastName || ""}, ${member.firstName || ""}`.trim(),
+            contact: member.contactNumber || "",
+            loanAmount: `P ${principal.toLocaleString()}`,
+            amountDue: `P ${Number(statusInfo.due || 0).toLocaleString()}`,
+            paymentReceived: "",
+            paymentsMade: String(
+              activeLoan?.weeksPaid ?? member.collection?.numberOfPayments ?? 0
+            ),
+            savings: `P ${Number(member.totalSavings || 0).toLocaleString()}`,
+            status: "",
+          };
+        });
+
+      await exportCollectorPdf({
+        centerName: collectionGroup.centerName,
+        collectionDate: collectionGroup.collectionDate,
+        rows: pdfRows,
+      });
+    } catch (error) {
+      console.error("Collector PDF export failed:", error);
+      setExportError(
+        error instanceof Error
+          ? error.message
+          : "Failed to export collector report. Please try again."
+      );
+    } finally {
+      setPdfExporting(false);
+    }
+  }, [collectionGroup, members, getMemberStatusInfo]);
+
   const getCollectionMetrics = useCallback(
     (member: MemberWithLoans) => {
       const statusInfo = getMemberStatusInfo(member);
@@ -552,6 +608,23 @@ export default function CollectionDetailsModal({
                   <CircularProgress size={20} color="inherit" />
                 ) : (
                   <Download />
+                )}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export collector PDF">
+              <IconButton
+                onClick={handleExportPdf}
+                disabled={pdfExporting || loading}
+                size="small"
+                sx={{
+                  color: "white",
+                  "&:hover": { backgroundColor: "rgba(255,255,255,0.1)" },
+                }}
+              >
+                {pdfExporting ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : (
+                  <PictureAsPdf />
                 )}
               </IconButton>
             </Tooltip>
