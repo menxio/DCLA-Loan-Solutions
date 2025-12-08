@@ -44,6 +44,7 @@ import { MembersTable } from "./MembersTable";
 import {
   evaluateMemberStatus,
   hasActiveLoan,
+  hasLoanAmount,
   type MemberStatusResult,
 } from "../utils/memberStatus";
 
@@ -124,6 +125,12 @@ export default function CollectionDetailsModal({
     }
     return map;
   }, [collectionGroup, latestCollections]);
+
+  const shouldExportMember = useCallback(
+    (member: MemberWithLoans) =>
+      hasActiveLoan(member) && hasLoanAmount(member),
+    [hasLoanAmount, hasActiveLoan]
+  );
 
   const fetchCenterMembers = useCallback(async () => {
     if (!collectionGroup) return;
@@ -271,10 +278,7 @@ export default function CollectionDetailsModal({
         return al.localeCompare(bl);
       });
 
-      const eligibleMembers = sorted.filter(
-        (m) =>
-          Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
-      );
+      const eligibleMembers = sorted.filter(shouldExportMember);
       const exportReadyMembers = eligibleMembers.map((member) => {
         const statusInfo = getMemberStatusInfo(member);
         return {
@@ -330,7 +334,7 @@ export default function CollectionDetailsModal({
     } finally {
       setExporting(false);
     }
-  }, [collectionGroup, members]);
+  }, [collectionGroup, members, shouldExportMember]);
 
   const referenceDate = useMemo(() => {
     if (!collectionGroup?.collectionDate) return null;
@@ -358,7 +362,7 @@ export default function CollectionDetailsModal({
 
     try {
       const pdfRows = members
-        .filter(hasActiveLoan)
+        .filter(shouldExportMember)
         .map((member) => {
           const statusInfo = getMemberStatusInfo(member);
           const activeLoan = member.loans?.find(
@@ -396,7 +400,7 @@ export default function CollectionDetailsModal({
     } finally {
       setPdfExporting(false);
     }
-  }, [collectionGroup, members, getMemberStatusInfo]);
+  }, [collectionGroup, members, getMemberStatusInfo, shouldExportMember]);
 
   const getCollectionMetrics = useCallback(
     (member: MemberWithLoans) => {

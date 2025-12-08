@@ -15,6 +15,9 @@ const CollectionsPage = lazy(
 const PortfolioPage = lazy(
   () => import("@features/portfolio/pages/PortfolioPage")
 );
+const TransactionHistoryPage = lazy(
+  () => import("@features/transactions/pages/TransactionHistoryPage")
+);
 
 export default function AppRouter() {
   const token = useAuthStore((state) => state.token);
@@ -43,6 +46,10 @@ export default function AppRouter() {
         <Route
           path="/portfolio"
           element={token ? <PortfolioPage /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/transactions"
+          element={token ? <TransactionHistoryPage /> : <Navigate to="/login" />}
         />
       </Routes>
     </Suspense>

@@ -1,4 +1,5 @@
 import type { DailyCollectionGroup, MemberWithLoans } from "../types";
+import { hasLoanAmount } from "./memberStatus";
 
 type MemberExportComputed = {
   paymentInfo: {
@@ -1142,7 +1143,8 @@ export const exportAllCollectionsToExcel = async (
 
   for (const { group, members } of bundles) {
     // Sort members alphabetically per sheet
-    const sorted = [...(members || [])].sort((a, b) => {
+    const withLoanAmount = (members || []).filter(hasLoanAmount);
+    const sorted = [...withLoanAmount].sort((a, b) => {
       const al = `${(a.lastName || "").toLowerCase()} ${(
         a.firstName || ""
       ).toLowerCase()}`.trim();
@@ -1168,7 +1170,7 @@ export const exportAllCollectionsToExcel = async (
       );
       return weeksPaid * weekly;
     };
-    const unpaidMembers = (members || []).filter(
+    const unpaidMembers = withLoanAmount.filter(
       (m: any) => (getMemberReceived(m) || 0) <= 0
     );
     const unpaidTodayTotal = unpaidMembers.reduce(

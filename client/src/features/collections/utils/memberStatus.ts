@@ -129,6 +129,23 @@ export const hasActiveLoan = (member: MemberWithLoans): boolean => {
   );
 };
 
+export const hasLoanAmount = (member: MemberWithLoans): boolean => {
+  const aggregateAmount = Number(
+    member.totalLoanAmount ?? member.overallAmount ?? 0
+  );
+  if (aggregateAmount > EPSILON) {
+    return true;
+  }
+
+  const loans = Array.isArray(member.loans) ? member.loans : [];
+  return loans.some((loan: any) => {
+    const principal = Number(
+      (loan as any)?.principalAmount ?? (loan as any)?.amount ?? 0
+    );
+    return principal > EPSILON;
+  });
+};
+
 export const evaluateMemberStatus = (
   member: MemberWithLoans,
   options: EvaluateOptions = {}

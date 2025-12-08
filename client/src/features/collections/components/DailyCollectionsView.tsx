@@ -27,6 +27,7 @@ import type { DailyCollectionGroup, MemberWithLoans } from "../types";
 import {
   evaluateMemberStatus,
   hasActiveLoan,
+  hasLoanAmount,
 } from "../utils/memberStatus";
 
 interface DailyCollectionsViewProps {
@@ -205,9 +206,14 @@ export default function DailyCollectionsView({
                 0,
             }));
 
+            const typedMembers = membersWithCollections as MemberWithLoans[];
+            const exportableMembers = typedMembers.filter(
+              (member) => hasActiveLoan(member) && hasLoanAmount(member)
+            );
+
             return {
               group,
-              members: membersWithCollections as MemberWithLoans[],
+              members: exportableMembers,
             };
           } catch (error) {
             console.error(

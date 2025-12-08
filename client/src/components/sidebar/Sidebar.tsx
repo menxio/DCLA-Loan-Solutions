@@ -20,6 +20,7 @@ import {
   Person4,
   // Settings,
   AccountBalance,
+  History,
 } from "@mui/icons-material";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -61,6 +62,12 @@ const sidebarItems: SidebarItem[] = [
     label: "Portfolio",
     icon: AccountBalance,
     path: "/portfolio",
+  },
+  {
+    id: "transactions",
+    label: "Transactions",
+    icon: History,
+    path: "/transactions",
   },
   // {
   //   id: "settings",
