@@ -7,6 +7,9 @@ import type {
 
 type LoadingKey = "daily" | "all" | "update";
 
+const getLocalISODate = (date: Date) =>
+  date.toLocaleDateString("en-CA");
+
 export function useCollections() {
   const [dailyCollections, setDailyCollections] = useState<
     DailyCollectionGroup[]
@@ -23,6 +26,9 @@ export function useCollections() {
 
   const [error, setError] = useState<string | null>(null);
 
+  const [dailyDate, setDailyDate] = useState<string>(() =>
+    getLocalISODate(new Date())
+  );
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
@@ -50,7 +56,7 @@ export function useCollections() {
     setLoading("daily", true);
     try {
       setError(null);
-      const data = await collectionsService.getTodayCollections();
+      const data = await collectionsService.getTodayCollections(dailyDate);
       setDailyCollections(data);
     } catch (err) {
       console.error("Error fetching daily collections:", err);
@@ -58,7 +64,7 @@ export function useCollections() {
     } finally {
       setLoading("daily", false);
     }
-  }, [setLoading]);
+  }, [dailyDate, setLoading]);
 
   const fetchAllCollections = useCallback(async () => {
     setLoading("all", true);
@@ -134,6 +140,8 @@ export function useCollections() {
     totalAllCollectionItems,
     search,
     setSearch,
+    dailyDate,
+    setDailyDate,
     loading,
     error,
     updateCollection,

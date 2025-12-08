@@ -47,17 +47,40 @@ export class CollectionsService {
     return index === -1 ? null : index;
   }
 
+  private formatDateString(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   private getNextCollectionDate(collectionDay: string) {
     const targetIndex = this.weekdayToIndex(collectionDay);
     if (targetIndex === null) {
-      return new Date().toISOString().split('T')[0];
+      return this.formatDateString(new Date());
     }
 
     const today = new Date();
     const diff = (targetIndex + 7 - today.getDay()) % 7;
     const nextDate = new Date(today);
     nextDate.setDate(today.getDate() + diff);
-    return nextDate.toISOString().split('T')[0];
+    return this.formatDateString(nextDate);
+  }
+
+  private resolveTargetDate(dateInput?: string) {
+    if (dateInput) {
+      const parsed = new Date(dateInput);
+      if (!Number.isNaN(parsed.getTime())) {
+        const normalized = new Date(
+          parsed.getFullYear(),
+          parsed.getMonth(),
+          parsed.getDate(),
+        );
+        return normalized;
+      }
+    }
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate());
   }
 
   private async calculateTotalReceivedForDate(centerId: string, date: string) {
@@ -176,12 +199,14 @@ export class CollectionsService {
   /**
    * DAILY COLLECTION LOGIC - Enhanced version
    */
-  async getTodayCollections() {
-    const today = new Date();
-    const weekday = today.toLocaleString('en-US', { weekday: 'long' });
-    const dateString = today.toISOString().split('T')[0];
+  async getTodayCollections(dateParam?: string) {
+    const targetDate = this.resolveTargetDate(dateParam);
+    const weekday = targetDate.toLocaleString('en-US', { weekday: 'long' });
+    const dateString = this.formatDateString(targetDate);
 
-    this.logger.log(`Getting collections for ${weekday} (${dateString})`);
+    this.logger.log(
+      `Getting collections for ${weekday} (${dateString}) [input=${dateParam ?? 'today'}]`,
+    );
 
     const centers = await this.centerRepo.find({
       where: { collectionDay: weekday },

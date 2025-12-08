@@ -112,8 +112,12 @@ export const collectionsService = {
   },
 
   // Get today's collections
-  getTodayCollections: async (): Promise<DailyCollectionGroup[]> => {
-    const response = await collectionsApi.get("/daily");
+  getTodayCollections: async (
+    date?: string
+  ): Promise<DailyCollectionGroup[]> => {
+    const response = await collectionsApi.get("/daily", {
+      params: date ? { date } : undefined,
+    });
     return response.data;
   },
 

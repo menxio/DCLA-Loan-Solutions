@@ -47,6 +47,7 @@ import {
   hasLoanAmount,
   type MemberStatusResult,
 } from "../utils/memberStatus";
+import { withNetReleaseForDate } from "../utils/netRelease";
 
 interface Loan {
   id: string;
@@ -191,7 +192,11 @@ export default function CollectionDetailsModal({
         return 0;
       });
 
-      setMembers(membersWithCollections);
+      const membersWithNetRelease = membersWithCollections.map((member: any) =>
+        withNetReleaseForDate(member, collectionGroup.collectionDate)
+      );
+
+      setMembers(membersWithNetRelease);
     } catch (error) {
       console.error("Failed to fetch center members:", error);
       setError("Failed to load member data. Please try again.");
@@ -260,82 +265,6 @@ export default function CollectionDetailsModal({
     handleCloseReloanDialog();
   }, [fetchCenterMembers, handleCloseReloanDialog, onDataChanged]);
 
-  const handleExport = useCallback(async () => {
-    if (!collectionGroup || !members.length) return;
-
-    setExporting(true);
-    setExportError(null);
-
-    try {
-      // Sort alphabetically for export
-      const sorted = [...members].sort((a, b) => {
-        const al = `${(a.lastName || "").toLowerCase()} ${(
-          a.firstName || ""
-        ).toLowerCase()}`.trim();
-        const bl = `${(b.lastName || "").toLowerCase()} ${(
-          b.firstName || ""
-        ).toLowerCase()}`.trim();
-        return al.localeCompare(bl);
-      });
-
-      const eligibleMembers = sorted.filter(shouldExportMember);
-      const exportReadyMembers = eligibleMembers.map((member) => {
-        const statusInfo = getMemberStatusInfo(member);
-        return {
-          ...member,
-          __computed: {
-            paymentInfo: {
-              weeklyDue: statusInfo.weeklyDue,
-              shortfall: statusInfo.shortfall,
-              totalPaid: statusInfo.totalPaid,
-              weeksCovered: statusInfo.weeksCovered,
-            },
-            collectionMetrics: {
-              received: statusInfo.received,
-              due: statusInfo.due,
-              weeklyDue: statusInfo.weeklyDue,
-              weeksCovered: statusInfo.weeksCovered,
-            },
-            status: {
-              label: statusInfo.label,
-              color: statusInfo.color,
-            },
-          },
-        } as MemberWithLoans & {
-          __computed: {
-            paymentInfo: {
-              weeklyDue: number;
-              shortfall: number;
-              totalPaid: number;
-              weeksCovered: number;
-            };
-            collectionMetrics: {
-              received: number;
-              due: number;
-              weeklyDue: number;
-              weeksCovered: number;
-            };
-            status: {
-              label: MemberStatusResult["label"];
-              color: MemberStatusResult["color"];
-            };
-          };
-        };
-      });
-
-      await exportToExcel(collectionGroup, exportReadyMembers);
-    } catch (error) {
-      console.error("Export failed:", error);
-      setExportError(
-        error instanceof Error
-          ? error.message
-          : "Export failed. Please try again."
-      );
-    } finally {
-      setExporting(false);
-    }
-  }, [collectionGroup, members, shouldExportMember]);
-
   const referenceDate = useMemo(() => {
     if (!collectionGroup?.collectionDate) return null;
     return new Date(`${collectionGroup.collectionDate}T00:00:00Z`);
@@ -354,6 +283,91 @@ export default function CollectionDetailsModal({
     [collectionByMemberId, referenceDate, collectionGroup?.collectionDate]
   );
 
+  const buildExportMembers = useCallback(() => {
+    if (!collectionGroup || !members.length) return [];
+    // Sort alphabetically for export
+    const sorted = [...members].sort((a, b) => {
+      const al = `${(a.lastName || "").toLowerCase()} ${(
+        a.firstName || ""
+      ).toLowerCase()}`.trim();
+      const bl = `${(b.lastName || "").toLowerCase()} ${(
+        b.firstName || ""
+      ).toLowerCase()}`.trim();
+      return al.localeCompare(bl);
+    });
+
+    const eligibleMembers = sorted.filter(shouldExportMember);
+    return eligibleMembers.map((member) => {
+      const statusInfo = getMemberStatusInfo(member);
+      return {
+        ...member,
+        __computed: {
+          paymentInfo: {
+            weeklyDue: statusInfo.weeklyDue,
+            shortfall: statusInfo.shortfall,
+            totalPaid: statusInfo.totalPaid,
+            weeksCovered: statusInfo.weeksCovered,
+          },
+          collectionMetrics: {
+            received: statusInfo.received,
+            due: statusInfo.due,
+            weeklyDue: statusInfo.weeklyDue,
+            weeksCovered: statusInfo.weeksCovered,
+          },
+          status: {
+            label: statusInfo.label,
+            color: statusInfo.color,
+          },
+        },
+      } as MemberWithLoans & {
+        __computed: {
+          paymentInfo: {
+            weeklyDue: number;
+            shortfall: number;
+            totalPaid: number;
+            weeksCovered: number;
+          };
+          collectionMetrics: {
+            received: number;
+            due: number;
+            weeklyDue: number;
+            weeksCovered: number;
+          };
+          status: {
+            label: MemberStatusResult["label"];
+            color: MemberStatusResult["color"];
+          };
+        };
+      };
+    });
+  }, [collectionGroup, members, shouldExportMember, getMemberStatusInfo]);
+
+  const handleExport = useCallback(async () => {
+    if (!collectionGroup || !members.length) return;
+
+    setExporting(true);
+    setExportError(null);
+
+    try {
+      const exportReadyMembers = buildExportMembers();
+
+      if (!exportReadyMembers.length) {
+        throw new Error("No members available for export.");
+      }
+
+      await exportToExcel(collectionGroup, exportReadyMembers);
+    } catch (error) {
+      console.error("Export failed:", error);
+      setExportError(
+        error instanceof Error
+          ? error.message
+          : "Export failed. Please try again."
+      );
+    } finally {
+      setExporting(false);
+    }
+  }, [collectionGroup, members, buildExportMembers]);
+
   const handleExportPdf = useCallback(async () => {
     if (!collectionGroup || !members.length) return;
 
@@ -361,29 +375,45 @@ export default function CollectionDetailsModal({
     setExportError(null);
 
     try {
-      const pdfRows = members
-        .filter(shouldExportMember)
-        .map((member) => {
-          const statusInfo = getMemberStatusInfo(member);
-          const activeLoan = member.loans?.find(
-            (loan) => (loan?.status || "").toLowerCase() === "active"
-          );
-          const principal = Number(
-            activeLoan?.principalAmount ?? member.totalLoanAmount ?? 0
-          );
-          return {
-            name: `${member.lastName || ""}, ${member.firstName || ""}`.trim(),
-            contact: member.contactNumber || "",
-            loanAmount: `P ${principal.toLocaleString()}`,
-            amountDue: `P ${Number(statusInfo.due || 0).toLocaleString()}`,
-            paymentReceived: "",
-            paymentsMade: String(
-              activeLoan?.weeksPaid ?? member.collection?.numberOfPayments ?? 0
-            ),
-            savings: `P ${Number(member.totalSavings || 0).toLocaleString()}`,
-            status: "",
-          };
-        });
+      const exportReadyMembers = buildExportMembers();
+      if (!exportReadyMembers.length) {
+        throw new Error("No members available for export.");
+      }
+
+      const currency = (value: number) =>
+        `PHP ${Number(value || 0).toLocaleString()}`;
+
+      const pdfRows = exportReadyMembers.map((member, index) => {
+        const metrics = member.__computed?.collectionMetrics;
+        const paymentInfo = member.__computed?.paymentInfo;
+        const statusLabel = member.__computed?.status?.label ?? "";
+        const paymentsMade =
+          paymentInfo?.weeksCovered ??
+          member.collection?.numberOfPayments ??
+          0;
+        const netReleased =
+          (member as any)?.netCashReleasedForDate ??
+          member.netCashReleased ??
+          member.collection?.netRelease ??
+          0;
+        return {
+          no: index + 1,
+          clientName: `${member.lastName || ""}, ${
+            member.firstName || ""
+          }`.trim(),
+          contact: member.contactNumber || "",
+          loanAmount: currency(Number(member.totalLoanAmount || 0)),
+          overallAmount: currency(Number(member.overallAmount || 0)),
+          termWeeks: String(member.totalTermWeeks || 0),
+          amountDue: currency(Number(metrics?.due || 0)),
+          paymentReceived: currency(Number(metrics?.received || 0)),
+          netReleased: currency(Number(netReleased || 0)),
+          paymentsMade: String(paymentsMade || 0),
+          savings: currency(Number(member.totalSavings || 0)),
+          remainingBalance: currency(Number(member.totalBalance || 0)),
+          status: statusLabel,
+        };
+      });
 
       await exportCollectorPdf({
         centerName: collectionGroup.centerName,
@@ -400,7 +430,7 @@ export default function CollectionDetailsModal({
     } finally {
       setPdfExporting(false);
     }
-  }, [collectionGroup, members, getMemberStatusInfo, shouldExportMember]);
+  }, [collectionGroup, members, buildExportMembers]);
 
   const getCollectionMetrics = useCallback(
     (member: MemberWithLoans) => {

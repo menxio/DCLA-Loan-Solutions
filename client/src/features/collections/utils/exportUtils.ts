@@ -24,6 +24,15 @@ type ExportableMember = MemberWithLoans & {
   __computed?: MemberExportComputed;
 };
 
+const getNetReleaseValue = (member: MemberWithLoans | any): number => {
+  const value =
+    (member as any)?.netCashReleasedForDate ??
+    (member as any)?.netCashReleased ??
+    (member as any)?.collection?.netRelease ??
+    0;
+  return Number(value) || 0;
+};
+
 // Types for batch export
 export type CollectionExportBundle = {
   group: DailyCollectionGroup;
@@ -91,7 +100,7 @@ const exportToCSV = (
           member.address || "-",
           `₱${member.overallAmount?.toLocaleString() || "0"}`,
           member.totalTermWeeks || "-",
-          `₱${member.netCashReleased?.toLocaleString() || "0"}`,
+          `₱${getNetReleaseValue(member).toLocaleString()}`,
           member.numberOfPayments || "0",
           `₱${member.totalSavings?.toLocaleString() || "0"}`,
           `₱${member.totalBalance?.toLocaleString() || "0"}`,
@@ -238,10 +247,7 @@ const buildGroupSheetData = (
   members.forEach((member, index) => {
     const received = getMemberReceived(member as any);
     const weeksPaid = getMemberWeeksPaid(member as any);
-    const netRelease =
-      (member as any)?.collection?.netRelease ??
-      (member as any)?.netCashReleased ??
-      0;
+    const netRelease = getNetReleaseValue(member as any);
     sheetData.push([
       index + 1, // Row number for better presentation
       `${member.lastName}, ${member.firstName} ${
@@ -281,7 +287,7 @@ const buildGroupSheetData = (
     0
   );
   const totalNetCashReleased = members.reduce(
-    (sum, m) => sum + (m.netCashReleased || 0),
+    (sum, m) => sum + getNetReleaseValue(m),
     0
   );
   const totalSavings = members.reduce(
@@ -827,10 +833,7 @@ export const exportToExcel = async (
       const received = getMemberReceived(member as any);
       const due = getMemberDue(member as any);
       const weeksPaid = getMemberWeeksPaid(member as any);
-      const netRelease =
-        (member as any)?.collection?.netRelease ??
-        (member as any)?.netCashReleased ??
-        0;
+      const netRelease = getNetReleaseValue(member as any);
       const statusLabel = getMemberStatusLabel(member as any);
 
       const rowData = [
@@ -913,11 +916,10 @@ export const exportToExcel = async (
       const received = getMemberReceived(m as any);
       return sum + received;
     }, 0);
-    const totalNetReleased = sortedMembers.reduce((sum, m) => {
-      const netRelease =
-        (m as any)?.collection?.netRelease ?? (m as any)?.netCashReleased ?? 0;
-      return sum + (Number(netRelease) || 0);
-    }, 0);
+    const totalNetReleased = sortedMembers.reduce(
+      (sum, m) => sum + getNetReleaseValue(m),
+      0
+    );
     const totalSavings = sortedMembers.reduce(
       (sum, m) => sum + (Number(m.totalSavings) || 0),
       0
@@ -1078,7 +1080,7 @@ export const exportAllCollectionsToExcel = async (
       (sum, b) =>
         sum +
         (b.members || []).reduce(
-          (s, m: any) => s + (Number(m.netCashReleased) || 0),
+          (s, m: any) => s + getNetReleaseValue(m),
           0
         ),
       0
@@ -1113,7 +1115,7 @@ export const exportAllCollectionsToExcel = async (
         ) - collected
       );
       const released = (members || []).reduce(
-        (s, m: any) => s + (Number(m.netCashReleased) || 0),
+        (s, m: any) => s + getNetReleaseValue(m),
         0
       );
       summaryData.push([

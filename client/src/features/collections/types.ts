@@ -18,6 +18,9 @@ export interface MemberWithLoans extends Member {
     balance: number;
     status: string;
     dueDate: string;
+    loanCreatedDate?: string;
+    createdAt?: string;
+    netCashReleased?: number;
   }>;
   totalLoanAmount: number;
   totalBalance: number;
@@ -26,6 +29,7 @@ export interface MemberWithLoans extends Member {
   totalTermWeeks?: number;
   totalSavings?: number;
   netCashReleased?: number;
+  netCashReleasedForDate?: number;
   numberOfPayments?: number;
   collection?: Collection;
 }

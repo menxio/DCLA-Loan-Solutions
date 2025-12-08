@@ -9,7 +9,7 @@ import {
 
 const styles = StyleSheet.create({
   page: {
-    padding: 10,
+    padding: 16,
     textAlign: "left",
     fontSize: 8,
     color: "#0f172a",
@@ -36,7 +36,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#e2e8f0",
   },
   tableCell: {
-    fontWeight: "bold",
     padding: 6,
     border: "0.75pt solid #cbd5f5",
     fontSize: 8,
@@ -50,24 +49,34 @@ const styles = StyleSheet.create({
 });
 
 const columnWidths = [
-  "18%",
-  "15%",
-  "12%",
-  "12%",
-  "12%",
-  "12%",
+  "5%",
+  "16%",
   "10%",
   "9%",
+  "9%",
+  "6%",
+  "9%",
+  "9%",
+  "9%",
+  "7%",
+  "7%",
+  "9%",
+  "6%",
 ];
 
 export interface CollectorRow {
-  name: string;
+  no: number;
+  clientName: string;
   contact: string;
   loanAmount: string;
+  overallAmount: string;
+  termWeeks: string;
   amountDue: string;
   paymentReceived: string;
+  netReleased: string;
   paymentsMade: string;
   savings: string;
+  remainingBalance: string;
   status: string;
 }
 
@@ -79,19 +88,24 @@ export async function exportCollectorPdf(params: {
   const { centerName, collectionDate, rows } = params;
 
   const tableHeader = [
-    "Name",
-    "Contact Number",
+    "No.",
+    "Client Name",
+    "Contact",
     "Loan Amount",
+    "Overall Amount",
+    "Term",
     "Amount Due",
-    "Payment",
-    "# of Payment",
+    "Payment Received",
+    "Net Released",
+    "No. of Payment",
     "Savings",
+    "Remaining Bal.",
     "Status",
   ];
 
   const doc = (
     <Document>
-      <Page size="LETTER" orientation="portrait" style={styles.page}>
+      <Page size="LETTER" orientation="landscape" style={styles.page}>
         <Text style={styles.header}>Collector Report</Text>
         <Text style={styles.subheader}>
           {centerName} • Collection Date: {collectionDate}
@@ -114,15 +128,23 @@ export async function exportCollectorPdf(params: {
           </View>
 
           {rows.map((row, rowIndex) => (
-            <View style={styles.tableRow} key={`${row.name}-${rowIndex}`}>
+            <View
+              style={styles.tableRow}
+              key={`${row.clientName}-${rowIndex}`}
+            >
               {[
-                row.name,
+                row.no,
+                row.clientName,
                 row.contact,
                 row.loanAmount || "",
+                row.overallAmount || "",
+                row.termWeeks,
                 row.amountDue || "",
                 row.paymentReceived,
+                row.netReleased || "",
                 row.paymentsMade,
                 row.savings || "",
+                row.remainingBalance || "",
                 row.status,
               ].map((value, colIndex) => (
                 <Text
@@ -157,3 +179,4 @@ export async function exportCollectorPdf(params: {
     .toLowerCase()}_${collectionDate.replace(/-/g, "_")}.pdf`;
   link.click();
 }
+

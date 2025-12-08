@@ -60,6 +60,8 @@ export default function CollectionsPage() {
     refetchAll,
     search,
     setSearch,
+    dailyDate,
+    setDailyDate,
   } = useCollections();
   const [tabValue, setTabValue] = useState(0);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -145,6 +147,11 @@ export default function CollectionsPage() {
     setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
+  const handleDateChange = (value: string) => {
+    if (!value) return;
+    setDailyDate(value);
+  };
+
   if (loading && dailyCollections.length === 0 && allCollections.length === 0) {
     return (
       <DashboardLayout>
@@ -210,6 +217,22 @@ export default function CollectionsPage() {
 
             {/* Right side - Controls */}
             <Box display="flex" alignItems="center" gap={2}>
+              {tabValue === 0 && (
+                <TextField
+                  size="small"
+                  type="date"
+                  label="Collection Date"
+                  value={dailyDate}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "white",
+                      borderRadius: 2,
+                    },
+                  }}
+                />
+              )}
               <TextField
                 size="small"
                 placeholder={

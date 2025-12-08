@@ -28,8 +28,8 @@ export class CollectionsController {
   }
 
   @Get('daily')
-  getTodayCollections() {
-    return this.collectionService.getTodayCollections();
+  getTodayCollections(@Query('date') date?: string) {
+    return this.collectionService.getTodayCollections(date);
   }
 
   @Get('grouped')

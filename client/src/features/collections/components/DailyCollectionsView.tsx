@@ -29,6 +29,7 @@ import {
   hasActiveLoan,
   hasLoanAmount,
 } from "../utils/memberStatus";
+import { withNetReleaseForDate } from "../utils/netRelease";
 
 interface DailyCollectionsViewProps {
   data: DailyCollectionGroup[];
@@ -64,10 +65,17 @@ export default function DailyCollectionsView({
                 group.centerId
               );
               // Attach today's collection to each member for convenience
-              const withCollections = members.map((m: any) => ({
-                ...m,
-                collection: group.collections.find((c) => c.memberId === m.id),
-              }));
+              const withCollections = members.map((m: any) =>
+                withNetReleaseForDate(
+                  {
+                    ...m,
+                    collection: group.collections.find(
+                      (c) => c.memberId === m.id
+                    ),
+                  } as MemberWithLoans,
+                  group.collectionDate
+                )
+              );
               return {
                 centerId: group.centerId,
                 members: withCollections as MemberWithLoans[],
@@ -170,7 +178,17 @@ export default function DailyCollectionsView({
     const totalReleased = data.reduce((sum, g) => {
       const members = getMembersFor(g.centerId);
       return (
-        sum + members.reduce((s, m) => s + (Number(m.netCashReleased) || 0), 0)
+        sum +
+        members.reduce(
+          (s, m) =>
+            s +
+            Number(
+              (m as any)?.netCashReleasedForDate ??
+                (m as any)?.netCashReleased ??
+                0
+            ),
+          0
+        )
       );
     }, 0);
     return { totalReceived, totalRemaining, totalReleased };
@@ -192,19 +210,21 @@ export default function DailyCollectionsView({
             );
 
             // Map the data to include collection information
-            const membersWithCollections = centerMembers.map((member: any) => ({
-              ...member,
-              collection: group.collections.find(
-                (c) => c.memberId === member.id
-              ),
-              // Ensure required fields for export
-              netCashReleased:
-                member.netCashReleased || member.collection?.netRelease || 0,
-              numberOfPayments:
-                member.numberOfPayments ||
-                member.collection?.numberOfPayments ||
-                0,
-            }));
+            const membersWithCollections = centerMembers.map((member: any) =>
+              withNetReleaseForDate(
+                {
+                  ...member,
+                  collection: group.collections.find(
+                    (c) => c.memberId === member.id
+                  ),
+                  numberOfPayments:
+                    member.numberOfPayments ||
+                    member.collection?.numberOfPayments ||
+                    0,
+                } as MemberWithLoans,
+                group.collectionDate
+              )
+            );
 
             const typedMembers = membersWithCollections as MemberWithLoans[];
             const exportableMembers = typedMembers.filter(

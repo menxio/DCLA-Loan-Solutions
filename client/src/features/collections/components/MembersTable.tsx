@@ -246,7 +246,13 @@ export function MembersTable({
                       variant="body2"
                       sx={{ fontWeight: 600, color: "#3b82f6" }}
                     >
-                      {formatCurrency(Number((member as any)?.netCashReleased || 0))}
+                      {formatCurrency(
+                        Number(
+                          (member as any)?.netCashReleasedForDate ??
+                            (member as any)?.netCashReleased ??
+                            0
+                        )
+                      )}
                     </Typography>
                   </TableCell>
 
