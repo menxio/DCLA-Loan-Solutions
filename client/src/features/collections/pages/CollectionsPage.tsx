@@ -60,8 +60,8 @@ export default function CollectionsPage() {
     refetchAll,
     search,
     setSearch,
-    dailyDate,
-    setDailyDate,
+    allDate,
+    setAllDate,
   } = useCollections();
   const [tabValue, setTabValue] = useState(0);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -149,7 +149,7 @@ export default function CollectionsPage() {
 
   const handleDateChange = (value: string) => {
     if (!value) return;
-    setDailyDate(value);
+    setAllDate(value);
   };
 
   if (loading && dailyCollections.length === 0 && allCollections.length === 0) {
@@ -217,12 +217,12 @@ export default function CollectionsPage() {
 
             {/* Right side - Controls */}
             <Box display="flex" alignItems="center" gap={2}>
-              {tabValue === 0 && (
+              {tabValue === 1 && (
                 <TextField
                   size="small"
                   type="date"
                   label="Collection Date"
-                  value={dailyDate}
+                  value={allDate}
                   onChange={(e) => handleDateChange(e.target.value)}
                   InputLabelProps={{ shrink: true }}
                   sx={{

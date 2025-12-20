@@ -251,7 +251,7 @@ export class CollectionsService {
     return dailyCollections;
   }
 
-  async getAllCollectionsGrouped() {
+  async getAllCollectionsGrouped(dateParam?: string) {
     const centers = await this.centerRepo.find();
     const centerMap = new Map(centers.map((center) => [center.id, center]));
 
@@ -269,7 +269,12 @@ export class CollectionsService {
       membersMap.get(memberCenterId)!.push(member);
     }
 
+    const targetDate = dateParam
+      ? this.formatDateString(this.resolveTargetDate(dateParam))
+      : null;
+
     const collections = await this.collectionRepo.find({
+      where: targetDate ? { collectionDate: targetDate } : {},
       relations: ['member'],
       order: { collectionDate: 'ASC', createdAt: 'ASC' },
     });
@@ -347,7 +352,7 @@ export class CollectionsService {
           centerId: center.id,
           centerName: center.name,
           collectionDay: center.collectionDay,
-          collectionDate: this.getNextCollectionDate(center.collectionDay),
+          collectionDate: targetDate ?? this.getNextCollectionDate(center.collectionDay),
           totalMembers: members.length,
           pendingCollections: members.length,
           totalAmount: 0,

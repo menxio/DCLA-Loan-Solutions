@@ -441,6 +441,28 @@ export class RepaymentsService implements OnModuleInit {
     }
   }
 
+  async getScheduleForLoan(loanId: string) {
+    const loan = await this.loanRepo.findOne({
+      where: { id: loanId },
+      relations: ['borrower', 'borrower.center'],
+    });
+    if (!loan) {
+      throw new NotFoundException('Loan not found');
+    }
+    const member = loan.borrower;
+    if (!member) {
+      throw new NotFoundException('Loan has no borrower');
+    }
+    const center = member.center ?? null;
+
+    await this.ensureLoanSchedule(loan, member, center);
+
+    return this.scheduleRepo.find({
+      where: { loanId },
+      order: { weekNumber: 'ASC', dueDate: 'ASC' },
+    });
+  }
+
   private async recordCollectionEntry(params: {
     memberId: string;
     centerId: string;

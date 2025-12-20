@@ -15,6 +15,7 @@ import {
   LoanRepaymentSchedule,
   LoanRepaymentStatus,
 } from '../repayments/entities/loan-repayment-schedule.entity';
+import { Savings } from '../savings/savings.entity';
 
 @Injectable()
 export class LoansService {
@@ -25,6 +26,8 @@ export class LoansService {
     private readonly memberRepository: Repository<Member>,
     @InjectRepository(Collection)
     private readonly collectionRepository: Repository<Collection>,
+    @InjectRepository(Savings)
+    private readonly savingsRepository: Repository<Savings>,
     @InjectRepository(LoanRepaymentSchedule)
     private readonly scheduleRepository: Repository<LoanRepaymentSchedule>,
   ) {}
@@ -230,7 +233,20 @@ export class LoansService {
       loan.status = 'paid';
     }
 
-    return this.loanRepository.save(loan);
+    const savedLoan = await this.loanRepository.save(loan);
+
+    // Record savings deduction as a savings withdrawal transaction entry
+    if (savingsUsed > 0) {
+      const savingsEntry = this.savingsRepository.create({
+        borrower: loan.borrower,
+        loan,
+        amount: -Math.abs(savingsUsed),
+        remarks: 'Applied to repayment',
+      });
+      await this.savingsRepository.save(savingsEntry);
+    }
+
+    return savedLoan;
   }
 
   async findAll(): Promise<Loan[]> {

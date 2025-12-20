@@ -33,8 +33,8 @@ export class CollectionsController {
   }
 
   @Get('grouped')
-  getAllCollectionsGrouped() {
-    return this.collectionService.getAllCollectionsGrouped();
+  getAllCollectionsGrouped(@Query('date') date?: string) {
+    return this.collectionService.getAllCollectionsGrouped(date);
   }
 
   @Get('date/:date')

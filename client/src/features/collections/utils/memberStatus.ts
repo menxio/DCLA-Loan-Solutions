@@ -37,7 +37,13 @@ const normalizeReferenceDate = (reference?: string | Date | null): Date => {
 const computePaymentInfo = (
   member: MemberWithLoans,
   reference: Date
-): { weeklyDue: number; shortfall: number; totalPaid: number; weeksCovered: number } => {
+): {
+  weeklyDue: number;
+  shortfall: number;
+  totalPaid: number;
+  weeksCovered: number;
+  expectedTotal: number;
+} => {
   const loans = Array.isArray(member.loans) ? member.loans : [];
   const activeLoans = loans.filter(
     (loan: any) => (loan?.status || "").toLowerCase() === "active"
@@ -91,6 +97,7 @@ const computePaymentInfo = (
     shortfall,
     totalPaid,
     weeksCovered,
+    expectedTotal,
   };
 };
 
@@ -152,6 +159,7 @@ export const evaluateMemberStatus = (
 ): MemberStatusResult => {
   const reference = normalizeReferenceDate(options.referenceDate);
   const paymentInfo = computePaymentInfo(member, reference);
+  const hasActive = hasActiveLoan(member);
   const collection =
     options.collection ?? ((member as any).collection as Collection | undefined);
   const received = deriveReceived(collection);
@@ -159,7 +167,15 @@ export const evaluateMemberStatus = (
 
   let label: StatusLabel = "UNPAID";
 
-  if (paymentInfo.weeklyDue <= EPSILON) {
+  // If we have an active loan but couldn't compute any expected due yet, default to UNPAID
+  if (
+    hasActive &&
+    paymentInfo.weeklyDue > EPSILON &&
+    paymentInfo.expectedTotal <= EPSILON &&
+    paymentInfo.totalPaid <= EPSILON
+  ) {
+    label = received > EPSILON ? "PARTIAL" : "UNPAID";
+  } else if (paymentInfo.weeklyDue <= EPSILON) {
     if (due > EPSILON) {
       if (received >= due - EPSILON) {
         label = "PAID";
@@ -172,7 +188,10 @@ export const evaluateMemberStatus = (
       label = "PAID";
     }
   } else if (paymentInfo.shortfall <= EPSILON) {
-    if (due > EPSILON && received > EPSILON && received < due - EPSILON) {
+    // Treat "no expected due yet and no payments received" as unpaid
+    if (paymentInfo.expectedTotal <= EPSILON && received <= EPSILON) {
+      label = hasActive ? "UNPAID" : "PAID";
+    } else if (due > EPSILON && received > EPSILON && received < due - EPSILON) {
       label = "PARTIAL";
     } else {
       label = "PAID";

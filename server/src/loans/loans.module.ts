@@ -6,9 +6,10 @@ import { Loan } from './loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Collection } from '../collections/entities/collection.entity';
 import { LoanRepaymentSchedule } from '../repayments/entities/loan-repayment-schedule.entity';
+import { Savings } from '../savings/savings.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Loan, Member, Collection, LoanRepaymentSchedule])],
+  imports: [TypeOrmModule.forFeature([Loan, Member, Collection, LoanRepaymentSchedule, Savings])],
   controllers: [LoansController],
   providers: [LoansService],
   exports: [LoansService],

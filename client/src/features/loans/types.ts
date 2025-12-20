@@ -110,3 +110,20 @@ export interface LoansResponse {
 export interface LoanStatsResponse {
   stats: LoanStats;
 }
+
+export type LoanRepaymentStatus = 'unpaid' | 'partial' | 'paid' | 'advance';
+
+export interface LoanRepaymentScheduleRow {
+  id: string;
+  loanId: string;
+  memberId: string | null;
+  centerId: string | null;
+  dueDate: string;
+  weekNumber: number;
+  amountDue: number;
+  amountPaid: number;
+  status: LoanRepaymentStatus;
+  advanceApplied: number;
+  createdAt?: string;
+  updatedAt?: string;
+}

@@ -194,9 +194,20 @@ export default function LoanModal({
     console.log("Generating PDF with:", memberData, loanData);
     console.log("Using loan creation date:", releaseDate.toLocaleDateString());
 
-    // Align schedule to the member center's collection day if available
-    const collectionDay = member.center?.collectionDay; // e.g., 'Friday'
-    await generateLoanPassbookPDF(memberData, loanData, false, collectionDay || undefined);
+    try {
+      const schedule = await LoansAPI.getRepaymentSchedule(activeLoan.id);
+      // Align schedule to the member center's collection day if available (fallback only)
+      const collectionDay = member.center?.collectionDay; // e.g., 'Friday'
+      await generateLoanPassbookPDF(
+        memberData,
+        loanData,
+        schedule,
+        false,
+        collectionDay || undefined
+      );
+    } catch (err) {
+      console.error("Failed to export passbook:", err);
+    }
   };
 
   const getStatusColor = (status: string) => {

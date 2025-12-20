@@ -1,4 +1,5 @@
 import { Document, Page, View, Text, StyleSheet, pdf } from '@react-pdf/renderer';
+import type { LoanRepaymentScheduleRow } from '@features/loans/types';
 
 interface Member {
   firstName: string;
@@ -64,15 +65,15 @@ const styles = StyleSheet.create({
 export const generateLoanPassbookPDF = async (
   member: Member,
   loan: Loan,
+  scheduleRows: LoanRepaymentScheduleRow[] = [],
   preview = false,
-  collectionDay?: number | string // 0-6 (Sun-Sat) or day name like 'Friday'
+  collectionDay?: number | string // fallback: 0-6 (Sun-Sat) or day name like 'Friday'
 ): Promise<string | void> => {
 
   const principal = Number(loan.principalAmount);
   const weeklyPayment = Number(loan.weeklyPaymentAmount);
   const savings = Number(loan.savings);
   const termWeeks = Number(loan.termWeek);
-  const weeksPaid = Number(loan.weeksPaid);
   const releaseDate = new Date(loan.createdAt);
 
   const fullName = `${member.lastName.toUpperCase()}, ${member.firstName.toUpperCase()} ${
@@ -93,34 +94,55 @@ export const generateLoanPassbookPDF = async (
   };
 
   const targetWeekday = resolveWeekday(collectionDay);
-  // First due date: next (or same) target weekday on/after release
-  const firstDueDate = new Date(releaseDate);
-  if (typeof targetWeekday === 'number') {
-    const current = releaseDate.getDay();
-    const delta = (targetWeekday - current + 7) % 7; // 0 means same day
-    firstDueDate.setDate(releaseDate.getDate() + delta + 7); // always next week's collection day
-  } else {
-    // No target weekday provided; first due is one week after release
-    firstDueDate.setDate(releaseDate.getDate() + 7);
-  }
+  const epsilon = 0.01;
+  const formatDueDate = (value: string | Date) =>
+    new Date(value).toLocaleDateString('en-PH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
 
-  const schedule = Array.from({ length: termWeeks }, (_, i) => {
-    const dueDate = new Date(firstDueDate);
-    dueDate.setDate(firstDueDate.getDate() + i * 7);
-    return {
-      week: i + 1,
-      date: dueDate.toLocaleDateString('en-PH', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
-      signature: '',
-      amount: `P ${weeklyPayment.toFixed(2)}`,
-      paid: i < weeksPaid,
-    };
-  });
+  const resolvedSchedule =
+    scheduleRows.length > 0
+      ? [...scheduleRows]
+          .sort((a, b) => a.weekNumber - b.weekNumber)
+          .map((row) => {
+            const amountDue = Number(row.amountDue ?? weeklyPayment);
+            const paidAmount =
+              Number(row.amountPaid ?? 0) + Number(row.advanceApplied ?? 0);
+            const paid =
+              (row.status &&
+                (row.status === 'paid' || row.status === 'advance')) ||
+              paidAmount >= amountDue - epsilon;
+            return {
+              week: row.weekNumber,
+              date: formatDueDate(row.dueDate),
+              signature: '',
+              amount: `P ${amountDue.toFixed(2)}`,
+              paid,
+            };
+          })
+      : Array.from({ length: termWeeks }, (_, i) => {
+          const firstDueDate = new Date(releaseDate);
+          if (typeof targetWeekday === 'number') {
+            const current = releaseDate.getDay();
+            const delta = (targetWeekday - current + 7) % 7;
+            firstDueDate.setDate(releaseDate.getDate() + delta);
+          } else {
+            firstDueDate.setDate(releaseDate.getDate());
+          }
+          const dueDate = new Date(firstDueDate);
+          dueDate.setDate(firstDueDate.getDate() + i * 7);
+          return {
+            week: i + 1,
+            date: formatDueDate(dueDate),
+            signature: '',
+            amount: `P ${weeklyPayment.toFixed(2)}`,
+            paid: false,
+          };
+        });
 
-  const ScheduleRow = ({ s }: { s: typeof schedule[number] }) => (
+  const ScheduleRow = ({ s }: { s: typeof resolvedSchedule[number] }) => (
     <View style={{ display: 'flex', flexDirection: 'row' }}>
       <Text style={[styles.cell, { width: 35 }]}>{s.week.toString()}</Text>
       <Text style={[styles.cell, { flexGrow: 1, width: 150 }]}>{s.date}</Text>
@@ -182,7 +204,7 @@ export const generateLoanPassbookPDF = async (
             <Text style={[styles.headerCell, { width: 160 }]}>BM/AO Signature</Text>
             <Text style={[styles.headerCell, { width: 90 }]}>Remarks</Text>
           </View>
-          {schedule.map((s) => (
+          {resolvedSchedule.map((s) => (
             <ScheduleRow key={s.week} s={s} />
           ))}
         </View>

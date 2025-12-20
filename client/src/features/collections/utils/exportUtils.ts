@@ -1,5 +1,5 @@
 import type { DailyCollectionGroup, MemberWithLoans } from "../types";
-import { hasLoanAmount } from "./memberStatus";
+import { hasLoanAmount, evaluateMemberStatus } from "./memberStatus";
 
 type MemberExportComputed = {
   paymentInfo: {
@@ -182,19 +182,42 @@ const buildGroupSheetData = (
 
   // Helpers to read values regardless of backend field names
   const getMemberReceived = (m: any): number => {
+    const candidates: number[] = [];
+
+    const computed =
+      m?.__computed?.collectionMetrics?.received ??
+      m?.__computed?.paymentInfo?.totalPaid;
+    if (computed !== undefined && computed !== null) {
+      candidates.push(Number(computed) || 0);
+    }
+
     const fromCollection =
       m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
-    if (fromCollection !== undefined) return Number(fromCollection) || 0;
+    if (fromCollection !== undefined && fromCollection !== null) {
+      candidates.push(Number(fromCollection) || 0);
+    }
+
     const activeLoan = (m?.loans || []).find(
-      (l: any) => l?.status === "active"
+      (l: any) => (l?.status || "").toLowerCase() === "active"
     );
-    const amountPaidRaw = activeLoan?.amountPaid;
-    if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
-    const weeksPaid = Number(activeLoan?.weeksPaid || 0);
-    const weekly = Number(
-      m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0
-    );
-    return weeksPaid * weekly;
+    if (activeLoan) {
+      const amountPaidRaw = activeLoan?.amountPaid;
+      if (amountPaidRaw !== undefined && amountPaidRaw !== null) {
+        candidates.push(Number(amountPaidRaw) || 0);
+      }
+      const weeksPaid = Number(
+        activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0
+      );
+      const weekly = Number(
+        m?.weeklyPaymentAmount ?? activeLoan?.weeklyPaymentAmount ?? 0
+      );
+      if (weekly) {
+        candidates.push(weeksPaid * weekly);
+      }
+    }
+
+    if (candidates.length === 0) return 0;
+    return Math.max(0, ...candidates.filter((n) => Number.isFinite(n)));
   };
   const getMemberWeeksPaid = (m: any): number => {
     const activeLoan = (m?.loans || []).find(
@@ -662,10 +685,13 @@ export const exportToExcel = async (
 
     const getMemberReceived = (member: MemberWithLoans): number => {
       const enriched = asExportable(member);
+      const candidates: number[] = [];
+
       const computedValue =
-        enriched.__computed?.collectionMetrics?.received ?? null;
+        enriched.__computed?.collectionMetrics?.received ??
+        enriched.__computed?.paymentInfo?.totalPaid;
       if (computedValue !== null && computedValue !== undefined) {
-        return Number(computedValue) || 0;
+        candidates.push(Number(computedValue) || 0);
       }
 
       const collection = enriched.collection as
@@ -674,10 +700,30 @@ export const exportToExcel = async (
       const fromCollection =
         collection?.amountReceived ?? collection?.paymentReceived;
       if (fromCollection !== undefined && fromCollection !== null) {
-        return Number(fromCollection) || 0;
+        candidates.push(Number(fromCollection) || 0);
       }
 
-      return 0;
+      const activeLoan = (enriched.loans || []).find(
+        (loan) => (loan as any)?.status === "active"
+      ) as any;
+      if (activeLoan) {
+        const amountPaidRaw = activeLoan?.amountPaid;
+        if (amountPaidRaw !== undefined && amountPaidRaw !== null) {
+          candidates.push(Number(amountPaidRaw) || 0);
+        }
+        const weeksPaid = Number(
+          activeLoan?.weeksPaid ?? enriched.collection?.numberOfPayments ?? 0
+        );
+        const weekly = Number(
+          enriched.weeklyPaymentAmount ?? activeLoan?.weeklyPaymentAmount ?? 0
+        );
+        if (weekly) {
+          candidates.push(weeksPaid * weekly);
+        }
+      }
+
+      if (candidates.length === 0) return 0;
+      return Math.max(0, ...candidates.filter((n) => Number.isFinite(n)));
     };
 
     const getMemberDue = (member: MemberWithLoans): number => {
@@ -722,19 +768,9 @@ export const exportToExcel = async (
       const label = enriched.__computed?.status?.label;
       if (label) return label;
 
-      const due = getMemberDue(member);
-      const received = getMemberReceived(member);
-      const epsilon = 0.01;
-      if (due <= epsilon) {
-        return received > epsilon ? "PAID" : "UNPAID";
-      }
-      if (received >= due - epsilon) {
-        return "PAID";
-      }
-      if (received > epsilon) {
-        return "PARTIAL";
-      }
-      return "UNPAID";
+      // Use the same status logic as the UI (evaluateMemberStatus)
+      const statusInfo = evaluateMemberStatus(member);
+      return statusInfo.label;
     };
 
     // Set column widths with better spacing
@@ -1158,19 +1194,42 @@ export const exportAllCollectionsToExcel = async (
     const { data, merges } = buildGroupSheetData(group, sorted);
     // Build per-center unpaid section to append to data before creating worksheet
     const getMemberReceived = (m: any): number => {
+      const candidates: number[] = [];
+
+      const computed =
+        m?.__computed?.collectionMetrics?.received ??
+        m?.__computed?.paymentInfo?.totalPaid;
+      if (computed !== undefined && computed !== null) {
+        candidates.push(Number(computed) || 0);
+      }
+
       const fromCollection =
         m?.collection?.amountReceived ?? m?.collection?.paymentReceived;
-      if (fromCollection !== undefined) return Number(fromCollection) || 0;
+      if (fromCollection !== undefined && fromCollection !== null) {
+        candidates.push(Number(fromCollection) || 0);
+      }
+
       const activeLoan = (m?.loans || []).find(
-        (l: any) => l?.status === "active"
+        (l: any) => (l?.status || "").toLowerCase() === "active"
       );
-      const amountPaidRaw = activeLoan?.amountPaid;
-      if (amountPaidRaw !== undefined) return Number(amountPaidRaw) || 0;
-      const weeksPaid = Number(activeLoan?.weeksPaid || 0);
-      const weekly = Number(
-        m?.weeklyPaymentAmount || activeLoan?.weeklyPaymentAmount || 0
-      );
-      return weeksPaid * weekly;
+      if (activeLoan) {
+        const amountPaidRaw = activeLoan?.amountPaid;
+        if (amountPaidRaw !== undefined && amountPaidRaw !== null) {
+          candidates.push(Number(amountPaidRaw) || 0);
+        }
+        const weeksPaid = Number(
+          activeLoan?.weeksPaid ?? m?.collection?.numberOfPayments ?? 0
+        );
+        const weekly = Number(
+          m?.weeklyPaymentAmount ?? activeLoan?.weeklyPaymentAmount ?? 0
+        );
+        if (weekly) {
+          candidates.push(weeksPaid * weekly);
+        }
+      }
+
+      if (candidates.length === 0) return 0;
+      return Math.max(0, ...candidates.filter((n) => Number.isFinite(n)));
     };
     const unpaidMembers = withLoanAmount.filter(
       (m: any) => (getMemberReceived(m) || 0) <= 0

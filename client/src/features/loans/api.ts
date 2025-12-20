@@ -3,6 +3,7 @@ import type {
   CreateLoanData,
   Loan,
   ReloanEligibility,
+  LoanRepaymentScheduleRow,
   UpdateLoanTermData,
 } from "./types";
 
@@ -43,6 +44,13 @@ export const LoansAPI = {
 
   checkEligibility: async (memberId: string): Promise<ReloanEligibility> => {
     const res = await api.get(`/loans/member/${memberId}/eligibility`);
+    return res.data;
+  },
+
+  getRepaymentSchedule: async (
+    loanId: string
+  ): Promise<LoanRepaymentScheduleRow[]> => {
+    const res = await api.get(`/repayments/loan/${loanId}/schedule`);
     return res.data;
   },
 };

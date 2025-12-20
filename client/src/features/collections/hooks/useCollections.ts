@@ -26,7 +26,8 @@ export function useCollections() {
 
   const [error, setError] = useState<string | null>(null);
 
-  const [dailyDate, setDailyDate] = useState<string>(() =>
+  const [dailyDate] = useState<string>(() => getLocalISODate(new Date()));
+  const [allDate, setAllDate] = useState<string>(() =>
     getLocalISODate(new Date())
   );
   const [search, setSearch] = useState("");
@@ -70,7 +71,7 @@ export function useCollections() {
     setLoading("all", true);
     try {
       setError(null);
-      const data = await collectionsService.getAllCollectionGroups();
+      const data = await collectionsService.getAllCollectionGroups(allDate);
       setAllCollections(data);
     } catch (err) {
       console.error("Error fetching all collections:", err);
@@ -78,7 +79,7 @@ export function useCollections() {
     } finally {
       setLoading("all", false);
     }
-  }, [setLoading]);
+  }, [allDate, setLoading]);
 
   useEffect(() => {
     fetchDailyCollections();
@@ -86,7 +87,7 @@ export function useCollections() {
 
   useEffect(() => {
     fetchAllCollections();
-  }, [fetchAllCollections]);
+  }, [fetchAllCollections, allDate]);
 
   const filteredDailyCollections = useMemo(() => {
     if (!validatedSearch) return dailyCollections;
@@ -140,8 +141,8 @@ export function useCollections() {
     totalAllCollectionItems,
     search,
     setSearch,
-    dailyDate,
-    setDailyDate,
+    allDate,
+    setAllDate,
     loading,
     error,
     updateCollection,
