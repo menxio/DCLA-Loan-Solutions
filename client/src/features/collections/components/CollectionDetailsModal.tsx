@@ -28,12 +28,7 @@ import {
 } from "@mui/icons-material";
 import { Search } from "@mui/icons-material";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type {
-  DailyCollectionGroup,
-  Collection,
-  Member,
-  CollectionScheduleEntry,
-} from "../types";
+import type { DailyCollectionGroup, Collection, Member } from "../types";
 import collectionsService from "../api";
 import { exportToExcel } from "../utils/exportUtils";
 import { exportCollectorPdf } from "../utils/exportCollectorPdf";
