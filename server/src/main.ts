@@ -1,8 +1,6 @@
   import { ValidationPipe } from '@nestjs/common';
   import { NestFactory } from '@nestjs/core';
   import { AppModule } from './app.module';
-  import { SeederModule } from './seeds/seeder.module';
-  import { UserSeeder } from './users/user.seeder';
   import helmet from 'helmet';
 
   async function bootstrap() {
@@ -33,11 +31,6 @@
         transform: true,
       }),
     );
-
-    if (process.env.RUN_SEED_ON_STARTUP === 'true') {
-      const userSeeder = app.select(SeederModule).get(UserSeeder, { strict: true });
-      await userSeeder.seed();
-    }
 
     app.setGlobalPrefix('api');
     await app.listen(process.env.PORT ?? 3000);

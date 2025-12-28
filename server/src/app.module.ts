@@ -7,7 +7,6 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { LoansModule } from './loans/loans.module';
 import { SavingsModule } from './savings/savings.module';
-import { SeederModule } from './seeds/seeder.module';
 import { CentersModule } from './centers/centers.module';
 import { MembersModule } from './members/members.module';
 import { CollectionsModule } from './collections/collections.module';
@@ -33,7 +32,6 @@ import { TransactionsModule } from './transactions/transactions.module';
     AuthModule,
     LoansModule,
     SavingsModule,
-    SeederModule,
     CentersModule,
     MembersModule,
     CollectionsModule,
