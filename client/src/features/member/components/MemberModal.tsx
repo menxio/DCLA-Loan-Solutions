@@ -13,10 +13,7 @@ import {
   IconButton,
   Box,
   Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
+  Autocomplete,
 } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -58,27 +55,64 @@ export default function MemberModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [centers, setCenters] = useState<Center[]>([]);
   const [loadingCenters, setLoadingCenters] = useState(false);
+  const [loadingMoreCenters, setLoadingMoreCenters] = useState(false);
+  const [centersPage, setCentersPage] = useState(1);
+  const [centersTotalPages, setCentersTotalPages] = useState(1);
+  const [centerInput, setCenterInput] = useState("");
+  const [centerQuery, setCenterQuery] = useState("");
+  const [selectedCenter, setSelectedCenter] = useState<Center | null>(null);
 
   const isEditing = Boolean(member);
 
-  // Load centers when modal opens
-  useEffect(() => {
-    if (open) {
-      const loadCenters = async () => {
-        try {
-          setLoadingCenters(true);
-          const centersData = await CentersAPI.getAll();
-          setCenters(Array.isArray(centersData) ? centersData : centersData.items ?? []);
-        } catch (error) {
-          console.error("Failed to load centers:", error);
-        } finally {
-          setLoadingCenters(false);
-        }
-      };
-
-      loadCenters();
+  const mergeCenters = (
+    existing: Center[],
+    items: Center[],
+    append: boolean,
+    selected: Center | null,
+  ) => {
+    const merged = append ? [...existing] : [];
+    items.forEach((center) => {
+      if (!merged.some((existing) => existing.id === center.id)) {
+        merged.push(center);
+      }
+    });
+    if (selected && !merged.some((existing) => existing.id === selected.id)) {
+      merged.unshift(selected);
     }
-  }, [open]);
+    return merged;
+  };
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const loadCenters = async (page: number, search: string, append = false) => {
+      try {
+        if (append) {
+          setLoadingMoreCenters(true);
+        } else {
+          setLoadingCenters(true);
+        }
+        const centersData = await CentersAPI.getAll({ page, limit: 20, search });
+        const items = Array.isArray(centersData) ? centersData : centersData.items ?? [];
+        const totalPages = Array.isArray(centersData) ? 1 : centersData.totalPages ?? 1;
+        setCentersTotalPages(totalPages);
+        setCenters((prev) => mergeCenters(prev, items, append, selectedCenter));
+      } catch (error) {
+        console.error("Failed to load centers:", error);
+      } finally {
+        setLoadingCenters(false);
+        setLoadingMoreCenters(false);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      setCentersPage(1);
+      loadCenters(1, centerQuery, false);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [open, centerQuery]);
 
   useEffect(() => {
     if (open) {
@@ -92,6 +126,8 @@ export default function MemberModal({
           birthDate: member.birthDate ? new Date(member.birthDate) : null,
           centerId: member.center?.id || "",
         });
+        setSelectedCenter(member.center ?? null);
+        setCenterInput(member.center?.name ?? "");
       } else {
         setFormData({
           firstName: "",
@@ -102,11 +138,18 @@ export default function MemberModal({
           birthDate: null,
           centerId: "",
         });
+        setSelectedCenter(null);
+        setCenterInput("");
       }
       setErrors({});
       setSubmitError(null);
     }
   }, [open, member]);
+
+  useEffect(() => {
+    if (!selectedCenter) return;
+    setCenters((prev) => mergeCenters(prev, [], true, selectedCenter));
+  }, [selectedCenter]);
 
   const handleInputChange =
     (field: keyof MemberFormData) =>
@@ -131,23 +174,52 @@ export default function MemberModal({
       }
     };
 
-  const handleSelectChange = (field: keyof MemberFormData) => (e: any) => {
-    const value = e.target.value;
-
+  const handleCenterChange = (_: React.SyntheticEvent, value: Center | null) => {
+    setSelectedCenter(value);
+    setCenterInput(value?.name ?? "");
     setFormData((prev) => ({
       ...prev,
-      [field]: value,
+      centerId: value?.id || "",
     }));
 
-    if (errors[field]) {
+    if (errors.centerId) {
       setErrors((prev) => ({
         ...prev,
-        [field]: undefined,
+        centerId: undefined,
       }));
     }
 
     if (submitError) {
       setSubmitError(null);
+    }
+  };
+
+  const handleCenterScroll = (event: React.UIEvent<HTMLUListElement>) => {
+    const listboxNode = event.currentTarget;
+    const nearBottom =
+      listboxNode.scrollTop + listboxNode.clientHeight >= listboxNode.scrollHeight - 32;
+
+    if (nearBottom && !loadingCenters && !loadingMoreCenters && centersPage < centersTotalPages) {
+      const nextPage = centersPage + 1;
+      setLoadingMoreCenters(true);
+      setCentersPage(nextPage);
+      CentersAPI.getAll({ page: nextPage, limit: 20, search: centerQuery })
+        .then((centersData) => {
+          const items = Array.isArray(centersData)
+            ? centersData
+            : centersData.items ?? [];
+          const totalPages = Array.isArray(centersData)
+            ? 1
+            : centersData.totalPages ?? 1;
+          setCentersTotalPages(totalPages);
+          setCenters((prev) => mergeCenters(prev, items, true, selectedCenter));
+        })
+        .catch((error) => {
+          console.error("Failed to load more centers:", error);
+        })
+        .finally(() => {
+          setLoadingMoreCenters(false);
+        });
     }
   };
 
@@ -285,31 +357,39 @@ export default function MemberModal({
               </LocalizationProvider>
             </Grid>
             <Grid item xs={12}>
-              <FormControl fullWidth disabled={loading || loadingCenters}>
-                <InputLabel>Center</InputLabel>
-                <Select
-                  value={formData.centerId || ""}
-                  onChange={handleSelectChange("centerId")}
-                  label="Center"
-                  error={Boolean(errors.centerId)}
-                  MenuProps={{
-                    PaperProps: {
-                      style: {
-                        maxHeight: 200,
-                      },
-                    },
-                  }}
-                >
-                  <MenuItem value="">
-                    <em>No center assigned</em>
-                  </MenuItem>
-                  {centers.map((center) => (
-                    <MenuItem key={center.id} value={center.id}>
-                      {center.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                options={centers}
+                value={selectedCenter}
+                loading={loadingCenters || loadingMoreCenters}
+                onChange={handleCenterChange}
+                inputValue={centerInput}
+                onInputChange={(_, value, reason) => {
+                  setCenterInput(value);
+                  if (reason === "input") {
+                    setCenterQuery(value);
+                  }
+                  if (reason === "clear") {
+                    setCenterQuery("");
+                  }
+                }}
+                filterOptions={(options) => options}
+                getOptionLabel={(option) => option.name || ""}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                noOptionsText={centerInput ? "No centers found" : "No centers available"}
+                ListboxProps={{
+                  onScroll: handleCenterScroll,
+                  style: { maxHeight: 240, overflow: "auto" },
+                }}
+                disabled={loading}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Center"
+                    error={Boolean(errors.centerId)}
+                    helperText={errors.centerId}
+                  />
+                )}
+              />
             </Grid>
           </Grid>
 
