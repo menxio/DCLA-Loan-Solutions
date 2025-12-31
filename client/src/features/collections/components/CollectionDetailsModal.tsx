@@ -410,10 +410,16 @@ export default function CollectionDetailsModal({
         };
       });
 
+      const totalAmountDueValue = exportReadyMembers.reduce((sum, member) => {
+        const metrics = member.__computed?.collectionMetrics;
+        return sum + Number(metrics?.due || 0);
+      }, 0);
+
       await exportCollectorPdf({
         centerName: collectionGroup.centerName,
         collectionDate: collectionGroup.collectionDate,
         rows: pdfRows,
+        totalAmountDue: currency(totalAmountDueValue),
       });
     } catch (error) {
       console.error("Collector PDF export failed:", error);

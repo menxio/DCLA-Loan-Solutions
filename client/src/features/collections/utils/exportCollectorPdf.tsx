@@ -46,6 +46,24 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: "#64748b",
   },
+  totalRow: {
+    marginTop: 8,
+    paddingTop: 6,
+    borderTop: "0.75pt solid #cbd5f5",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 6,
+  },
+  totalLabel: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#0f172a",
+  },
+  totalValue: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#1e3a8a",
+  },
 });
 
 const columnWidths = [
@@ -84,8 +102,9 @@ export async function exportCollectorPdf(params: {
   centerName: string;
   collectionDate: string;
   rows: CollectorRow[];
+  totalAmountDue?: string;
 }) {
-  const { centerName, collectionDate, rows } = params;
+  const { centerName, collectionDate, rows, totalAmountDue } = params;
 
   const tableHeader = [
     "No.",
@@ -164,6 +183,13 @@ export async function exportCollectorPdf(params: {
           ))}
         </View>
 
+        {totalAmountDue ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total Amount Due:</Text>
+            <Text style={styles.totalValue}>{totalAmountDue}</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.footer}>
           Prepared for collection monitoring • DCLA Loan Solutions
         </Text>
@@ -179,4 +205,3 @@ export async function exportCollectorPdf(params: {
     .toLowerCase()}_${collectionDate.replace(/-/g, "_")}.pdf`;
   link.click();
 }
-
