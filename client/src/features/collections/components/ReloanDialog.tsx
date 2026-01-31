@@ -141,6 +141,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
 
   const activeLoan = member.loans?.find((l) => l.status === "active")
   const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0
+  const existingSavings = Number((activeLoan as any)?.savings ?? 0)
 
   return (
     <Dialog
@@ -214,7 +215,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
 
         {/* Current Loan Information */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={4}>
             <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
               <CardContent>
                 <Typography
@@ -231,14 +232,36 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={4}>
             <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
               <CardContent>
-                <Typography variant="h6" sx={{ mb: 2, color: "#1e293b" }}>
+                <Typography
+                  variant="h6"
+                  sx={{ mb: 2, color: "#1e293b" }}
+                >
                   Payments Made
                 </Typography>
                 <Typography variant="h4" sx={{ fontWeight: 700, color: "#3b82f6" }}>
                   {weeksPaid} weeks
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={4}>
+            <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, color: "#1e293b" }}>
+                  Existing Savings
+                </Typography>
+                <Typography
+                  variant="h4"
+                  sx={{ fontWeight: 700, color: existingSavings > 0 ? "#0f766e" : "#6b7280" }}
+                >
+                  {formatCurrency(existingSavings)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  These savings stay with the member and are carried into the new loan automatically.
                 </Typography>
               </CardContent>
             </Card>

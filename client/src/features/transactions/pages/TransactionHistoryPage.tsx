@@ -276,7 +276,11 @@ export default function TransactionHistoryPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {transactions.map((transaction) => (
+                {transactions.map((transaction) => {
+                  const savingsAppliedToRepayment =
+                    transaction.type === "savings_withdrawal" &&
+                    (transaction.notes || "").toLowerCase().includes("applied to repayment");
+                  return (
                   <TableRow key={transaction.id} hover>
                     <TableCell>{formatDate(transaction.createdAt)}</TableCell>
                     <TableCell>
@@ -303,12 +307,18 @@ export default function TransactionHistoryPage() {
                     </TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>
                       {formatCurrency(transaction.amount)}
+                      {savingsAppliedToRepayment && (
+                        <Typography variant="body2" color="text.secondary">
+                          Used for repayment
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       {transaction.notes || "—"}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
                 {!loading && transactions.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} align="center">

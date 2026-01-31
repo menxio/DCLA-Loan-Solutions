@@ -10,13 +10,14 @@ import {
   Grid,
   Card,
   CardContent,
-  Alert,
   CircularProgress,
   Tooltip,
   Fade,
   Skeleton,
   TextField,
   InputAdornment,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import {
   Close,
@@ -25,6 +26,7 @@ import {
   People,
   Download,
   PictureAsPdf,
+  CheckCircle,
 } from "@mui/icons-material";
 import { Search } from "@mui/icons-material";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -107,6 +109,15 @@ export default function CollectionDetailsModal({
   const [selectedMember, setSelectedMember] = useState<MemberWithLoans | null>(
     null
   );
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    severity: "success" | "error";
+  }>({
+    open: false,
+    message: "",
+    severity: "success",
+  });
 
   const collectionByMemberId = useMemo(() => {
     const map = new Map<string, Collection>();
@@ -251,12 +262,22 @@ export default function CollectionDetailsModal({
   const handlePaymentSuccess = useCallback(async () => {
     await fetchCenterMembers();
     onDataChanged?.();
+    setToast({
+      open: true,
+      message: "Payment recorded successfully.",
+      severity: "success",
+    });
     handleClosePaymentDialog();
   }, [fetchCenterMembers, handleClosePaymentDialog, onDataChanged]);
 
   const handleReloanSuccess = useCallback(async () => {
     await fetchCenterMembers();
     onDataChanged?.();
+    setToast({
+      open: true,
+      message: "Reloan processed successfully.",
+      severity: "success",
+    });
     handleCloseReloanDialog();
   }, [fetchCenterMembers, handleCloseReloanDialog, onDataChanged]);
 
@@ -809,6 +830,22 @@ export default function CollectionDetailsModal({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3500}
+        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+          severity={toast.severity}
+          icon={<CheckCircle fontSize="small" />}
+          sx={{ width: "100%" }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
 
       <PaymentDialog
         open={paymentDialogOpen}
