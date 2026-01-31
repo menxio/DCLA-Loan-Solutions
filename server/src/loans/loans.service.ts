@@ -550,7 +550,11 @@ export class LoansService {
       return baseDate;
     }
     const currentIndex = baseDate.getUTCDay();
-    const delta = (targetIndex - currentIndex + 7) % 7;
+    let delta = (targetIndex - currentIndex + 7) % 7;
+    // If loan is created on the collection day, first due is the following week
+    if (delta === 0) {
+      delta = 7;
+    }
     return this.addDays(baseDate, delta);
   }
 

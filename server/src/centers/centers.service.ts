@@ -1,16 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Center } from './entities/center.entity';
 import { CreateCenterDto } from './dto/create-center.dto';
 import { UpdateCenterDto } from './dto/update-center.dto';
 import { FindCentersQueryDto } from './dto/find-centers-query.dto';
+import { Member } from '../members/entities/member.entity';
 
 @Injectable()
 export class CentersService {
   constructor(
     @InjectRepository(Center)
     private readonly centerRepository: Repository<Center>,
+    @InjectRepository(Member)
+    private readonly memberRepository: Repository<Member>,
   ) {}
 
   async create(createCenterDto: CreateCenterDto): Promise<Center> {
@@ -73,6 +76,16 @@ export class CentersService {
   }
 
   async remove(id: string): Promise<void> {
+    // Prevent deleting a center that still has members
+    const memberCount = await this.memberRepository.count({
+      where: { center: { id } },
+    });
+    if (memberCount > 0) {
+      throw new BadRequestException(
+        `Cannot delete center while ${memberCount} member(s) are assigned. Reassign or remove members first.`,
+      );
+    }
+
     const result = await this.centerRepository.delete(id);
     if (result.affected === 0)
       throw new NotFoundException(`Center #${id} not found`);

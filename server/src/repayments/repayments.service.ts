@@ -237,7 +237,11 @@ export class RepaymentsService implements OnModuleInit {
       return baseDate;
     }
     const currentIndex = baseDate.getUTCDay();
-    const delta = (targetIndex - currentIndex + 7) % 7;
+    let delta = (targetIndex - currentIndex + 7) % 7;
+    // If the loan is created on the collection day, push first due date to the next week
+    if (delta === 0) {
+      delta = 7;
+    }
     return this.addDays(baseDate, delta);
   }
 

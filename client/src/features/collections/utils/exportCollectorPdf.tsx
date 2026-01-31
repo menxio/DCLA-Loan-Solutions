@@ -164,7 +164,7 @@ export async function exportCollectorPdf(params: {
                 row.paymentsMade,
                 row.savings || "",
                 row.remainingBalance || "",
-                row.status,
+                ""
               ].map((value, colIndex) => (
                 <Text
                   key={`${rowIndex}-${colIndex}`}
