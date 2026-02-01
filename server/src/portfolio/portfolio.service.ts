@@ -40,40 +40,47 @@ export class PortfolioService {
   ) {}
 
   async getPortfolioData(): Promise<PortfolioSummary> {
-    // Get all centers
-    const centers = await this.centerRepo.find({
-      order: { name: 'ASC' },
-    });
+    // Fetch centers and their loans in bulk to avoid N+1 and ensure consistent aggregates
+    const centers = await this.centerRepo.find({ order: { name: 'ASC' } });
+
+    const loans = await this.loanRepo
+      .createQueryBuilder('loan')
+      .leftJoinAndSelect('loan.borrower', 'member')
+      .leftJoinAndSelect('member.center', 'center')
+      .getMany();
+
+    const loansByCenter = new Map<string, Loan[]>();
+    for (const loan of loans) {
+      const centerId = (loan as any)?.borrower?.center?.id;
+      if (!centerId) continue;
+      if (!loansByCenter.has(centerId)) loansByCenter.set(centerId, []);
+      loansByCenter.get(centerId)!.push(loan);
+    }
 
     const portfolioData: PortfolioData[] = [];
     let totalAmountDisbursed = 0;
     let totalOutstandingCollection = 0;
 
-    for (let i = 0; i < centers.length; i++) {
-      const center = centers[i];
-      
-      // Get all loans for this center
-      const loans = await this.loanRepo
-        .createQueryBuilder('loan')
-        .leftJoin('loan.borrower', 'member')
-        .leftJoin('member.center', 'center')
-        .where('center.id = :centerId', { centerId: center.id })
-        .getMany();
+    centers.forEach((center, idx) => {
+      const centerLoans = loansByCenter.get(center.id) ?? [];
+      const activeLoans = centerLoans.filter((l) => l.status === 'active');
 
-      // Calculate amount disbursed (sum of principal amounts for ACTIVE loans only)
-      const amountDisbursed = loans
-        .filter((loan) => loan.status === 'active')
-        .reduce((sum, loan) => sum + Number(loan.principalAmount), 0);
+      // Amount disbursed: use actual cash released if available, else principal
+      const amountDisbursed = activeLoans.reduce((sum, loan) => {
+        const netRelease = Number((loan as any).netCashReleased ?? 0);
+        const principal = Number(loan.principalAmount || 0);
+        const effective = Number.isFinite(netRelease) && netRelease > 0 ? netRelease : principal;
+        return sum + effective;
+      }, 0);
 
-      // Calculate outstanding collection (sum of balances for active loans)
-      const outstandingCollection = loans
-        .filter(loan => loan.status === 'active')
-        .reduce((sum, loan) => {
-          return sum + Number(loan.balance);
-        }, 0);
+      // Outstanding collection: sum of balances for active loans
+      const outstandingCollection = activeLoans.reduce(
+        (sum, loan) => sum + Number(loan.balance || 0),
+        0,
+      );
 
       portfolioData.push({
-        no: i + 1,
+        no: idx + 1,
         centerName: center.name,
         amountDisbursed,
         outstandingCollection,
@@ -81,7 +88,7 @@ export class PortfolioService {
 
       totalAmountDisbursed += amountDisbursed;
       totalOutstandingCollection += outstandingCollection;
-    }
+    });
 
     return {
       totalAmountDisbursed,
@@ -91,40 +98,43 @@ export class PortfolioService {
   }
 
   async getProjectedIncomeData(): Promise<ProjectedIncomeSummary> {
-    // Get all centers
-    const centers = await this.centerRepo.find({
-      order: { name: 'ASC' },
-    });
+    const centers = await this.centerRepo.find({ order: { name: 'ASC' } });
+
+    const loans = await this.loanRepo
+      .createQueryBuilder('loan')
+      .leftJoinAndSelect('loan.borrower', 'member')
+      .leftJoinAndSelect('member.center', 'center')
+      .where('loan.status = :status', { status: 'active' })
+      .getMany();
+
+    const loansByCenter = new Map<string, Loan[]>();
+    for (const loan of loans) {
+      const centerId = (loan as any)?.borrower?.center?.id;
+      if (!centerId) continue;
+      if (!loansByCenter.has(centerId)) loansByCenter.set(centerId, []);
+      loansByCenter.get(centerId)!.push(loan);
+    }
 
     const projectedIncomeData: ProjectedIncomeData[] = [];
     let totalOutstandingBalance = 0;
     let totalInterestIncome = 0;
 
-    for (let i = 0; i < centers.length; i++) {
-      const center = centers[i];
-      
-      // Get all active loans for this center
-      const loans = await this.loanRepo
-        .createQueryBuilder('loan')
-        .leftJoin('loan.borrower', 'member')
-        .leftJoin('member.center', 'center')
-        .where('center.id = :centerId', { centerId: center.id })
-        .andWhere('loan.status = :status', { status: 'active' })
-        .getMany();
+    centers.forEach((center, idx) => {
+      const activeLoans = loansByCenter.get(center.id) ?? [];
 
-      // Calculate outstanding balance (sum of balances for active loans)
-      const outstandingBalance = loans.reduce((sum, loan) => {
-        return sum + Number(loan.balance);
+      const outstandingBalance = activeLoans.reduce(
+        (sum, loan) => sum + Number(loan.balance || 0),
+        0,
+      );
+
+      // Use each loan's actual interestRate
+      const interestIncome = activeLoans.reduce((sum, loan) => {
+        const rate = Number(loan.interestRate || 0);
+        return sum + Number(loan.balance || 0) * rate;
       }, 0);
 
-      // Calculate projected interest income
-      // Interest income = (Outstanding Balance * Interest Rate) / 100
-      // For simplicity, we'll use a standard interest rate of 20% (0.2)
-      // You can modify this logic based on your business rules
-      const interestIncome = outstandingBalance * 0.2;
-
       projectedIncomeData.push({
-        no: i + 1,
+        no: idx + 1,
         centerName: center.name,
         outstandingBalance,
         interestIncome,
@@ -132,7 +142,7 @@ export class PortfolioService {
 
       totalOutstandingBalance += outstandingBalance;
       totalInterestIncome += interestIncome;
-    }
+    });
 
     return {
       totalOutstandingBalance,
