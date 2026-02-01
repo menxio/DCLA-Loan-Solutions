@@ -127,10 +127,11 @@ export class PortfolioService {
         0,
       );
 
-      // Use each loan's actual interestRate
+      // Use each loan's actual interestRate against principal to avoid double-counting interest
       const interestIncome = activeLoans.reduce((sum, loan) => {
         const rate = Number(loan.interestRate || 0);
-        return sum + Number(loan.balance || 0) * rate;
+        const principal = Number(loan.principalAmount || 0);
+        return sum + principal * rate;
       }, 0);
 
       projectedIncomeData.push({
