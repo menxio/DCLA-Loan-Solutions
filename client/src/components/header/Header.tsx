@@ -8,65 +8,93 @@ import {
   Menu,
   MenuItem,
   Box,
+  Button,
+  ListItemIcon,
+  Divider,
 } from "@mui/material";
-import { Menu as MenuIcon, AccountCircle, Logout } from "@mui/icons-material";
+import {
+  AccountCircle,
+  Logout,
+  Dashboard,
+  Groups,
+  Person4,
+  AccountBalance,
+  History,
+  KeyboardArrowDown,
+} from "@mui/icons-material";
 import { useState } from "react";
 import { useAuthStore } from "@features/auth/authStore";
 import { useNavigate } from "react-router-dom";
 
 interface HeaderProps {
-  onMenuClick: () => void;
   title?: string;
+  offsetLeft?: number;
 }
 
+const navItems = [
+  { label: "Dashboard", path: "/dashboard", icon: Dashboard },
+  { label: "Members", path: "/member-management", icon: Person4 },
+  { label: "Centers", path: "/centers", icon: Groups },
+  { label: "Collections", path: "/collections", icon: Groups },
+  { label: "Portfolio", path: "/portfolio", icon: AccountBalance },
+  { label: "Transactions", path: "/transactions", icon: History },
+];
+
 export default function Header({
-  onMenuClick,
   title = "DCLA Loan Solutions",
+  offsetLeft = 0,
 }: HeaderProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [navAnchorEl, setNavAnchorEl] = useState<null | HTMLElement>(null);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
+  const handleAccountMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleClose = () => {
+  const handleAccountClose = () => {
     setAnchorEl(null);
   };
 
   const handleLogout = () => {
     logout();
     navigate("/login");
-    handleClose();
+    handleAccountClose();
   };
+
+  const handleNavMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setNavAnchorEl(event.currentTarget);
+  };
+
+  const handleNavClose = () => {
+    setNavAnchorEl(null);
+  };
+
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    handleNavClose();
+  };
+
+  const userName = [user?.firstName, user?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
   return (
     <AppBar
       position="fixed"
       sx={{
+        left: { xs: 0, md: `${offsetLeft}px` },
+        width: { xs: "100%", md: `calc(100% - ${offsetLeft}px)` },
         zIndex: (theme) => theme.zIndex.drawer + 1,
         background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)",
         backdropFilter: "blur(10px)",
         borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+        transition: "width 0.3s ease-in-out, left 0.3s ease-in-out",
       }}
     >
       <Toolbar sx={{ minHeight: "70px !important" }}>
-        {/* <IconButton
-          color="inherit"
-          aria-label="open drawer"
-          onClick={onMenuClick}
-          edge="start"
-          sx={{
-            mr: 2,
-            "&:hover": {
-              backgroundColor: "rgba(255, 255, 255, 0.1)",
-            },
-          }}
-        >
-          <MenuIcon />
-        </IconButton> */}
-
         <Typography
           variant="h5"
           noWrap
@@ -84,23 +112,31 @@ export default function Header({
         </Typography>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography
-            variant="body2"
+          <Button
+            variant="outlined"
+            color="inherit"
+            onClick={handleNavMenu}
+            endIcon={<KeyboardArrowDown />}
             sx={{
-              display: { xs: "none", sm: "block" },
-              color: "rgba(255, 255, 255, 0.9)",
-              fontWeight: 500,
+              borderColor: "rgba(255, 255, 255, 0.4)",
+              color: "white",
+              textTransform: "none",
+              fontWeight: 600,
+              "&:hover": {
+                borderColor: "rgba(255, 255, 255, 0.7)",
+                backgroundColor: "rgba(255, 255, 255, 0.08)",
+              },
             }}
           >
-            {user?.email}
-          </Typography>
+            Menu
+          </Button>
 
           <IconButton
             size="large"
             aria-label="account of current user"
             aria-controls="menu-appbar"
             aria-haspopup="true"
-            onClick={handleMenu}
+            onClick={handleAccountMenu}
             sx={{
               "&:hover": {
                 backgroundColor: "rgba(255, 255, 255, 0.1)",
@@ -132,12 +168,47 @@ export default function Header({
               horizontal: "right",
             }}
             open={Boolean(anchorEl)}
-            onClose={handleClose}
+            onClose={handleAccountClose}
           >
+            <MenuItem disabled>
+              <ListItemIcon>
+                <AccountCircle fontSize="small" />
+              </ListItemIcon>
+              {userName || user?.email || "User"}
+            </MenuItem>
+            <Divider />
             <MenuItem onClick={handleLogout}>
               <Logout sx={{ mr: 1 }} />
               Logout
             </MenuItem>
+          </Menu>
+
+          <Menu
+            id="menu-nav"
+            anchorEl={navAnchorEl}
+            anchorOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
+            }}
+            keepMounted
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+            open={Boolean(navAnchorEl)}
+            onClose={handleNavClose}
+          >
+            {navItems.map((item) => (
+              <MenuItem
+                key={item.path}
+                onClick={() => handleNavigate(item.path)}
+              >
+                <ListItemIcon>
+                  <item.icon fontSize="small" />
+                </ListItemIcon>
+                {item.label}
+              </MenuItem>
+            ))}
           </Menu>
         </Box>
       </Toolbar>

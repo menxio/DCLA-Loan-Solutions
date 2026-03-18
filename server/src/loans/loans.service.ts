@@ -535,6 +535,22 @@ export class LoansService {
     return lookup[day.toLowerCase()] ?? -1;
   }
 
+  private nextCollectionDate(
+    fromDate: Date,
+    collectionDay: string,
+    skipIfSameWeek = false,
+  ): Date {
+    const base = this.normalizeDate(fromDate);
+    const targetIndex = this.getWeekdayIndex(collectionDay);
+    if (targetIndex < 0) return base;
+    const currentIndex = base.getUTCDay();
+    let delta = (targetIndex - currentIndex + 7) % 7;
+    if (delta === 0 && skipIfSameWeek) {
+      delta = 7;
+    }
+    return this.addDays(base, delta);
+  }
+
   private computeFirstDueDate(
     loan: Loan,
     member: Member,
@@ -556,6 +572,29 @@ export class LoansService {
       delta = 7;
     }
     return this.addDays(baseDate, delta);
+  }
+
+  private resolveScheduleStatus(
+    schedule: LoanRepaymentSchedule,
+    paymentDate: Date,
+  ): LoanRepaymentStatus {
+    const epsilon = 0.01;
+    const dueAmount = Number(schedule.amountDue || 0);
+    const paidAmount = Number(schedule.amountPaid || 0);
+
+    if (paidAmount >= dueAmount - epsilon) {
+      const dueDate = new Date(`${schedule.dueDate}T00:00:00Z`);
+      if (dueDate.getTime() > paymentDate.getTime()) {
+        return LoanRepaymentStatus.ADVANCE;
+      }
+      return LoanRepaymentStatus.PAID;
+    }
+
+    if (paidAmount > epsilon) {
+      return LoanRepaymentStatus.PARTIAL;
+    }
+
+    return LoanRepaymentStatus.UNPAID;
   }
 
   private async rebuildRepaymentSchedule(

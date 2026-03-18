@@ -68,14 +68,23 @@ export default function LoginPage() {
         password: formData.password,
       });
 
-      const { access_token } = res.data;
-      const decoded: any = JSON.parse(atob(access_token.split(".")[1]));
-
-      login(access_token, {
-        id: decoded.sub,
-        email: decoded.email,
-        role: decoded.role,
-      });
+      const { access_token, user } = res.data;
+      if (user) {
+        login(access_token, {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+        });
+      } else {
+        const decoded: any = JSON.parse(atob(access_token.split(".")[1]));
+        login(access_token, {
+          id: decoded.sub,
+          email: decoded.email,
+          role: decoded.role,
+        });
+      }
 
       navigate("/dashboard");
     } catch (err: any) {
