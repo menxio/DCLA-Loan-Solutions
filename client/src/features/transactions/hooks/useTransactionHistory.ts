@@ -102,7 +102,7 @@ export function useTransactionHistory(
   }, [buildQuery]);
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+     
     fetchData();
   }, [fetchData]);
 
@@ -138,6 +138,7 @@ export function useTransactionHistory(
       totalPages,
       filters,
       fetchData,
+      updateFilters,
     ]
   );
 }

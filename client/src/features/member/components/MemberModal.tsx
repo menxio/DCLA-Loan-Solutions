@@ -112,7 +112,7 @@ export default function MemberModal({
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [open, centerQuery]);
+  }, [open, centerQuery, selectedCenter]);
 
   useEffect(() => {
     if (open) {
@@ -151,15 +151,16 @@ export default function MemberModal({
     setCenters((prev) => mergeCenters(prev, [], true, selectedCenter));
   }, [selectedCenter]);
 
+  type MemberTextField = Exclude<keyof MemberFormData, "birthDate">;
+
   const handleInputChange =
-    (field: keyof MemberFormData) =>
+    (field: MemberTextField) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value =
-        field === "birthDate" ? new Date(e.target.value) : e.target.value;
+      const value = e.target.value;
 
       setFormData((prev) => ({
         ...prev,
-        [field]: value as any,
+        [field]: value,
       }));
 
       if (errors[field]) {
@@ -229,6 +230,7 @@ export default function MemberModal({
       await onSubmit(formData);
       onClose();
     } catch (err) {
+      console.error("Failed to submit member form:", err);
       setSubmitError("Failed to submit form. Please try again.");
     }
   };

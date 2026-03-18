@@ -21,7 +21,10 @@ const authApi = axios.create({
 // Add token to requests if available
 authApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("token");
-  if (token) (config.headers as any).Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 

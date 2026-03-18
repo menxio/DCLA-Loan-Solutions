@@ -18,6 +18,7 @@ import {
 } from "@mui/material";
 import { Savings } from "@mui/icons-material";
 import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import savingsService from "@features/savings/api";
 
 interface MemberLite {
@@ -30,6 +31,18 @@ interface SavingsSummary {
   activeLoanId: string | null;
   activeLoanSavings: number;
 }
+
+type SavingsSummaryResponse = {
+  activeLoanId?: string | null;
+  activeLoanSavings?: number;
+};
+
+type SavingsTransactionResponse = {
+  loan?: {
+    id?: string;
+    savings?: number;
+  };
+};
 
 interface SavingsDepositDialogProps {
   open: boolean;
@@ -88,17 +101,18 @@ export function SavingsDepositDialog({
 
     savingsService
       .getByMember(member.id)
-      .then((data) => {
+      .then((data: SavingsSummaryResponse) => {
         setSummary({
           activeLoanId: data?.activeLoanId ?? null,
           activeLoanSavings: Number(data?.activeLoanSavings ?? 0),
         });
       })
-      .catch((err: any) => {
-        const message =
-          err?.response?.data?.message ||
-          err?.message ||
-          "Unable to load savings information.";
+      .catch((err: unknown) => {
+        const message = axios.isAxiosError<{ message?: string | string[] }>(err)
+          ? err.response?.data?.message ?? err.message ?? "Unable to load savings information."
+          : err instanceof Error
+            ? err.message
+            : "Unable to load savings information.";
         setSummaryError(
           Array.isArray(message) ? (message[0] as string) : String(message)
         );
@@ -144,9 +158,9 @@ export function SavingsDepositDialog({
         amount: numericAmount,
       };
 
-      const response = isWithdraw
+      const response = (isWithdraw
         ? await savingsService.withdraw(payload)
-        : await savingsService.deposit(payload);
+        : await savingsService.deposit(payload)) as SavingsTransactionResponse;
 
       const updatedSavings =
         response?.loan?.savings ??
@@ -167,11 +181,14 @@ export function SavingsDepositDialog({
       );
       setAmount("");
       onSuccess();
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        `Unable to record savings ${isWithdraw ? "withdrawal" : "deposit"}. Please try again.`;
+    } catch (err: unknown) {
+      const message = axios.isAxiosError<{ message?: string | string[] }>(err)
+        ? err.response?.data?.message ??
+          err.message ??
+          `Unable to record savings ${isWithdraw ? "withdrawal" : "deposit"}. Please try again.`
+        : err instanceof Error
+          ? err.message
+          : `Unable to record savings ${isWithdraw ? "withdrawal" : "deposit"}. Please try again.`;
       setError(
         Array.isArray(message) ? (message[0] as string) : String(message)
       );

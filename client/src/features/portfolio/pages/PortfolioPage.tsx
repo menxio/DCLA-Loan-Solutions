@@ -14,8 +14,6 @@ import {
   Alert,
   CircularProgress,
   Grid,
-  Card,
-  CardContent,
   Tabs,
   Tab,
   TextField,
@@ -24,7 +22,7 @@ import {
   MenuItem,
   FormControl,
 } from "@mui/material"
-import { Download, TrendingUp, AccountBalance, Refresh, Search, BarChart, Assessment } from "@mui/icons-material"
+import { Download, TrendingUp, AccountBalance, Refresh, Search, BarChart } from "@mui/icons-material"
 import DashboardLayout from "@components/layout/PrivateLayout"
 import { usePortfolio } from "../hooks/usePortfolio"
 import { exportPortfolioToExcel } from "../utils/exportUtils"

@@ -17,13 +17,6 @@ import {
 } from "@mui/icons-material";
 import type { DailyCollectionGroup } from "../types";
 
-interface MemberWithLoans {
-  id: string;
-  overallAmount?: number;
-  totalBalance?: number;
-  totalSavings?: number;
-}
-
 interface ComputedStats {
   paidCount: number;
   partialCount: number;
@@ -34,7 +27,6 @@ interface ComputedStats {
 
 interface CollectionSummaryCardsProps {
   collectionGroup: DailyCollectionGroup;
-  members: MemberWithLoans[];
   computedStats: ComputedStats | null;
   formatCurrency: (amount: number) => string;
   totalsOverride?: {
@@ -47,7 +39,6 @@ interface CollectionSummaryCardsProps {
 
 export function CollectionSummaryCards({
   collectionGroup,
-  members,
   computedStats,
   formatCurrency,
   totalsOverride,

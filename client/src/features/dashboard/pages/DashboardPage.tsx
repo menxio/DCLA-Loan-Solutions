@@ -13,12 +13,9 @@ import {
 } from "@mui/material";
 import {
   TrendingUp,
-  AccountBalance,
   People,
-  Assessment,
   Groups,
   AttachMoney,
-  TrendingDown,
 } from "@mui/icons-material";
 import PrivateLayout from "@components/layout/PrivateLayout";
 import { useAuthStore } from "@features/auth/authStore";
@@ -107,7 +104,7 @@ function StatCard({ title, value, icon, color, trend }: StatCardProps) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  const { stats, loading, error, refetch } = useDashboardData();
+  const { stats, loading, error } = useDashboardData();
 
   const formatCurrency = (amount: number): string => {
     return `₱${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

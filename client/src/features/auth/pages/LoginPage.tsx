@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import { Visibility, VisibilityOff, Email, Lock } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import api from "@utils/api";
 import { useAuthStore } from "../authStore";
 
@@ -28,6 +29,14 @@ export default function LoginPage() {
 
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+
+  type JwtPayload = {
+    sub?: string;
+    email?: string;
+    role?: string;
+    firstName?: string;
+    lastName?: string;
+  };
 
   const handleInputChange =
     (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,17 +87,19 @@ export default function LoginPage() {
           role: user.role,
         });
       } else {
-        const decoded: any = JSON.parse(atob(access_token.split(".")[1]));
+        const decoded = JSON.parse(atob(access_token.split(".")[1])) as JwtPayload;
         login(access_token, {
-          id: decoded.sub,
-          email: decoded.email,
-          role: decoded.role,
+          id: decoded.sub ?? "",
+          email: decoded.email ?? "",
+          role: decoded.role ?? "user",
         });
       }
 
       navigate("/dashboard");
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "Invalid credentials";
+    } catch (err: unknown) {
+      const errorMessage = axios.isAxiosError<{ message?: string }>(err)
+        ? err.response?.data?.message ?? "Invalid credentials"
+        : "Invalid credentials";
       setError(errorMessage);
     } finally {
       setLoading(false);

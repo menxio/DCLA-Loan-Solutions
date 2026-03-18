@@ -25,9 +25,9 @@ import {
 import { History, Search } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import { useTransactionHistory } from "../hooks/useTransactionHistory";
-import type { TransactionHistoryItem } from "../types";
 import { useMemo } from "react";
 import type { SelectChangeEvent } from "@mui/material/Select";
+import type { TransactionFilterType } from "../types";
 
 const typeOptions = [
   { value: "all", label: "All Transactions" },
@@ -155,7 +155,9 @@ export default function TransactionHistoryPage() {
                   label="Type"
                   value={filters.type}
                   onChange={(event) =>
-                    updateFilters({ type: event.target.value as any })
+                    updateFilters({
+                      type: event.target.value as TransactionFilterType | "all",
+                    })
                   }
                 >
                   {typeOptions.map((option) => (

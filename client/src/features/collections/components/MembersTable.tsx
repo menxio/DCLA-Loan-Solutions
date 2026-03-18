@@ -14,54 +14,44 @@ import {
   alpha,
 } from "@mui/material";
 import { Payment, AccountBalance } from "@mui/icons-material";
+import type { MemberWithLoans } from "../types";
 
-interface Loan {
-  id: string;
-  status: string;
-  weeksPaid?: number;
-}
+type MemberLoan = MemberWithLoans["loans"][number] & {
+  principalAmount?: number;
+  totalAmount?: number;
+  weeklyPaymentAmount?: number;
+  termWeeks?: number;
+  balance?: number;
+  status?: string;
+};
 
-interface Collection {
-  paymentReceived: number;
-  amount: number;
-  netRelease?: number;
-  numberOfPayments?: number;
-}
-
-interface MemberWithLoans {
-  id: string;
-  firstName: string;
-  lastName: string;
-  contactNumber: string;
-  totalLoanAmount: number;
-  overallAmount: number;
-  totalTermWeeks: number;
-  weeklyPaymentAmount: number;
-  totalSavings: number;
-  totalBalance: number;
-  loans: Loan[];
-  collection?: Collection;
-}
+type MemberWithLoansRow = Omit<MemberWithLoans, "loans"> & {
+  loans: MemberLoan[];
+  netCashReleasedForDate?: number;
+  _forcePayoff?: boolean;
+};
 
 interface MembersTableProps {
-  members: any[];
-  getStatusColor: (member: any) => "default" | "success" | "warning" | "error";
-  getStatusLabel: (member: any) => string;
-  getCollectionMetrics: (member: any) => {
+  members: MemberWithLoansRow[];
+  getStatusColor: (
+    member: MemberWithLoansRow
+  ) => "default" | "success" | "warning" | "error";
+  getStatusLabel: (member: MemberWithLoansRow) => string;
+  getCollectionMetrics: (member: MemberWithLoansRow) => {
     received: number;
     due: number;
     weeklyDue?: number;
     weeksCovered?: number;
   };
-  getPaymentInfo: (member: any) => {
+  getPaymentInfo: (member: MemberWithLoansRow) => {
     weeklyDue: number;
     shortfall: number;
     totalPaid: number;
     weeksCovered: number;
   };
   formatCurrency: (amount: number) => string;
-  onOpenPaymentDialog: (member: any) => void;
-  onOpenReloanDialog: (member: any) => void;
+  onOpenPaymentDialog: (member: MemberWithLoansRow) => void;
+  onOpenReloanDialog: (member: MemberWithLoansRow) => void;
 }
 
 export function MembersTable({
@@ -138,8 +128,8 @@ export function MembersTable({
           <TableBody>
             {members.map((member, index) => {
               const activeLoan = member.loans?.find(
-                (l: any) => l.status === "active"
-              ) as any;
+                (l) => l.status === "active"
+              );
               const { received, due } = getCollectionMetrics(member);
               const paymentInfo = getPaymentInfo(member);
               const weeksPaid = paymentInfo.weeksCovered ?? 0;
@@ -148,7 +138,9 @@ export function MembersTable({
               const totalAmount = Number(activeLoan?.totalAmount ?? 0);
               const weekly =
                 due ||
-                Number(activeLoan?.weeklyPaymentAmount ?? member.weeklyPaymentAmount ?? 0);
+                Number(
+                  activeLoan?.weeklyPaymentAmount ?? member.weeklyPaymentAmount ?? 0
+                );
               const balance = Number(activeLoan?.balance ?? 0);
               const paymentColor =
                 due > 0
@@ -248,8 +240,8 @@ export function MembersTable({
                     >
                       {formatCurrency(
                         Number(
-                          (member as any)?.netCashReleasedForDate ??
-                            (member as any)?.netCashReleased ??
+                          member.netCashReleasedForDate ??
+                            member.netCashReleased ??
                             0
                         )
                       )}
@@ -295,7 +287,7 @@ export function MembersTable({
                   <TableCell>
                     <Chip
                       label={getStatusLabel(member)}
-                      color={getStatusColor(member) as any}
+                      color={getStatusColor(member)}
                       size="small"
                       sx={{ fontWeight: 600, minWidth: 80 }}
                     />
@@ -330,7 +322,7 @@ export function MembersTable({
                             onOpenReloanDialog({
                               ...member,
                               _forcePayoff: !hasActive || Number(balance) <= 0,
-                            } as any)
+                            })
                           }
                           sx={{
                             minWidth: 100,

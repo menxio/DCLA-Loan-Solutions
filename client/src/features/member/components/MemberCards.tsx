@@ -11,10 +11,8 @@ import {
   DialogActions,
   Button,
   Avatar,
-  Tooltip,
   IconButton,
   Grid,
-  Chip,
   Card,
   CardContent,
   Menu,
@@ -69,10 +67,6 @@ export default function MemberCards({
     element: null,
     member: null,
   });
-
-  const handleDeleteDialogOpen = (member: Member) => {
-    setDeleteDialog({ open: true, member });
-  };
 
   const handleDeleteConfirm = async () => {
     if (!deleteDialog.member) return;

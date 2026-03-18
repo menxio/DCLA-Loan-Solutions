@@ -17,28 +17,12 @@ import {
 import { Payment, AccountBalance, Savings } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import collectionsService from "../api";
+import type { MemberWithLoans } from "../types";
 
-interface Loan {
-  id: string;
-  status: string;
+type MemberLoan = MemberWithLoans["loans"][number] & {
   weeklyPaymentAmount?: number;
   savings?: number;
-}
-
-interface Collection {
-  amount: number;
-  paymentReceived: number;
-}
-
-interface MemberWithLoans {
-  id: string;
-  firstName: string;
-  lastName: string;
-  totalBalance: number;
-  weeklyPaymentAmount: number;
-  loans: Loan[];
-  collection?: Collection;
-}
+};
 
 interface PaymentDialogProps {
   open: boolean;
@@ -87,7 +71,9 @@ export function PaymentDialog({
         throw new Error("Payment amount must be a positive number or zero");
       }
 
-      const activeLoan = member.loans.find((l) => l.status === "active");
+      const activeLoan = member.loans.find(
+        (l) => l.status === "active"
+      ) as MemberLoan | undefined;
       if (!activeLoan) {
         throw new Error("No active loan found for member");
       }
@@ -144,7 +130,9 @@ export function PaymentDialog({
 
   if (!member) return null;
 
-  const activeLoan = member.loans.find((l) => l.status === "active");
+  const activeLoan = member.loans.find(
+    (l) => l.status === "active"
+  ) as MemberLoan | undefined;
   const weeklyPayment =
     activeLoan?.weeklyPaymentAmount || member.weeklyPaymentAmount || 0;
   const availableSavings = Number(activeLoan?.savings ?? 0);

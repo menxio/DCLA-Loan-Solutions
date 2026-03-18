@@ -2,7 +2,7 @@ import api from "@utils/api";
 import type { MemberFormData, MembersQuery, PaginatedMembers } from "./types";
 
 export const MembersAPI = {
-    getAll: async (query?: MembersQuery): Promise<PaginatedMembers | any> => {
+    getAll: async (query?: MembersQuery): Promise<PaginatedMembers> => {
         const res = await api.get("/members", { params: query });
         return res.data;
     },

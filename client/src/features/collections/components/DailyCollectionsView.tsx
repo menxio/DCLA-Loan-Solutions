@@ -5,7 +5,6 @@ import {
   Typography,
   Grid,
   Button,
-  Avatar,
   Alert,
   CircularProgress,
 } from "@mui/material";
@@ -23,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import CollectionStatsCard from "./CollectionStatsCard";
 import { exportAllCollectionsToExcel } from "../utils/exportUtils";
 import collectionsService from "../api";
-import type { DailyCollectionGroup, MemberWithLoans } from "../types";
+import type { DailyCollectionGroup, MemberWithLoans, Collection } from "../types";
 import {
   evaluateMemberStatus,
   hasActiveLoan,
@@ -37,6 +36,10 @@ interface DailyCollectionsViewProps {
   loading?: boolean;
 }
 
+type MemberWithLoansExtended = MemberWithLoans & {
+  netCashReleasedForDate?: number;
+};
+
 export default function DailyCollectionsView({
   data,
   onViewDetails,
@@ -45,7 +48,7 @@ export default function DailyCollectionsView({
   const [exportingAll, setExportingAll] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [centerMembersMap, setCenterMembersMap] = useState<
-    Record<string, MemberWithLoans[]>
+    Record<string, MemberWithLoansExtended[]>
   >({});
   const [search, setSearch] = useState("");
 
@@ -65,7 +68,7 @@ export default function DailyCollectionsView({
                 group.centerId
               );
               // Attach today's collection to each member for convenience
-              const withCollections = members.map((m: any) =>
+              const withCollections = members.map((m) =>
                 withNetReleaseForDate(
                   {
                     ...m,
@@ -78,18 +81,18 @@ export default function DailyCollectionsView({
               );
               return {
                 centerId: group.centerId,
-                members: withCollections as MemberWithLoans[],
+                members: withCollections as MemberWithLoansExtended[],
               };
             } catch {
               return {
                 centerId: group.centerId,
-                members: [] as MemberWithLoans[],
+                members: [] as MemberWithLoansExtended[],
               };
             }
           })
         );
         if (!cancelled) {
-          const map: Record<string, MemberWithLoans[]> = {};
+          const map: Record<string, MemberWithLoansExtended[]> = {};
           results.forEach((r) => (map[r.centerId] = r.members));
           setCenterMembersMap(map);
         }
@@ -141,9 +144,11 @@ export default function DailyCollectionsView({
       return members.reduce(
         (acc, member) => {
           if (!hasActiveLoan(member)) return acc;
-          const collection = collectionMap.get(member.id) || null;
+          const collection = (collectionMap.get(member.id) || null) as
+            | Collection
+            | null;
           const status = evaluateMemberStatus(member, {
-            collection: collection as any,
+            collection,
             referenceDate: group.collectionDate,
           });
           if (status.label === "PAID") {
@@ -182,11 +187,7 @@ export default function DailyCollectionsView({
         members.reduce(
           (s, m) =>
             s +
-            Number(
-              (m as any)?.netCashReleasedForDate ??
-                (m as any)?.netCashReleased ??
-                0
-            ),
+            Number(m.netCashReleasedForDate ?? m.netCashReleased ?? 0),
           0
         )
       );
@@ -210,7 +211,7 @@ export default function DailyCollectionsView({
             );
 
             // Map the data to include collection information
-            const membersWithCollections = centerMembers.map((member: any) =>
+            const membersWithCollections = centerMembers.map((member) =>
               withNetReleaseForDate(
                 {
                   ...member,
@@ -226,7 +227,8 @@ export default function DailyCollectionsView({
               )
             );
 
-            const typedMembers = membersWithCollections as MemberWithLoans[];
+            const typedMembers =
+              membersWithCollections as MemberWithLoansExtended[];
             const exportableMembers = typedMembers.filter(
               (member) => hasActiveLoan(member) && hasLoanAmount(member)
             );
@@ -243,7 +245,7 @@ export default function DailyCollectionsView({
             // Return with empty members array to avoid breaking the export
             return {
               group,
-              members: [] as MemberWithLoans[],
+              members: [] as MemberWithLoansExtended[],
             };
           }
         })

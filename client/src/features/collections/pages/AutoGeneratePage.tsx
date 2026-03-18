@@ -43,6 +43,7 @@ export default function AutoGeneratePage() {
       setCenterId("");
       setDate("");
     } catch (err) {
+      console.error("Failed to auto-generate collections:", err);
       setError("Failed to generate collections");
     } finally {
       setLoading(false);

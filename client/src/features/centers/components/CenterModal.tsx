@@ -120,6 +120,7 @@ export default function CenterModal({
       await onSubmit(formData);
       onClose();
     } catch (err) {
+      console.error("Failed to save center:", err);
       setSubmitError("Failed to save center. Please try again.");
     }
   };

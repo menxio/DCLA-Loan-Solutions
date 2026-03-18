@@ -46,7 +46,10 @@ export default function LoanForm({
   });
 
   const [calculation, setCalculation] = useState<LoanCalculation | null>(null);
-  const [errors, setErrors] = useState<Partial<LoanFormData>>({});
+  type LoanFormErrors = Partial<
+    Record<keyof LoanFormData, string>
+  >;
+  const [errors, setErrors] = useState<LoanFormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [serviceCharge, setServiceCharge] = useState<number>(0);
   const [useCustomDate, setUseCustomDate] = useState<boolean>(false);
@@ -76,8 +79,7 @@ export default function LoanForm({
           };
         }
 
-        const numeric =
-          rawValue === "" ? undefined : Number(rawValue);
+        const numeric = rawValue === "" ? undefined : Number(rawValue);
         const cleaned =
           numeric === undefined || Number.isNaN(numeric)
             ? undefined
@@ -88,29 +90,29 @@ export default function LoanForm({
         };
       });
 
-    if (errors[field]) {
-      setErrors((prev) => ({
-        ...prev,
-        [field]: undefined,
-      }));
-    }
+      if (errors[field]) {
+        setErrors((prev) => ({
+          ...prev,
+          [field]: undefined,
+        }));
+      }
 
-    if (submitError) {
-      setSubmitError(null);
-    }
+      if (submitError) {
+        setSubmitError(null);
+      }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
-    const newErrors: Partial<LoanFormData> = {};
+    const newErrors: LoanFormErrors = {};
     if (!formData.principalAmount || formData.principalAmount <= 0) {
-      (newErrors as any).principalAmount = "Principal amount must be greater than 0";
+      newErrors.principalAmount = "Principal amount must be greater than 0";
     }
     const savingsForValidation = Number(formData.savings || 0);
     if (isFirstLoan && savingsForValidation <= 0) {
-      (newErrors as any).savings =
+      newErrors.savings =
         "Savings contribution must be greater than 0 for first loan";
     }
 
@@ -128,6 +130,7 @@ export default function LoanForm({
         serviceCharge,
       });
     } catch (err) {
+      console.error("Failed to create loan:", err);
       setSubmitError("Failed to create loan. Please try again.");
     }
   };
@@ -202,9 +205,9 @@ export default function LoanForm({
               onChange={handleInputChange("savings")}
               
               inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
-              error={Boolean((errors as any).savings)}
-              helperText={(errors as any).savings}
-              onWheel={(e) => e.currentTarget.blur()} 
+              error={Boolean(errors.savings)}
+              helperText={errors.savings}
+              onWheel={(e) => e.currentTarget.blur()}
               disabled={loading}
               required={isFirstLoan}
               InputProps={{
@@ -220,8 +223,7 @@ export default function LoanForm({
               label="Service Charge (optional)"
               type="number"
               value={serviceCharge || ""}
-              onChange={(e) => setServiceCharge(Number((e as any).target.value))}
-              
+              onChange={(e) => setServiceCharge(Number(e.target.value || 0))}
               inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               disabled={loading}
               InputProps={{

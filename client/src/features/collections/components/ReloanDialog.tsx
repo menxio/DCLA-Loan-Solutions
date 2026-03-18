@@ -22,19 +22,16 @@ import {
 import { AccountBalance, Calculate, TrendingUp } from "@mui/icons-material"
 import { useState, useEffect, useMemo } from "react"
 import { loansClient } from "../api"
+import type { MemberWithLoans } from "../types"
+import type { ReloanEligibility } from "../../loans/types"
 
-interface Loan {
-  id: string
-  status: string
+type MemberLoan = MemberWithLoans["loans"][number] & {
   weeksPaid?: number
+  savings?: number
 }
 
-interface MemberWithLoans {
-  id: string
-  firstName: string
-  lastName: string
-  totalBalance: number
-  loans: Loan[]
+type ReloanEligibilityResponse = ReloanEligibility & {
+  message?: string
 }
 
 interface ReloanDialogProps {
@@ -53,7 +50,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
   const [savings, setSavings] = useState("")
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [eligibility, setEligibility] = useState<any>(null)
+  const [eligibility, setEligibility] = useState<ReloanEligibilityResponse | null>(null)
   const [loadingEligibility, setLoadingEligibility] = useState(false)
 
   // Reset form when dialog opens/closes
@@ -139,9 +136,11 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
 
   if (!member) return null
 
-  const activeLoan = member.loans?.find((l) => l.status === "active")
-  const weeksPaid = (activeLoan as any)?.weeksPaid ?? 0
-  const existingSavings = Number((activeLoan as any)?.savings ?? 0)
+  const activeLoan = member.loans?.find(
+    (l) => l.status === "active"
+  ) as MemberLoan | undefined
+  const weeksPaid = activeLoan?.weeksPaid ?? 0
+  const existingSavings = Number(activeLoan?.savings ?? 0)
 
   return (
     <Dialog

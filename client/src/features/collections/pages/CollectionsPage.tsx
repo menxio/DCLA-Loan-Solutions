@@ -13,11 +13,14 @@ import {
   CircularProgress,
   TextField,
   InputAdornment,
-  Grid,
-  Card,
-  CardContent,
 } from "@mui/material";
-import { Refresh, Assessment, Search, AccountBalance, TrendingUp, Groups } from "@mui/icons-material";
+import {
+  Refresh,
+  Assessment,
+  Search,
+  AccountBalance,
+  Groups,
+} from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import DailyCollectionsView from "../components/DailyCollectionsView";
 import CollectionDetailsModal from "../components/CollectionDetailsModal";
@@ -50,9 +53,6 @@ export default function CollectionsPage() {
   const {
     dailyCollections,
     allCollections,
-    totalDailyCenters,
-    totalAllCenters,
-    totalAllCollectionItems,
     loading,
     error,
     updateCollection,
@@ -125,6 +125,7 @@ export default function CollectionsPage() {
       await updateCollection(id, data);
       showSnackbar("Collection updated successfully!");
     } catch (err) {
+      console.error("Failed to update collection", err);
       showSnackbar("Failed to update collection. Please try again.", "error");
       throw err;
     }
@@ -139,6 +140,7 @@ export default function CollectionsPage() {
       }
       showSnackbar("Data refreshed successfully!");
     } catch (err) {
+      console.error("Failed to refresh collections", err);
       showSnackbar("Failed to refresh data. Please try again.", "error");
     }
   };
@@ -261,7 +263,7 @@ export default function CollectionsPage() {
               <Button
                 variant="contained"
                 startIcon={<Refresh />}
-                onClick={refetchDaily}
+                onClick={handleRefresh}
                 sx={{
                   background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   borderRadius: 2,
@@ -285,11 +287,7 @@ export default function CollectionsPage() {
         {/* Error Alert */}
         {error && (
           <Box px={3}>
-            <Alert
-              severity="error"
-              sx={{ mb: 3, borderRadius: 2 }}
-              onClose={() => {}}
-            >
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               {error}
             </Alert>
           </Box>
@@ -452,7 +450,9 @@ export default function CollectionsPage() {
             try {
               await refetchDaily();
               await refetchAll();
-            } catch {}
+            } catch (error) {
+              console.warn("Failed to refresh collections", error);
+            }
           }}
           onEditCollection={handleEditCollection}
         />

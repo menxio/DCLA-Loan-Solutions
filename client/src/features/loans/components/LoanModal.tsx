@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -25,7 +25,8 @@ import {
   Savings,
   Schedule,
 } from "@mui/icons-material";
-import type { Loan } from "../types";
+import axios from "axios";
+import type { Loan, LoanFormData } from "../types";
 import type { Member } from "@features/member/types";
 import { LoansAPI } from "../api";
 import LoanForm from "./LoanForm";
@@ -55,8 +56,27 @@ export default function LoanModal({
   const [termMessage, setTermMessage] = useState<string | null>(null);
   const [termError, setTermError] = useState<string | null>(null);
 
+  const loadLoans = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const memberLoans = await LoansAPI.getByMember(member.id);
+      // Sort by createdAt desc so newest first
+      const sorted = [...memberLoans].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setLoans(sorted);
+    } catch (err) {
+      setError("Failed to load loans");
+      console.error("Error loading loans:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [member.id]);
+
   // Get the active loan (should be only one)
-  const activeLoan = loans.find(loan => loan.status === 'active');
+  const activeLoan = loans.find((loan) => loan.status === "active");
   const hasActiveLoan = Boolean(activeLoan);
   const canEditTerm =
     hasActiveLoan && Number(activeLoan?.weeksPaid || 0) === 0;
@@ -67,7 +87,7 @@ export default function LoanModal({
       termValue
     );
     return calc.weeklyPaymentAmount;
-  }, [activeLoan?.principalAmount, termValue]);
+  }, [activeLoan, termValue]);
   const isSameTerm = activeLoan
     ? termValue === (activeLoan.termWeeks as 4 | 8 | 12)
     : true;
@@ -77,31 +97,13 @@ export default function LoanModal({
     if (open) {
       loadLoans();
     }
-  }, [open, member.id]);
+  }, [open, loadLoans]);
 
   useEffect(() => {
     if (activeLoan) {
       setTermValue(activeLoan.termWeeks as 4 | 8 | 12);
     }
-  }, [activeLoan?.termWeeks]);
-
-  const loadLoans = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const memberLoans = await LoansAPI.getByMember(member.id);
-      // Sort by createdAt desc so newest first
-      const sorted = [...memberLoans].sort(
-        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      setLoans(sorted);
-    } catch (err) {
-      setError("Failed to load loans");
-      console.error("Error loading loans:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [activeLoan]);
 
   const handleOpenTermDialog = () => {
     if (!activeLoan) return;
@@ -125,11 +127,12 @@ export default function LoanModal({
       setTermDialogOpen(false);
       setTermMessage("Term weeks updated successfully.");
       await loadLoans();
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Unable to update term weeks.";
+    } catch (err: unknown) {
+      const message = axios.isAxiosError<{ message?: string | string[] }>(err)
+        ? err.response?.data?.message ?? err.message ?? "Unable to update term weeks."
+        : err instanceof Error
+          ? err.message
+          : "Unable to update term weeks.";
       setTermError(
         Array.isArray(message) ? (message[0] as string) : String(message)
       );
@@ -140,9 +143,9 @@ export default function LoanModal({
 
   const handleCloseTermMessage = () => setTermMessage(null);
 
-  const handleCreateLoan = async (formData: any) => {
+  const handleCreateLoan = async (formData: LoanFormData) => {
+    setLoading(true);
     try {
-      setLoading(true);
       await LoansAPI.create({
         borrowerId: member.id,
         ...formData,
@@ -150,8 +153,6 @@ export default function LoanModal({
       await loadLoans(); // Reload loans
       setCreatingLoan(false);
       onLoanCreated?.();
-    } catch (err) {
-      throw err; // Let LoanForm handle the error
     } finally {
       setLoading(false);
     }
@@ -169,8 +170,8 @@ export default function LoanModal({
     if (!activeLoan) return;
 
     // Use loanCreatedDate if available, otherwise fall back to createdAt
-    const releaseDate = (activeLoan as any).loanCreatedDate 
-      ? new Date((activeLoan as any).loanCreatedDate)
+    const releaseDate = activeLoan.loanCreatedDate
+      ? new Date(activeLoan.loanCreatedDate)
       : new Date(activeLoan.createdAt);
 
     // Map activeLoan and member data to your PDF function's expected args
@@ -179,7 +180,7 @@ export default function LoanModal({
       lastName: member.lastName,
       middleName: member.middleName || '',
       contactNumber: member.contactNumber,
-      centerLeader: (member as any)?.center?.leader || '',
+      centerLeader: member.center?.leader || '',
     };
 
     const loanData = {
@@ -299,7 +300,7 @@ export default function LoanModal({
             loading={loading}
             isFirstLoan={loans.length === 0}
           />
-        ) : !hasActiveLoan ? (
+        ) : !activeLoan ? (
           // No active loan - show create loan option
           <Box>
             <Paper
@@ -345,7 +346,7 @@ export default function LoanModal({
               </Typography>
               <Chip
                 label={getStatusLabel(activeLoan!.status)}
-                color={getStatusColor(activeLoan!.status) as any}
+                color={getStatusColor(activeLoan!.status)}
                 size="small"
               />
             </Box>
@@ -366,8 +367,8 @@ export default function LoanModal({
                   Loan #{activeLoan!.id.slice(0, 8)}...
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Loan Created: {(activeLoan as any).loanCreatedDate 
-                    ? new Date((activeLoan as any).loanCreatedDate).toLocaleDateString()
+                  Loan Created: {activeLoan.loanCreatedDate
+                    ? new Date(activeLoan.loanCreatedDate).toLocaleDateString()
                     : new Date(activeLoan!.createdAt).toLocaleDateString()}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
@@ -436,7 +437,7 @@ export default function LoanModal({
                   </Typography>
                 </Grid>
 
-                {typeof (activeLoan as any)?.netCashReleased !== "undefined" && (
+                {typeof activeLoan.netCashReleased !== "undefined" && (
                   <Grid item xs={12} sm={6} md={4}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                       <Savings sx={{ fontSize: 16, color: "#64748b" }} />
@@ -445,7 +446,7 @@ export default function LoanModal({
                       </Typography>
                     </Box>
                     <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                      {formatCurrency((activeLoan as any).netCashReleased || 0)}
+                      {formatCurrency(activeLoan.netCashReleased || 0)}
                     </Typography>
                   </Grid>
                 )}
@@ -497,14 +498,14 @@ export default function LoanModal({
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           {formatCurrency(loan.principalAmount)} • {loan.termWeeks} weeks • 
-                          {(loan as any).loanCreatedDate 
-                            ? new Date((loan as any).loanCreatedDate).toLocaleDateString()
+                          {loan.loanCreatedDate
+                            ? new Date(loan.loanCreatedDate).toLocaleDateString()
                             : new Date(loan.createdAt).toLocaleDateString()}
                         </Typography>
                       </Box>
                       <Chip
                         label={getStatusLabel(loan.status)}
-                        color={getStatusColor(loan.status) as any}
+                        color={getStatusColor(loan.status)}
                         size="small"
                       />
                     </Box>

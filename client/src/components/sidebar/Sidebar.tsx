@@ -82,6 +82,12 @@ export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const toggleExpanded = (itemId: string) => {
+    setExpandedItems((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
   const handleItemClick = (item: SidebarItem) => {
     // if (item.children) {
     //   toggleExpanded(item.id);
@@ -94,6 +100,7 @@ export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {
     // }
 
     if (item.children) {
+      toggleExpanded(item.id);
       return;
     }
 
@@ -103,14 +110,6 @@ export default function Sidebar({ open, onClose, width = 240 }: SidebarProps) {
       onClose();
     }
   };
-
-  // const toggleExpanded = (itemId: string) => {
-  //   setExpandedItems((prev) =>
-  //     prev.includes(itemId)
-  //       ? prev.filter((id) => id !== itemId)
-  //       : [...prev, itemId]
-  //   );
-  // };
 
   const isItemActive = (path: string) => location.pathname === path;
 
