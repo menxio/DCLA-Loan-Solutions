@@ -1,5 +1,6 @@
 import axios from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
+import { useAuthStore } from "./authStore";
 import type {
   LoginCredentials,
   RegisterCredentials,
@@ -7,6 +8,7 @@ import type {
   ProfileUpdateData,
   PasswordChangeData,
 } from "./types";
+import type { User } from "../../types/auth";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
@@ -20,7 +22,7 @@ const authApi = axios.create({
 
 // Add token to requests if available
 authApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem("token");
+  const token = useAuthStore.getState().token;
   if (token) {
     config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${token}`;
@@ -42,8 +44,13 @@ export const authService = {
   },
 
   // Get user profile
-  getProfile: async () => {
+  getProfile: async (): Promise<User> => {
     const response = await authApi.get("/profile");
+    return response.data;
+  },
+
+  refresh: async (refreshToken: string): Promise<AuthResponse> => {
+    const response = await authApi.post("/refresh", { refreshToken });
     return response.data;
   },
 
@@ -60,9 +67,12 @@ export const authService = {
   },
 
   // Logout (client-side only)
-  logout: () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  logout: async () => {
+    try {
+      await authApi.post("/logout");
+    } finally {
+      useAuthStore.getState().logout();
+    }
   },
 };
 

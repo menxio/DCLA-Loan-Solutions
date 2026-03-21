@@ -7,10 +7,30 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
-      login: (token: string, user: User) => {
+      isInitialized: false,
+      setInitialized: (isInitialized: boolean) => {
+        set({ isInitialized });
+      },
+      setSession: (token: string, refreshToken: string, user: User) => {
         set({
           user,
+          token,
+          refreshToken,
+          isAuthenticated: true,
+          isInitialized: true,
+        });
+      },
+      setUser: (user: User) => {
+        set({
+          user,
+          isAuthenticated: true,
+          isInitialized: true,
+        });
+      },
+      setAccessToken: (token: string) => {
+        set({
           token,
           isAuthenticated: true,
         });
@@ -19,7 +39,9 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           token: null,
+          refreshToken: null,
           isAuthenticated: false,
+          isInitialized: true,
         });
       },
     }),

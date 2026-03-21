@@ -13,7 +13,9 @@ import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { FindMembersQueryDto } from './dto/find-members-query.dto';
+import { Roles } from '../auth/roles.decorator';
 
+@Roles('admin')
 @Controller('members')
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}

@@ -15,7 +15,7 @@ import {
 import { Visibility, VisibilityOff, Email, Lock } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import api from "@utils/api";
+import { authService } from "../api";
 import { useAuthStore } from "../authStore";
 
 export default function LoginPage() {
@@ -28,7 +28,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login);
+  const setSession = useAuthStore((state) => state.setSession);
 
   type JwtPayload = {
     sub?: string;
@@ -72,14 +72,14 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await api.post("/auth/login", {
+      const res = await authService.login({
         email: formData.email,
         password: formData.password,
       });
 
-      const { access_token, user } = res.data;
+      const { access_token, refresh_token, user } = res;
       if (user) {
-        login(access_token, {
+        setSession(access_token, refresh_token, {
           id: user.id,
           email: user.email,
           firstName: user.firstName,
@@ -88,7 +88,7 @@ export default function LoginPage() {
         });
       } else {
         const decoded = JSON.parse(atob(access_token.split(".")[1])) as JwtPayload;
-        login(access_token, {
+        setSession(access_token, refresh_token, {
           id: decoded.sub ?? "",
           email: decoded.email ?? "",
           role: decoded.role ?? "user",

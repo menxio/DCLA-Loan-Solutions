@@ -21,12 +21,26 @@ const TransactionHistoryPage = lazy(
 
 export default function AppRouter() {
   const token = useAuthStore((state) => state.token);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
+  const defaultAuthenticatedRoute = "/dashboard";
+
+  if (!isInitialized) {
+    return <FullScreenLoader />;
+  }
 
   return (
     <Suspense fallback={<FullScreenLoader />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" />} />
-        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/"
+          element={<Navigate to={token ? defaultAuthenticatedRoute : "/login"} />}
+        />
+        <Route
+          path="/login"
+          element={
+            token ? <Navigate to={defaultAuthenticatedRoute} replace /> : <LoginPage />
+          }
+        />
         <Route
           path="/dashboard"
           element={token ? <DashboardPage /> : <Navigate to="/login" />}

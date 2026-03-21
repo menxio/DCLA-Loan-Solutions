@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Role } from '../roles/role.entity';
 
 @Entity()
 export class User {
@@ -26,11 +29,15 @@ export class User {
   @Column()
   lastName: string;
 
-  @Column({ default: 'user' })
-  role: 'user' | 'admin';
+  @ManyToOne(() => Role, { eager: true, nullable: false })
+  @JoinColumn({ name: 'roleId' })
+  role: Role;
 
   @Column({ default: true })
   isActive: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  hashedRefreshToken: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

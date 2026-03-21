@@ -12,7 +12,9 @@ import { CentersService } from './centers.service';
 import { CreateCenterDto } from './dto/create-center.dto';
 import { UpdateCenterDto } from './dto/update-center.dto';
 import { FindCentersQueryDto } from './dto/find-centers-query.dto';
+import { Roles } from '../auth/roles.decorator';
 
+@Roles('admin')
 @Controller('centers')
 export class CentersController {
   constructor(private readonly centersService: CentersService) {}

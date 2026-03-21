@@ -14,7 +14,9 @@ import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { ReloanDto } from './dto/reloan.dto';
 import { UpdateLoanTermDto } from './dto/update-loan-term.dto';
+import { Roles } from '../auth/roles.decorator';
 
+@Roles('admin')
 @Controller('loans')
 export class LoansController {
   constructor(private readonly loansService: LoansService) {}

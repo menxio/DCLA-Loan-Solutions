@@ -9,7 +9,12 @@ export interface User {
 export interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
-  login: (token: string, user: User) => void;
+  isInitialized: boolean;
+  setInitialized: (isInitialized: boolean) => void;
+  setSession: (token: string, refreshToken: string, user: User) => void;
+  setUser: (user: User) => void;
+  setAccessToken: (token: string) => void;
   logout: () => void;
 }

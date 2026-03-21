@@ -12,7 +12,9 @@ import { CollectionsService } from './collections.service';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { UpdateCollectionDto } from './dto/update-collection.dto';
 import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
+import { Roles } from '../auth/roles.decorator';
 
+@Roles('admin')
 @Controller('collection')
 export class CollectionsController {
   constructor(private readonly collectionService: CollectionsService) {}

@@ -23,6 +23,7 @@ import {
   KeyboardArrowDown,
 } from "@mui/icons-material";
 import { useState } from "react";
+import { authService } from "@features/auth/api";
 import { useAuthStore } from "@features/auth/authStore";
 import { useNavigate } from "react-router-dom";
 
@@ -46,7 +47,7 @@ export default function Header({
 }: HeaderProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [navAnchorEl, setNavAnchorEl] = useState<null | HTMLElement>(null);
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const navigate = useNavigate();
 
   const handleAccountMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -57,8 +58,8 @@ export default function Header({
     setAnchorEl(null);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await authService.logout();
     navigate("/login");
     handleAccountClose();
   };

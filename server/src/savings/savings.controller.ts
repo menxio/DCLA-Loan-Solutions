@@ -2,7 +2,9 @@ import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { SavingsService } from './savings.service';
 import { DepositSavingsDto } from './dto/deposit-savings.dto';
 import { WithdrawSavingsDto } from './dto/withdraw-savings.dto';
+import { Roles } from '../auth/roles.decorator';
 
+@Roles('admin')
 @Controller('savings')
 export class SavingsController {
   constructor(private readonly savingsService: SavingsService) {}
