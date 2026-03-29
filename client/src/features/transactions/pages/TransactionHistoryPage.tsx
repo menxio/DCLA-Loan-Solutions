@@ -24,6 +24,7 @@ import {
 } from "@mui/material";
 import { History, Search } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import { useTransactionHistory } from "../hooks/useTransactionHistory";
 import { useMemo } from "react";
 import type { SelectChangeEvent } from "@mui/material/Select";
@@ -94,6 +95,19 @@ export default function TransactionHistoryPage() {
     setLimit(newLimit);
     setPage(1);
   };
+
+  if (loading && transactions.length === 0) {
+    return (
+      <DashboardLayout>
+        <PageLoadingSkeleton
+          showStats
+          statCount={4}
+          filterCount={4}
+          rowCount={8}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

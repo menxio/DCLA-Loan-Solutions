@@ -18,6 +18,7 @@ import {
   AttachMoney,
 } from "@mui/icons-material";
 import PrivateLayout from "@components/layout/PrivateLayout";
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import { useAuthStore } from "@features/auth/authStore";
 import { useDashboardData } from "../hooks/useDashboardData";
 
@@ -113,9 +114,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <PrivateLayout>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress sx={{ color: "#2563eb" }} />
-        </Box>
+        <PageLoadingSkeleton showStats statCount={4} filterCount={0} rowCount={4} />
       </PrivateLayout>
     );
   }

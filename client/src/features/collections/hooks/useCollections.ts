@@ -19,8 +19,8 @@ export function useCollections() {
   >([]);
 
   const [loadingMap, setLoadingMap] = useState<Record<LoadingKey, boolean>>({
-    daily: false,
-    all: false,
+    daily: true,
+    all: true,
     update: false,
   });
 
@@ -144,6 +144,8 @@ export function useCollections() {
     allDate,
     setAllDate,
     loading,
+    loadingDaily: loadingMap.daily,
+    loadingAll: loadingMap.all,
     error,
     updateCollection,
     refetchDaily: fetchDailyCollections,

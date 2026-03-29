@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { Add, Groups, Search } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import CenterModal from "../components/CenterModal";
 import CenterTable from "../components/CenterTable";
 import { useCenters } from "../hooks/useCenters";
@@ -93,6 +94,18 @@ export default function CentersPage() {
   const handleCloseSnackbar = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
   };
+
+  if (loading && centers.length === 0) {
+    return (
+      <DashboardLayout>
+        <PageLoadingSkeleton
+          showStats={false}
+          filterCount={3}
+          rowCount={limit}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

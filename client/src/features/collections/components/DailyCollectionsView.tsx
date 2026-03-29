@@ -7,6 +7,7 @@ import {
   Button,
   Alert,
   CircularProgress,
+  Skeleton,
 } from "@mui/material";
 import {
   CalendarToday,
@@ -50,6 +51,7 @@ export default function DailyCollectionsView({
   const [centerMembersMap, setCenterMembersMap] = useState<
     Record<string, MemberWithLoansExtended[]>
   >({});
+  const [membersLoading, setMembersLoading] = useState(false);
   const [search, setSearch] = useState("");
 
   const formatCurrency = (amount: number) => {
@@ -60,6 +62,10 @@ export default function DailyCollectionsView({
   useEffect(() => {
     let cancelled = false;
     const fetchAll = async () => {
+      if (!cancelled) {
+        setMembersLoading(true);
+        setCenterMembersMap({});
+      }
       try {
         const results = await Promise.all(
           data.map(async (group) => {
@@ -98,9 +104,18 @@ export default function DailyCollectionsView({
         }
       } catch {
         if (!cancelled) setCenterMembersMap({});
+      } finally {
+        if (!cancelled) {
+          setMembersLoading(false);
+        }
       }
     };
-    if (data.length > 0) fetchAll();
+    if (data.length > 0) {
+      fetchAll();
+    } else {
+      setCenterMembersMap({});
+      setMembersLoading(false);
+    }
     return () => {
       cancelled = true;
     };
@@ -315,6 +330,90 @@ export default function DailyCollectionsView({
           scheduled collections.
         </Typography>
       </Card>
+    );
+  }
+
+  if (membersLoading && Object.keys(centerMembersMap).length === 0) {
+    return (
+      <Box>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 3,
+            p: 3,
+            backgroundColor: "#f8fafc",
+            borderRadius: 2,
+            border: "1px solid #e2e8f0",
+            gap: 2,
+            flexWrap: "wrap",
+          }}
+        >
+          <Box sx={{ flex: 1, minWidth: 280 }}>
+            <Skeleton variant="text" width="40%" height={36} />
+            <Skeleton variant="text" width="30%" height={24} />
+            <Skeleton variant="rounded" width={320} height={40} sx={{ mt: 2 }} />
+            <Box sx={{ display: "flex", gap: 2, mt: 2, flexWrap: "wrap" }}>
+              <Skeleton variant="rounded" width={130} height={56} />
+              <Skeleton variant="rounded" width={130} height={56} />
+              <Skeleton variant="rounded" width={130} height={56} />
+            </Box>
+          </Box>
+          <Skeleton variant="rounded" width={190} height={44} />
+        </Box>
+
+        {Array.from({ length: Math.min(Math.max(data.length, 1), 3) }).map(
+          (_, index) => (
+            <Card
+              key={index}
+              sx={{
+                mb: 4,
+                border: "1px solid #e2e8f0",
+                overflow: "hidden",
+              }}
+            >
+              <Box
+                sx={{
+                  p: 3,
+                  backgroundColor: "#dbeafe",
+                }}
+              >
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={8}>
+                    <Skeleton variant="text" width="40%" height={36} />
+                    <Skeleton variant="text" width="32%" height={24} />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <Skeleton variant="text" width="70%" height={36} />
+                      <Skeleton variant="text" width="55%" height={24} />
+                      <Skeleton variant="text" width="55%" height={24} />
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Box>
+              <CardContent sx={{ p: 3 }}>
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  {Array.from({ length: 4 }).map((__, statIndex) => (
+                    <Grid item xs={6} md={3} key={statIndex}>
+                      <Skeleton variant="rounded" height={88} />
+                    </Grid>
+                  ))}
+                </Grid>
+                <Box sx={{ textAlign: "right" }}>
+                  <Skeleton
+                    variant="rounded"
+                    width={140}
+                    height={42}
+                    sx={{ ml: "auto" }}
+                  />
+                </Box>
+              </CardContent>
+            </Card>
+          )
+        )}
+      </Box>
     );
   }
 

@@ -1,4 +1,5 @@
 import axios from "axios";
+import api from "../../utils/api";
 import type {
   Collection,
   DailyCollectionGroup,
@@ -152,9 +153,7 @@ export const collectionsService = {
 
   // Get center members with loan information
   getCenterMembers: async (centerId: string): Promise<MemberWithLoans[]> => {
-    const response = await axios.get(
-      `${API_BASE_URL}/members/center/${centerId}`
-    );
+    const response = await api.get(`/members/center/${centerId}`);
     return response.data;
   },
 

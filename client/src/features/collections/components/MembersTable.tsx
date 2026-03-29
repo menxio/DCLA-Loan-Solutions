@@ -1,19 +1,22 @@
 import {
-  Box,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Chip,
-  Button,
-  Tooltip,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   alpha,
+  Box,
+  Button,
+  Chip,
+  Paper,
+  Tooltip,
+  Typography,
 } from "@mui/material";
-import { Payment, AccountBalance } from "@mui/icons-material";
+import {
+  AccountBalance,
+  KeyboardArrowDown,
+  KeyboardArrowRight,
+  Payment,
+} from "@mui/icons-material";
+import { useEffect, useState } from "react";
 import type { MemberWithLoans } from "../types";
 
 type MemberLoan = MemberWithLoans["loans"][number] & {
@@ -54,6 +57,28 @@ interface MembersTableProps {
   onOpenReloanDialog: (member: MemberWithLoansRow) => void;
 }
 
+const detailCardSx = {
+  p: 2,
+  borderRadius: 2,
+  backgroundColor: "#f8fafc",
+  border: "1px solid #e2e8f0",
+};
+
+const detailLabelSx = {
+  fontSize: "0.78rem",
+  fontWeight: 700,
+  letterSpacing: "0.04em",
+  color: "#64748b",
+  textTransform: "uppercase",
+  mb: 0.75,
+};
+
+const statusChipStyles: Record<string, { bg: string; color: string }> = {
+  PAID: { bg: "#dcfce7", color: "#15803d" },
+  PARTIAL: { bg: "#fef3c7", color: "#b45309" },
+  UNPAID: { bg: "#fee2e2", color: "#dc2626" },
+};
+
 export function MembersTable({
   members,
   getStatusColor,
@@ -64,20 +89,20 @@ export function MembersTable({
   onOpenPaymentDialog,
   onOpenReloanDialog,
 }: MembersTableProps) {
-  const tableHeaders = [
-    { label: "Client Name", minWidth: 180 },
-    { label: "Loan Amount", minWidth: 120 },
-    { label: "Overall Amount", minWidth: 130 },
-    { label: "Term Weeks", minWidth: 100 },
-    { label: "Weekly Payment", minWidth: 130 },
-    { label: "Payment Received", minWidth: 140 },
-    { label: "Net Cash Released", minWidth: 140 },
-    { label: "Payments Made", minWidth: 120 },
-    { label: "Savings", minWidth: 100 },
-    { label: "Remaining Balance", minWidth: 140 },
-    { label: "Status", minWidth: 100 },
-    { label: "Actions", minWidth: 180 },
-  ];
+  const [expandedId, setExpandedId] = useState<string | false>(false);
+
+  useEffect(() => {
+    if (!members.length) {
+      setExpandedId(false);
+      return;
+    }
+
+    setExpandedId((current) =>
+      current && members.some((member) => member.id === current)
+        ? current
+        : members[0].id
+    );
+  }, [members]);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -92,151 +117,324 @@ export function MembersTable({
           gap: 1,
         }}
       >
-        <AccountBalance sx={{ color: "#3b82f6" }} />
+        <AccountBalance sx={{ color: "#2563eb" }} />
         Member Collection Status & Management
       </Typography>
 
-      <TableContainer
-        component={Paper}
+      <Paper
+        elevation={0}
         sx={{
           borderRadius: 3,
-          border: "1px solid #e2e8f0",
-          maxHeight: 600,
-          overflow: "auto",
-          boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+          border: "1px solid #dbe4f0",
+          overflow: "hidden",
+          boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
         }}
       >
-        <Table stickyHeader>
-          <TableHead>
-            <TableRow>
-              {tableHeaders.map((header, index) => (
-                <TableCell
-                  key={index}
-                  sx={{
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    backgroundColor: "#f8fafc",
-                    minWidth: header.minWidth,
-                    borderBottom: "2px solid #e2e8f0",
-                  }}
-                >
-                  {header.label}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {members.map((member, index) => {
-              const activeLoan = member.loans?.find(
-                (l) => l.status === "active"
-              );
-              const { received, due } = getCollectionMetrics(member);
-              const paymentInfo = getPaymentInfo(member);
-              const weeksPaid = paymentInfo.weeksCovered ?? 0;
-              const hasActive = Boolean(activeLoan);
-              const principal = Number(activeLoan?.principalAmount ?? 0);
-              const totalAmount = Number(activeLoan?.totalAmount ?? 0);
-              const weekly =
-                due ||
-                Number(
-                  activeLoan?.weeklyPaymentAmount ?? member.weeklyPaymentAmount ?? 0
-                );
-              const balance = Number(activeLoan?.balance ?? 0);
-              const paymentColor =
-                due > 0
-                  ? received >= due
-                    ? "#10b981"
-                    : received > 0
-                      ? "#f59e0b"
-                      : "#6b7280"
-                  : received > 0
-                    ? "#f59e0b"
-                    : "#6b7280";
+        <Box
+          sx={{
+            display: { xs: "none", md: "grid" },
+            gridTemplateColumns: "48px minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) auto",
+            alignItems: "center",
+            px: 3,
+            py: 2.25,
+            backgroundColor: "#f8fafc",
+            borderBottom: "1px solid #dbe4f0",
+            color: "#475569",
+            fontWeight: 700,
+          }}
+        >
+          <Box />
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            Client Name
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            Loan Amount
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            Status
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 700, justifySelf: "end" }}
+          >
+            Actions
+          </Typography>
+        </Box>
 
-              return (
-                <TableRow
-                  key={member.id}
+        {members.map((member, index) => {
+          const activeLoan = member.loans?.find((loan) => loan.status === "active");
+          const { received, due } = getCollectionMetrics(member);
+          const paymentInfo = getPaymentInfo(member);
+          const weeksPaid = paymentInfo.weeksCovered ?? 0;
+          const hasActive = Boolean(activeLoan);
+          const principal = Number(activeLoan?.principalAmount ?? 0);
+          const totalAmount = Number(activeLoan?.totalAmount ?? 0);
+          const termWeeks = Number(activeLoan?.termWeeks ?? 0);
+          const weekly =
+            due ||
+            Number(
+              activeLoan?.weeklyPaymentAmount ?? member.weeklyPaymentAmount ?? 0
+            );
+          const balance = Number(activeLoan?.balance ?? 0);
+          const statusLabel = getStatusLabel(member);
+          const paymentColor =
+            due > 0
+              ? received >= due
+                ? "#10b981"
+                : received > 0
+                  ? "#f59e0b"
+                  : "#64748b"
+              : received > 0
+                ? "#f59e0b"
+                : "#64748b";
+          const summaryStatusStyle =
+            statusChipStyles[statusLabel] ?? statusChipStyles.UNPAID;
+          const isExpanded = expandedId === member.id;
+
+          return (
+            <Accordion
+              key={member.id}
+              expanded={isExpanded}
+              onChange={(_, expanded) =>
+                setExpandedId(expanded ? member.id : false)
+              }
+              disableGutters
+              elevation={0}
+              sx={{
+                backgroundColor: index % 2 === 0 ? "#ffffff" : "#fcfdff",
+                "&:before": { display: "none" },
+                borderBottom:
+                  index === members.length - 1 ? "none" : "1px solid #e2e8f0",
+              }}
+            >
+              <AccordionSummary
+                expandIcon={
+                  isExpanded ? (
+                    <KeyboardArrowDown sx={{ color: "#94a3b8" }} />
+                  ) : (
+                    <KeyboardArrowRight sx={{ color: "#94a3b8" }} />
+                  )
+                }
+                sx={{
+                  px: 3,
+                  py: 1.5,
+                  minHeight: 88,
+                  "& .MuiAccordionSummary-content": {
+                    m: 0,
+                  },
+                  "&:hover": {
+                    backgroundColor: alpha("#3b82f6", 0.03),
+                  },
+                }}
+              >
+                <Box
                   sx={{
-                    "&:hover": {
-                      backgroundColor: alpha("#3b82f6", 0.04),
-                      transform: "scale(1.001)",
-                      transition: "all 0.2s ease-in-out",
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      md: "minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) auto",
                     },
-                    backgroundColor: index % 2 === 0 ? "#ffffff" : "#fafbfc",
-                    transition: "all 0.2s ease-in-out",
+                    gap: { xs: 1.5, md: 2 },
+                    alignItems: "center",
+                    width: "100%",
                   }}
                 >
-                  <TableCell>
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: "#1e293b" }}
-                      >
-                        {member.firstName} {member.lastName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {member.contactNumber}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-
-                  <TableCell>
+                  <Box>
                     <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, color: "#1e3a8a" }}
+                      variant="body1"
+                      sx={{ fontWeight: 700, color: "#1e293b" }}
+                    >
+                      {member.firstName} {member.lastName}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#64748b" }}>
+                      {member.contactNumber}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: { xs: "block", md: "none" },
+                        color: "#64748b",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                        mb: 0.5,
+                      }}
+                    >
+                      Loan Amount
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontWeight: 700, color: "#2563eb" }}
                     >
                       {formatCurrency(hasActive ? principal : 0)}
                     </Typography>
-                  </TableCell>
+                  </Box>
 
-                  <TableCell>
+                  <Box>
                     <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, color: "#8b5cf6" }}
+                      variant="caption"
+                      sx={{
+                        display: { xs: "block", md: "none" },
+                        color: "#64748b",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                        mb: 0.5,
+                      }}
+                    >
+                      Status
+                    </Typography>
+                    <Chip
+                      label={statusLabel}
+                      color={getStatusColor(member)}
+                      size="small"
+                      sx={{
+                        minWidth: 86,
+                        fontWeight: 700,
+                        backgroundColor: summaryStatusStyle.bg,
+                        color: summaryStatusStyle.color,
+                        "& .MuiChip-label": {
+                          px: 1.5,
+                        },
+                      }}
+                    />
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: { xs: "flex-start", md: "flex-end" },
+                      gap: 1,
+                      flexWrap: "wrap",
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <Tooltip title="Process Payment">
+                      <span>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<Payment />}
+                          onClick={() => onOpenPaymentDialog(member)}
+                          disabled={!hasActive || balance <= 0}
+                          sx={{
+                            minWidth: 98,
+                            borderRadius: 2,
+                            fontWeight: 700,
+                            borderColor: "#bfdbfe",
+                            color: "#2563eb",
+                            "&:hover": {
+                              borderColor: "#93c5fd",
+                              backgroundColor: alpha("#3b82f6", 0.08),
+                            },
+                          }}
+                        >
+                          Payment
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Process Reloan">
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AccountBalance />}
+                        onClick={() =>
+                          onOpenReloanDialog({
+                            ...member,
+                            _forcePayoff: !hasActive || balance <= 0,
+                          })
+                        }
+                        sx={{
+                          minWidth: 98,
+                          borderRadius: 2,
+                          fontWeight: 700,
+                          borderColor: "#bfdbfe",
+                          color: "#2563eb",
+                          "&:hover": {
+                            borderColor: "#93c5fd",
+                            backgroundColor: alpha("#3b82f6", 0.08),
+                          },
+                        }}
+                      >
+                        Reloan
+                      </Button>
+                    </Tooltip>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+
+              <AccordionDetails
+                sx={{
+                  px: 3,
+                  pb: 3,
+                  pt: 0.5,
+                  borderTop: "1px solid #e2e8f0",
+                  background:
+                    "linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(255,255,255,1) 100%)",
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                      lg: "repeat(4, minmax(0, 1fr))",
+                    },
+                    gap: 2,
+                  }}
+                >
+                  <Box sx={detailCardSx}>
+                    <Typography sx={detailLabelSx}>Overall Amount</Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: "#8b5cf6" }}
                     >
                       {formatCurrency(hasActive ? totalAmount : 0)}
                     </Typography>
-                  </TableCell>
+                  </Box>
 
-                  <TableCell>
+                  <Box sx={detailCardSx}>
+                    <Typography sx={detailLabelSx}>Term Weeks</Typography>
                     <Chip
-                      label={`${Number(
-                        (hasActive ? activeLoan?.termWeeks : 0) || 0
-                      )}w`}
+                      label={`${termWeeks}w`}
                       size="small"
                       sx={{
                         backgroundColor: "#dbeafe",
-                        color: "#1e40af",
-                        fontWeight: 600,
+                        color: "#1d4ed8",
+                        fontWeight: 700,
                       }}
                     />
-                  </TableCell>
+                  </Box>
 
-                  <TableCell>
+                  <Box sx={detailCardSx}>
+                    <Typography sx={detailLabelSx}>Weekly Payment</Typography>
                     <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, color: "#059669" }}
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: "#059669" }}
                     >
                       {formatCurrency(hasActive ? weekly : 0)}
                     </Typography>
-                  </TableCell>
+                  </Box>
 
-                  <TableCell>
+                  <Box sx={detailCardSx}>
+                    <Typography sx={detailLabelSx}>Payment Received</Typography>
                     <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 600,
-                        color: paymentColor,
-                      }}
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: paymentColor }}
                     >
                       {formatCurrency(received)}
                     </Typography>
-                  </TableCell>
+                  </Box>
 
-                  <TableCell>
+                  <Box sx={detailCardSx}>
+                    <Typography sx={detailLabelSx}>Net Cash Released</Typography>
                     <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, color: "#3b82f6" }}
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: "#3b82f6" }}
                     >
                       {formatCurrency(
                         Number(
@@ -246,103 +444,49 @@ export function MembersTable({
                         )
                       )}
                     </Typography>
-                  </TableCell>
+                  </Box>
 
-                  <TableCell>
+                  <Box sx={detailCardSx}>
+                    <Typography sx={detailLabelSx}>Payments Made</Typography>
                     <Chip
                       label={weeksPaid}
                       size="small"
                       sx={{
                         backgroundColor: "#f3e8ff",
                         color: "#7c3aed",
-                        fontWeight: 600,
+                        fontWeight: 700,
                       }}
                     />
-                  </TableCell>
+                  </Box>
 
-                  <TableCell>
+                  <Box sx={detailCardSx}>
+                    <Typography sx={detailLabelSx}>Savings</Typography>
                     <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, color: "#f59e0b" }}
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: "#f59e0b" }}
                     >
                       {formatCurrency(Number(member.totalSavings || 0))}
                     </Typography>
-                  </TableCell>
+                  </Box>
 
-                  <TableCell>
+                  <Box sx={detailCardSx}>
+                    <Typography sx={detailLabelSx}>Remaining Balance</Typography>
                     <Typography
-                      variant="body2"
+                      variant="h6"
                       sx={{
-                        fontWeight: 600,
-                        color:
-                          Number(hasActive ? balance : 0) > 0
-                            ? "#ef4444"
-                            : "#10b981",
+                        fontWeight: 700,
+                        color: balance > 0 ? "#ef4444" : "#10b981",
                       }}
                     >
-                      {formatCurrency(Number(hasActive ? balance : 0))}
+                      {formatCurrency(hasActive ? balance : 0)}
                     </Typography>
-                  </TableCell>
-
-                  <TableCell>
-                    <Chip
-                      label={getStatusLabel(member)}
-                      color={getStatusColor(member)}
-                      size="small"
-                      sx={{ fontWeight: 600, minWidth: 80 }}
-                    />
-                  </TableCell>
-
-                  <TableCell>
-                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                      <Tooltip title="Process Payment">
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<Payment />}
-                          onClick={() => onOpenPaymentDialog(member)}
-                          disabled={!hasActive || Number(balance) <= 0}
-                          sx={{
-                            minWidth: 100,
-                            borderRadius: 2,
-                            "&:hover": {
-                              backgroundColor: alpha("#3b82f6", 0.1),
-                            },
-                          }}
-                        >
-                          Payment
-                        </Button>
-                      </Tooltip>
-                      <Tooltip title="Process Reloan">
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<AccountBalance />}
-                          onClick={() =>
-                            onOpenReloanDialog({
-                              ...member,
-                              _forcePayoff: !hasActive || Number(balance) <= 0,
-                            })
-                          }
-                          sx={{
-                            minWidth: 100,
-                            borderRadius: 2,
-                            "&:hover": {
-                              backgroundColor: alpha("#10b981", 0.1),
-                            },
-                          }}
-                        >
-                          Reloan
-                        </Button>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                  </Box>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          );
+        })}
+      </Paper>
     </Box>
   );
 }

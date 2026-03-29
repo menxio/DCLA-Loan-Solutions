@@ -41,7 +41,7 @@ export function useTransactionHistory(
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>(
     []
   );
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(initialLimit);

@@ -21,6 +21,7 @@ import type { Member, MemberFormData, MembersQuery } from "./types";
 import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
 import FullScreenLoader from "@components/common/FullScreenLoader";
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 
 const MemberModal = lazy(() => import("./components/MemberModal"));
 const LoanModal = lazy(() => import("@features/loans/components/LoanModal"));
@@ -177,6 +178,18 @@ export default function MembersPage() {
 
   // Use server-side filtered results directly
   const filteredMembers = members;
+
+  if (loading && filteredMembers.length === 0) {
+    return (
+      <DashboardLayout>
+        <PageLoadingSkeleton
+          showStats={false}
+          filterCount={3}
+          rowCount={limit}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
