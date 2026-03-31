@@ -70,7 +70,7 @@ export class AuthService {
       this.logger.debug(`Attempting to validate user with email: ${email}`);
       const user = await this.usersService.findByEmail(email);
 
-      if (!user) {
+      if (!user || !user.isActive) {
         this.logger.warn(`Validation failed: user with email ${email} not found`);
         return null;
       }
