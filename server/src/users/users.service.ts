@@ -157,7 +157,10 @@ export class UsersService {
 
   private sanitizeUser(user: User) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, hashedRefreshToken, ...safeUser } = user;
-    return safeUser;
+    const { password, hashedRefreshToken, role, ...safeUser } = user;
+    return {
+      ...safeUser,
+      role: role?.name,
+    };
   }
 }

@@ -21,6 +21,7 @@ import {
   AccountBalance,
   History,
   KeyboardArrowDown,
+  AdminPanelSettings,
 } from "@mui/icons-material";
 import { useState } from "react";
 import { authService } from "@features/auth/api";
@@ -49,6 +50,7 @@ export default function Header({
   const [navAnchorEl, setNavAnchorEl] = useState<null | HTMLElement>(null);
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const isAdmin = user?.role === "admin";
 
   const handleAccountMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -113,24 +115,26 @@ export default function Header({
         </Typography>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Button
-            variant="outlined"
-            color="inherit"
-            onClick={handleNavMenu}
-            endIcon={<KeyboardArrowDown />}
-            sx={{
-              borderColor: "rgba(255, 255, 255, 0.4)",
-              color: "white",
-              textTransform: "none",
-              fontWeight: 600,
-              "&:hover": {
-                borderColor: "rgba(255, 255, 255, 0.7)",
-                backgroundColor: "rgba(255, 255, 255, 0.08)",
-              },
-            }}
-          >
-            Menu
-          </Button>
+          {!isAdmin && (
+            <Button
+              variant="outlined"
+              color="inherit"
+              onClick={handleNavMenu}
+              endIcon={<KeyboardArrowDown />}
+              sx={{
+                borderColor: "rgba(255, 255, 255, 0.4)",
+                color: "white",
+                textTransform: "none",
+                fontWeight: 600,
+                "&:hover": {
+                  borderColor: "rgba(255, 255, 255, 0.7)",
+                  backgroundColor: "rgba(255, 255, 255, 0.08)",
+                },
+              }}
+            >
+              Menu
+            </Button>
+          )}
 
           <IconButton
             size="large"
@@ -177,6 +181,22 @@ export default function Header({
               </ListItemIcon>
               {userName || user?.email || "User"}
             </MenuItem>
+            {isAdmin && (
+              <>
+                <Divider />
+                <MenuItem
+                  onClick={() => {
+                    navigate("/admin/users");
+                    handleAccountClose();
+                  }}
+                >
+                  <ListItemIcon>
+                    <AdminPanelSettings fontSize="small" />
+                  </ListItemIcon>
+                  User Management
+                </MenuItem>
+              </>
+            )}
             <Divider />
             <MenuItem onClick={handleLogout}>
               <Logout sx={{ mr: 1 }} />
@@ -184,33 +204,35 @@ export default function Header({
             </MenuItem>
           </Menu>
 
-          <Menu
-            id="menu-nav"
-            anchorEl={navAnchorEl}
-            anchorOrigin={{
-              vertical: "bottom",
-              horizontal: "right",
-            }}
-            keepMounted
-            transformOrigin={{
-              vertical: "top",
-              horizontal: "right",
-            }}
-            open={Boolean(navAnchorEl)}
-            onClose={handleNavClose}
-          >
-            {navItems.map((item) => (
-              <MenuItem
-                key={item.path}
-                onClick={() => handleNavigate(item.path)}
-              >
-                <ListItemIcon>
-                  <item.icon fontSize="small" />
-                </ListItemIcon>
-                {item.label}
-              </MenuItem>
-            ))}
-          </Menu>
+          {!isAdmin && (
+            <Menu
+              id="menu-nav"
+              anchorEl={navAnchorEl}
+              anchorOrigin={{
+                vertical: "bottom",
+                horizontal: "right",
+              }}
+              keepMounted
+              transformOrigin={{
+                vertical: "top",
+                horizontal: "right",
+              }}
+              open={Boolean(navAnchorEl)}
+              onClose={handleNavClose}
+            >
+              {navItems.map((item) => (
+                <MenuItem
+                  key={item.path}
+                  onClick={() => handleNavigate(item.path)}
+                >
+                  <ListItemIcon>
+                    <item.icon fontSize="small" />
+                  </ListItemIcon>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </Menu>
+          )}
         </Box>
       </Toolbar>
     </AppBar>
