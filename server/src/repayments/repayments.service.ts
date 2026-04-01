@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { Repayment } from './repayment.entity';
+import { Repayment, RepaymentStatus } from './repayment.entity';
 import { Loan } from '../loans/loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Center } from '../centers/entities/center.entity';
@@ -79,7 +79,7 @@ export class RepaymentsService implements OnModuleInit {
     collectionDate?: string;
     notes?: string;
     useSavings?: boolean;
-  }) {
+  }, actor?: { userId?: string; role?: string }) {
     const {
       loanId,
       memberId,
@@ -94,11 +94,12 @@ export class RepaymentsService implements OnModuleInit {
       throw new BadRequestException('Amount must be provided as a number');
     }
 
-    if (Number(amount) < 0) {
+    const numericAmount = Number(amount);
+    if (numericAmount < 0) {
       throw new BadRequestException('Amount must be >= 0');
     }
 
-    if (Number(amount) === 0 && !useSavings) {
+    if (numericAmount === 0 && !useSavings) {
       throw new BadRequestException(
         'Amount must be > 0 when not using savings to cover the payment',
       );
@@ -120,65 +121,29 @@ export class RepaymentsService implements OnModuleInit {
     if (!member) throw new NotFoundException('Member not found');
     if (!center) throw new NotFoundException('Center not found');
 
-    const previousAmountPaid = Number(loan.amountPaid ?? 0);
-
-    await this.loansService.applyRepayment(loanId, Number(amount), useSavings);
-
     const collectionDateString = this.normalizeCollectionDate(collectionDate);
-
-    const updatedLoan = await this.loanRepo.findOne({
-      where: { id: loanId },
-      relations: ['borrower', 'borrower.center'],
-    });
-
-    const targetLoan = updatedLoan ?? loan;
-    await this.ensureLoanSchedule(
-      targetLoan,
-      member,
-      center ?? member.center ?? null,
-    );
-
-    const cumulativeAmountPaid = Number(targetLoan.amountPaid) || 0;
-    const newlyAppliedAmount = cumulativeAmountPaid - previousAmountPaid;
+    const createdById = actor?.userId ?? null;
+    const shouldAutoApprove =
+      actor?.role === 'manager' || actor?.role === 'admin';
 
     const repayment = this.repaymentRepo.create({
-      loan: targetLoan,
+      loan,
       member,
       center,
-      amount,
+      amount: numericAmount,
       notes,
+      collectionDate: collectionDateString,
+      useSavings: Boolean(useSavings),
+      status: RepaymentStatus.PENDING,
+      createdById,
     });
     const savedRepayment = await this.repaymentRepo.save(repayment);
 
-    if (newlyAppliedAmount > 0) {
-      const cashPortion = Number(amount);
-      const savingsPortion = Math.max(0, newlyAppliedAmount - cashPortion);
-      await this.applyRepaymentToSchedule({
-        loan: targetLoan,
-        member,
-        center,
-        repayment: savedRepayment,
-        allocationAmount: newlyAppliedAmount,
-        cashPortion,
-        savingsPortion,
-        paymentDate: collectionDateString,
-      });
+    if (!shouldAutoApprove) {
+      return savedRepayment;
     }
 
-    await this.recordCollectionEntry({
-      memberId,
-      centerId,
-      collectionDate: collectionDateString,
-      weeklyAmount:
-        Number(targetLoan.weeklyPaymentAmount) ||
-        Number(loan.weeklyPaymentAmount) ||
-        0,
-      amountApplied: newlyAppliedAmount,
-      totalWeeksPaid: Number(targetLoan.weeksPaid) || 0,
-      notes,
-    });
-
-    return savedRepayment;
+    return this.approveRepayment(savedRepayment.id, createdById ?? undefined);
   }
 
   private parseDate(date: string): Date {
@@ -423,7 +388,7 @@ export class RepaymentsService implements OnModuleInit {
     await this.scheduleRepo.save(schedules);
 
     const repayments = await this.repaymentRepo.find({
-      where: { loan: { id: loan.id } },
+      where: { loan: { id: loan.id }, status: RepaymentStatus.APPROVED },
       relations: ['loan'],
       order: { createdAt: 'ASC' },
     });
@@ -443,6 +408,129 @@ export class RepaymentsService implements OnModuleInit {
         paymentDate,
       });
     }
+  }
+
+  async findPendingRepayments(): Promise<Repayment[]> {
+    return this.repaymentRepo.find({
+      where: { status: RepaymentStatus.PENDING },
+      relations: ['loan', 'member', 'center'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async approveRepayment(id: string, actorId?: string): Promise<Repayment> {
+    const repayment = await this.repaymentRepo.findOne({
+      where: { id },
+      relations: ['loan', 'member', 'center'],
+    });
+    if (!repayment) {
+      throw new NotFoundException('Repayment not found');
+    }
+
+    if (repayment.status !== RepaymentStatus.PENDING) {
+      throw new BadRequestException('Only pending repayments can be approved');
+    }
+
+    const loan = await this.loanRepo.findOne({
+      where: { id: repayment.loan?.id },
+      relations: ['borrower', 'borrower.center'],
+    });
+    if (!loan) {
+      throw new NotFoundException('Loan not found');
+    }
+
+    const member = repayment.member;
+    const center = repayment.center ?? member?.center ?? null;
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    const previousAmountPaid = Number(loan.amountPaid ?? 0);
+    await this.loansService.applyRepayment(
+      loan.id,
+      Number(repayment.amount),
+      Boolean(repayment.useSavings),
+    );
+
+    const updatedLoan = await this.loanRepo.findOne({
+      where: { id: loan.id },
+      relations: ['borrower', 'borrower.center'],
+    });
+    const targetLoan = updatedLoan ?? loan;
+
+    await this.ensureLoanSchedule(targetLoan, member, center);
+
+    const cumulativeAmountPaid = Number(targetLoan.amountPaid) || 0;
+    const newlyAppliedAmount = cumulativeAmountPaid - previousAmountPaid;
+
+    if (newlyAppliedAmount > 0) {
+      const cashPortion = Number(repayment.amount);
+      const savingsPortion = Math.max(0, newlyAppliedAmount - cashPortion);
+      await this.applyRepaymentToSchedule({
+        loan: targetLoan,
+        member,
+        center,
+        repayment,
+        allocationAmount: newlyAppliedAmount,
+        cashPortion,
+        savingsPortion,
+        paymentDate:
+          repayment.collectionDate ??
+          this.normalizeCollectionDate(repayment.createdAt.toISOString()),
+      });
+    }
+
+    const targetCenterId = center?.id ?? repayment.center?.id;
+    if (!targetCenterId) {
+      throw new NotFoundException('Center not found');
+    }
+
+    await this.recordCollectionEntry({
+      memberId: member.id,
+      centerId: targetCenterId,
+      collectionDate:
+        repayment.collectionDate ?? this.normalizeCollectionDate(),
+      weeklyAmount:
+        Number(targetLoan.weeklyPaymentAmount) ||
+        Number(loan.weeklyPaymentAmount) ||
+        0,
+      amountApplied: newlyAppliedAmount,
+      totalWeeksPaid: Number(targetLoan.weeksPaid) || 0,
+      notes: repayment.notes ?? undefined,
+    });
+
+    repayment.status = RepaymentStatus.APPROVED;
+    repayment.approvedById = actorId ?? null;
+    repayment.approvedAt = new Date();
+    repayment.rejectedById = null;
+    repayment.rejectedAt = null;
+    repayment.rejectedReason = null;
+    if (!repayment.collectionDate) {
+      repayment.collectionDate = this.normalizeCollectionDate();
+    }
+
+    return this.repaymentRepo.save(repayment);
+  }
+
+  async rejectRepayment(
+    id: string,
+    actorId?: string,
+    reason?: string,
+  ): Promise<Repayment> {
+    const repayment = await this.repaymentRepo.findOne({ where: { id } });
+    if (!repayment) {
+      throw new NotFoundException('Repayment not found');
+    }
+
+    if (repayment.status !== RepaymentStatus.PENDING) {
+      throw new BadRequestException('Only pending repayments can be rejected');
+    }
+
+    repayment.status = RepaymentStatus.REJECTED;
+    repayment.rejectedById = actorId ?? null;
+    repayment.rejectedAt = new Date();
+    repayment.rejectedReason = reason?.trim() || null;
+    return this.repaymentRepo.save(repayment);
   }
 
   async getScheduleForLoan(loanId: string) {

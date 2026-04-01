@@ -23,8 +23,8 @@ export class User {
   @Column()
   firstName: string;
 
-  @Column({ nullable: true })
-  middleName: string;
+  @Column({ type: 'varchar', nullable: true })
+  middleName: string | null;
 
   @Column()
   lastName: string;

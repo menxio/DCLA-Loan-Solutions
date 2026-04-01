@@ -13,6 +13,10 @@ import { ROLE, type RoleName } from '../auth/roles.constants';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 
+type SafeUser = Omit<User, 'password' | 'hashedRefreshToken' | 'role'> & {
+  role: string;
+};
+
 const ASSIGNABLE_ROLES: RoleName[] = [
   ROLE.LoanProcessor,
   ROLE.Cashier,
@@ -43,7 +47,7 @@ export class UsersService {
     await this.userRepo.update(id, { hashedRefreshToken });
   }
 
-  async findAll(): Promise<Array<Omit<User, 'password' | 'hashedRefreshToken'>>> {
+  async findAll(): Promise<SafeUser[]> {
     const users = await this.userRepo.find({
       order: { createdAt: 'DESC' },
     });
@@ -52,7 +56,7 @@ export class UsersService {
 
   async createUser(
     payload: CreateUserDto,
-  ): Promise<{ user: Omit<User, 'password' | 'hashedRefreshToken'>; tempPassword: string }> {
+  ): Promise<{ user: SafeUser; tempPassword: string }> {
     const existing = await this.findByEmail(payload.email);
     if (existing) {
       throw new ConflictException('Email is already in use');
@@ -155,12 +159,12 @@ export class UsersService {
     return password;
   }
 
-  private sanitizeUser(user: User) {
+  private sanitizeUser(user: User): SafeUser {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, hashedRefreshToken, role, ...safeUser } = user;
     return {
       ...safeUser,
-      role: role?.name,
+      role: role?.name ?? '',
     };
   }
 }
