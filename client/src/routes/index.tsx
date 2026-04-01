@@ -22,12 +22,16 @@ const TransactionHistoryPage = lazy(
 const UserManagementPage = lazy(
   () => import("@features/users/pages/UserManagementPage")
 );
+const RepaymentApprovalsPage = lazy(
+  () => import("@features/repayments/pages/RepaymentApprovalsPage")
+);
 
 export default function AppRouter() {
   const token = useAuthStore((state) => state.token);
   const role = useAuthStore((state) => state.user?.role);
   const isInitialized = useAuthStore((state) => state.isInitialized);
   const isAdmin = role === "admin";
+  const isManager = role === "manager";
   const defaultAuthenticatedRoute = isAdmin ? "/admin/users" : "/dashboard";
 
   if (!isInitialized) {
@@ -85,6 +89,18 @@ export default function AppRouter() {
           path="/admin/users"
           element={
             token ? (isAdmin ? <UserManagementPage /> : <ForbiddenPage />) : <Navigate to="/login" />
+          }
+        />
+        <Route
+          path="/approvals"
+          element={
+            token
+              ? isAdmin
+                ? <ForbiddenPage />
+                : isManager
+                  ? <RepaymentApprovalsPage />
+                  : <ForbiddenPage />
+              : <Navigate to="/login" />
           }
         />
       </Routes>

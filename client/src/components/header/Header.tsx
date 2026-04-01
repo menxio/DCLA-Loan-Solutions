@@ -22,6 +22,7 @@ import {
   History,
   KeyboardArrowDown,
   AdminPanelSettings,
+  FactCheck,
 } from "@mui/icons-material";
 import { useState } from "react";
 import { authService } from "@features/auth/api";
@@ -40,6 +41,12 @@ const navItems = [
   { label: "Collections", path: "/collections", icon: Groups },
   { label: "Portfolio", path: "/portfolio", icon: AccountBalance },
   { label: "Transactions", path: "/transactions", icon: History },
+  {
+    label: "Approvals",
+    path: "/approvals",
+    icon: FactCheck,
+    roles: ["manager"],
+  },
 ];
 
 export default function Header({
@@ -51,6 +58,10 @@ export default function Header({
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
+  const role = user?.role ?? "";
+  const visibleNavItems = navItems.filter(
+    (item) => !item.roles || item.roles.includes(role)
+  );
 
   const handleAccountMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -220,7 +231,7 @@ export default function Header({
               open={Boolean(navAnchorEl)}
               onClose={handleNavClose}
             >
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <MenuItem
                   key={item.path}
                   onClick={() => handleNavigate(item.path)}
