@@ -12,13 +12,14 @@ import { CollectionsService } from './collections.service';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { UpdateCollectionDto } from './dto/update-collection.dto';
 import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
+import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 
-@Roles('admin')
 @Controller('collection')
 export class CollectionsController {
   constructor(private readonly collectionService: CollectionsService) {}
 
+  @Roles(ROLE.Admin, ROLE.Manager)
   @Post()
   create(@Body() createCollectionDto: CreateCollectionDto) {
     return this.collectionService.create(createCollectionDto);
@@ -52,6 +53,7 @@ export class CollectionsController {
     return this.collectionService.getCenterCollectionsByDate(centerId, date);
   }
 
+  @Roles(ROLE.Admin, ROLE.Manager)
   @Post('auto-generate')
   autoGenerateCollections(@Body() body: { centerId: string; date: string }) {
     return this.collectionService.autoGenerateCollections(
@@ -60,6 +62,7 @@ export class CollectionsController {
     );
   }
 
+  @Roles(ROLE.Admin, ROLE.Manager)
   @Get('stats')
   getCollectionStats(
     @Query('startDate') startDate: string,
@@ -68,6 +71,7 @@ export class CollectionsController {
     return this.collectionService.getCollectionStats(startDate, endDate);
   }
 
+  @Roles(ROLE.Admin, ROLE.Manager, ROLE.Cashier)
   @Patch(':id/payment')
   updatePayment(
     @Param('id') id: string,
@@ -81,6 +85,7 @@ export class CollectionsController {
     return this.collectionService.findOne(id);
   }
 
+  @Roles(ROLE.Admin, ROLE.Manager)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -89,6 +94,7 @@ export class CollectionsController {
     return this.collectionService.update(id, updateCollectionDto);
   }
 
+  @Roles(ROLE.Admin, ROLE.Manager)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.collectionService.remove(id);

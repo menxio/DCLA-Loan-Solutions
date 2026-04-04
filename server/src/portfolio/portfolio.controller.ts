@@ -1,8 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { PortfolioService } from './portfolio.service';
+import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 
-@Roles('admin')
+@Roles(ROLE.Admin, ROLE.Manager)
 @Controller('portfolio')
 export class PortfolioController {
   constructor(private readonly portfolioService: PortfolioService) {}
