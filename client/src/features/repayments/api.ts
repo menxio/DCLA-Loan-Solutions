@@ -6,6 +6,15 @@ export const repaymentsService = {
     const response = await api.get("/repayments/pending");
     return response.data;
   },
+  requestReversal: async (
+    repaymentId: string,
+    reason?: string
+  ): Promise<Repayment> => {
+    const response = await api.post(`/repayments/${repaymentId}/reversal-request`, {
+      reason,
+    });
+    return response.data;
+  },
   approve: async (id: string): Promise<Repayment> => {
     const response = await api.post(`/repayments/${id}/approve`);
     return response.data;

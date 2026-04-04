@@ -20,34 +20,37 @@ import { Roles } from '../auth/roles.decorator';
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
+  @Roles(ROLE.LoanProcessor)
   @Post()
   create(@Body() createMemberDto: CreateMemberDto) {
     return this.membersService.create(createMemberDto);
   }
 
+  @Roles(ROLE.Manager, ROLE.LoanProcessor)
   @Get()
   findAll(@Query() query: FindMembersQueryDto) {
     return this.membersService.findAll(query);
   }
 
+  @Roles(ROLE.Manager, ROLE.LoanProcessor)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.membersService.findOne(id); // removed +id
   }
 
+  @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('center/:centerId')
   getCenterMembers(@Param('centerId') centerId: string) {
     return this.membersService.getCenterMembers(centerId);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
+  @Roles(ROLE.LoanProcessor)
   @Put(':id')
   update(@Param('id') id: string, @Body() updateMemberDto: UpdateMemberDto) {
     return this.membersService.update(id, updateMemberDto); // removed +id
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
+  @Roles(ROLE.LoanProcessor)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.membersService.remove(id); // removed +id

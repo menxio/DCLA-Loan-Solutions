@@ -19,29 +19,31 @@ import { Roles } from '../auth/roles.decorator';
 export class CentersController {
   constructor(private readonly centersService: CentersService) {}
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
+  @Roles(ROLE.LoanProcessor)
   @Post()
   create(@Body() createCenterDto: CreateCenterDto) {
     return this.centersService.create(createCenterDto);
   }
 
+  @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get()
   findAll(@Query() query: FindCentersQueryDto) {
     return this.centersService.findAll(query);
   }
 
+  @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.centersService.findOne(id);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
+  @Roles(ROLE.LoanProcessor)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateCenterDto: UpdateCenterDto) {
     return this.centersService.update(id, updateCenterDto);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
+  @Roles(ROLE.LoanProcessor)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.centersService.remove(id);

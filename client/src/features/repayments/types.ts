@@ -24,6 +24,8 @@ export interface Repayment {
   collectionDate?: string | null;
   useSavings?: boolean;
   status: RepaymentStatus;
+  operationType?: "payment" | "reversal";
+  relatedRepaymentId?: string | null;
   createdAt: string;
   member?: RepaymentMember;
   center?: RepaymentCenter;

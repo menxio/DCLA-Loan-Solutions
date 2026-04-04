@@ -3,12 +3,12 @@ import { Lock } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@features/auth/authStore";
 import DashboardLayout from "@components/layout/PrivateLayout";
+import { getDefaultRouteForRole } from "@features/auth/access";
 
 export default function ForbiddenPage() {
   const navigate = useNavigate();
   const role = useAuthStore((state) => state.user?.role);
-  const isAdmin = role === "admin";
-  const actionPath = isAdmin ? "/admin/users" : "/dashboard";
+  const actionPath = getDefaultRouteForRole(role);
 
   return (
     <DashboardLayout>

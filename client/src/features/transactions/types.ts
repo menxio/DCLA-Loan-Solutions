@@ -23,6 +23,7 @@ export interface TransactionHistoryItem {
   notes?: string | null;
   createdAt: string;
   source: "repayment" | "savings";
+  repaymentOperationType?: "payment" | "reversal" | null;
 }
 
 export interface TransactionHistoryResponse {

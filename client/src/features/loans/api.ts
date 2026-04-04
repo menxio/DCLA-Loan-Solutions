@@ -1,7 +1,11 @@
 import api from "@utils/api";
 import type {
+  ApplyLoanWaiverPayload,
+  ApplyLoanWaiverResponse,
   CreateLoanData,
   Loan,
+  LoanWaiver,
+  LoanWaiverCandidate,
   ReloanEligibility,
   LoanRepaymentScheduleRow,
   UpdateLoanTermData,
@@ -51,6 +55,24 @@ export const LoansAPI = {
     loanId: string
   ): Promise<LoanRepaymentScheduleRow[]> => {
     const res = await api.get(`/repayments/loan/${loanId}/schedule`);
+    return res.data;
+  },
+
+  getWaiverCandidates: async (): Promise<LoanWaiverCandidate[]> => {
+    const res = await api.get("/loans/waivers/candidates");
+    return res.data;
+  },
+
+  getLoanWaivers: async (loanId: string): Promise<LoanWaiver[]> => {
+    const res = await api.get(`/loans/${loanId}/waivers`);
+    return res.data;
+  },
+
+  applyWaiver: async (
+    loanId: string,
+    payload: ApplyLoanWaiverPayload
+  ): Promise<ApplyLoanWaiverResponse> => {
+    const res = await api.post(`/loans/${loanId}/waivers`, payload);
     return res.data;
   },
 };

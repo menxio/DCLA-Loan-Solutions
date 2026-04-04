@@ -23,11 +23,16 @@ import {
   KeyboardArrowDown,
   AdminPanelSettings,
   FactCheck,
+  MoneyOff,
 } from "@mui/icons-material";
 import { useState } from "react";
 import { authService } from "@features/auth/api";
 import { useAuthStore } from "@features/auth/authStore";
 import { useNavigate } from "react-router-dom";
+import {
+  canAccessPath,
+  getDefaultRouteForRole,
+} from "@features/auth/access";
 
 interface HeaderProps {
   title?: string;
@@ -41,12 +46,8 @@ const navItems = [
   { label: "Collections", path: "/collections", icon: Groups },
   { label: "Portfolio", path: "/portfolio", icon: AccountBalance },
   { label: "Transactions", path: "/transactions", icon: History },
-  {
-    label: "Approvals",
-    path: "/approvals",
-    icon: FactCheck,
-    roles: ["manager"],
-  },
+  { label: "Approvals", path: "/approvals", icon: FactCheck },
+  { label: "Waivers", path: "/waivers", icon: MoneyOff },
 ];
 
 export default function Header({
@@ -59,9 +60,8 @@ export default function Header({
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const role = user?.role ?? "";
-  const visibleNavItems = navItems.filter(
-    (item) => !item.roles || item.roles.includes(role)
-  );
+  const defaultRoute = getDefaultRouteForRole(role);
+  const visibleNavItems = navItems.filter((item) => canAccessPath(role, item.path));
 
   const handleAccountMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -242,6 +242,14 @@ export default function Header({
                   {item.label}
                 </MenuItem>
               ))}
+              {visibleNavItems.length === 0 && (
+                <MenuItem onClick={() => handleNavigate(defaultRoute)}>
+                  <ListItemIcon>
+                    <Dashboard fontSize="small" />
+                  </ListItemIcon>
+                  Home
+                </MenuItem>
+              )}
             </Menu>
           )}
         </Box>

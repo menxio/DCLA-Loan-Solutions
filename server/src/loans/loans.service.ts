@@ -11,11 +11,13 @@ import { Collection } from '../collections/entities/collection.entity';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { ReloanDto } from './dto/reloan.dto';
+import { ApplyLoanWaiverDto } from './dto/apply-loan-waiver.dto';
 import {
   LoanRepaymentSchedule,
   LoanRepaymentStatus,
 } from '../repayments/entities/loan-repayment-schedule.entity';
 import { Savings } from '../savings/savings.entity';
+import { LoanWaiver } from './entities/loan-waiver.entity';
 
 @Injectable()
 export class LoansService {
@@ -30,6 +32,8 @@ export class LoansService {
     private readonly savingsRepository: Repository<Savings>,
     @InjectRepository(LoanRepaymentSchedule)
     private readonly scheduleRepository: Repository<LoanRepaymentSchedule>,
+    @InjectRepository(LoanWaiver)
+    private readonly loanWaiverRepository: Repository<LoanWaiver>,
   ) {}
 
   // Business logic for interest rates
@@ -272,6 +276,135 @@ export class LoansService {
       throw new NotFoundException(`Loan #${id} not found`);
     }
     return loan;
+  }
+
+  private roundCurrency(value: number): number {
+    return Number(value.toFixed(2));
+  }
+
+  private getOutstandingWaiverBuckets(loan: Loan) {
+    const pastDueInterestOutstanding = Math.max(
+      0,
+      Number(loan.pastDueInterestAccrued || 0) -
+        Number(loan.pastDueInterestWaived || 0),
+    );
+    const penaltyOutstanding = Math.max(
+      0,
+      Number(loan.penaltyAccrued || 0) - Number(loan.penaltyWaived || 0),
+    );
+
+    return {
+      pastDueInterestOutstanding: this.roundCurrency(pastDueInterestOutstanding),
+      penaltyOutstanding: this.roundCurrency(penaltyOutstanding),
+      totalOutstanding: this.roundCurrency(
+        pastDueInterestOutstanding + penaltyOutstanding,
+      ),
+    };
+  }
+
+  async getWaiverCandidates() {
+    const loans = await this.loanRepository.find({
+      where: { status: 'active' },
+      relations: ['borrower'],
+      order: { updatedAt: 'DESC' },
+    });
+
+    return loans
+      .map((loan) => ({
+        id: loan.id,
+        borrower: loan.borrower,
+        status: loan.status,
+        balance: Number(loan.balance || 0),
+        pastDueInterestAccrued: Number(loan.pastDueInterestAccrued || 0),
+        pastDueInterestWaived: Number(loan.pastDueInterestWaived || 0),
+        penaltyAccrued: Number(loan.penaltyAccrued || 0),
+        penaltyWaived: Number(loan.penaltyWaived || 0),
+        ...this.getOutstandingWaiverBuckets(loan),
+        updatedAt: loan.updatedAt,
+      }))
+      .filter((loan) => loan.totalOutstanding > 0);
+  }
+
+  async getWaiversByLoan(loanId: string): Promise<LoanWaiver[]> {
+    await this.findOne(loanId);
+    return this.loanWaiverRepository.find({
+      where: { loanId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async applyWaiver(
+    loanId: string,
+    dto: ApplyLoanWaiverDto,
+    actorId?: string,
+  ) {
+    const loan = await this.findOne(loanId);
+    if (loan.status !== 'active') {
+      throw new BadRequestException('Waiver can only be applied to active loans');
+    }
+
+    const requestedPastDueInterestWaiver = Number(dto.pastDueInterestWaiver || 0);
+    const requestedPenaltyWaiver = Number(dto.penaltyWaiver || 0);
+
+    if (
+      requestedPastDueInterestWaiver <= 0 &&
+      requestedPenaltyWaiver <= 0
+    ) {
+      throw new BadRequestException('At least one waiver amount must be greater than 0');
+    }
+
+    const { pastDueInterestOutstanding, penaltyOutstanding } =
+      this.getOutstandingWaiverBuckets(loan);
+
+    if (requestedPastDueInterestWaiver > pastDueInterestOutstanding) {
+      throw new BadRequestException(
+        `Past due interest waiver exceeds outstanding amount (${pastDueInterestOutstanding.toFixed(
+          2,
+        )})`,
+      );
+    }
+
+    if (requestedPenaltyWaiver > penaltyOutstanding) {
+      throw new BadRequestException(
+        `Penalty waiver exceeds outstanding amount (${penaltyOutstanding.toFixed(2)})`,
+      );
+    }
+
+    const beforeBalance = Number(loan.balance || 0);
+    const totalWaived = this.roundCurrency(
+      requestedPastDueInterestWaiver + requestedPenaltyWaiver,
+    );
+
+    loan.pastDueInterestWaived = this.roundCurrency(
+      Number(loan.pastDueInterestWaived || 0) + requestedPastDueInterestWaiver,
+    );
+    loan.penaltyWaived = this.roundCurrency(
+      Number(loan.penaltyWaived || 0) + requestedPenaltyWaiver,
+    );
+    loan.balance = this.roundCurrency(Math.max(0, beforeBalance - totalWaived));
+
+    if (loan.balance === 0) {
+      loan.status = 'paid';
+    }
+
+    const savedLoan = await this.loanRepository.save(loan);
+    const waiver = this.loanWaiverRepository.create({
+      loanId: savedLoan.id,
+      pastDueInterestWaived: this.roundCurrency(requestedPastDueInterestWaiver),
+      penaltyWaived: this.roundCurrency(requestedPenaltyWaiver),
+      totalWaived,
+      waivedById: actorId ?? null,
+      reason: dto.reason?.trim() || null,
+      beforeBalance: this.roundCurrency(beforeBalance),
+      afterBalance: this.roundCurrency(savedLoan.balance || 0),
+    });
+    const savedWaiver = await this.loanWaiverRepository.save(waiver);
+
+    return {
+      loan: savedLoan,
+      waiver: savedWaiver,
+      ...this.getOutstandingWaiverBuckets(savedLoan),
+    };
   }
 
   /**

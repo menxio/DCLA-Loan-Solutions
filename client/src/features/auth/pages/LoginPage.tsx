@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { authService } from "../api";
 import { useAuthStore } from "../authStore";
+import { getDefaultRouteForRole } from "../access";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -95,7 +96,7 @@ export default function LoginPage() {
         });
       }
 
-      navigate("/dashboard");
+      navigate(getDefaultRouteForRole(user?.role), { replace: true });
     } catch (err: unknown) {
       const errorMessage = axios.isAxiosError<{ message?: string }>(err)
         ? err.response?.data?.message ?? "Invalid credentials"

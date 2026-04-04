@@ -9,19 +9,19 @@ import { Roles } from '../auth/roles.decorator';
 export class SavingsController {
   constructor(private readonly savingsService: SavingsService) {}
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.Cashier)
+  @Roles(ROLE.Cashier)
   @Post('deposit')
   deposit(@Body() dto: DepositSavingsDto) {
     return this.savingsService.deposit(dto);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.Cashier)
+  @Roles(ROLE.Cashier)
   @Post('withdraw')
   withdraw(@Body() dto: WithdrawSavingsDto) {
     return this.savingsService.withdraw(dto);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
+  @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('member/:memberId')
   getMemberSavings(@Param('memberId') memberId: string) {
     return this.savingsService.findByMember(memberId);

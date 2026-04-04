@@ -17,6 +17,11 @@ export enum RepaymentStatus {
   REJECTED = 'rejected',
 }
 
+export enum RepaymentOperationType {
+  PAYMENT = 'payment',
+  REVERSAL = 'reversal',
+}
+
 @Entity()
 export class Repayment {
   @PrimaryGeneratedColumn('uuid')
@@ -49,6 +54,16 @@ export class Repayment {
     default: RepaymentStatus.APPROVED,
   })
   status: RepaymentStatus;
+
+  @Column({
+    type: 'enum',
+    enum: RepaymentOperationType,
+    default: RepaymentOperationType.PAYMENT,
+  })
+  operationType: RepaymentOperationType;
+
+  @Column({ type: 'uuid', nullable: true })
+  relatedRepaymentId: string | null;
 
   @Column({ type: 'uuid', nullable: true })
   createdById: string | null;

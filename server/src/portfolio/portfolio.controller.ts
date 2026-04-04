@@ -3,7 +3,7 @@ import { PortfolioService } from './portfolio.service';
 import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 
-@Roles(ROLE.Admin, ROLE.Manager)
+@Roles(ROLE.Manager)
 @Controller('portfolio')
 export class PortfolioController {
   constructor(private readonly portfolioService: PortfolioService) {}

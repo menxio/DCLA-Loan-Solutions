@@ -28,7 +28,7 @@ export class AddRepaymentApprovalFields1762000000000
       `ALTER TABLE "repayment" ADD "approvedAt" TIMESTAMP`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "rejectedById" uuid`,
+      `ALTER TABLE "repayment" ADD "rejectedById" uuid`, 
     );
     await queryRunner.query(
       `ALTER TABLE "repayment" ADD "rejectedAt" TIMESTAMP`,

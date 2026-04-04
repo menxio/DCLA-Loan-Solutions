@@ -53,6 +53,9 @@ const getMemberName = (repayment: Repayment) => {
 const getCenterName = (repayment: Repayment) =>
   repayment.center?.name || "Unknown center";
 
+const getOperationTypeLabel = (repayment: Repayment) =>
+  repayment.operationType === "reversal" ? "Reversal" : "Payment";
+
 export default function RepaymentApprovalsPage() {
   const { pending, loading, error, actingIds, refresh, approveRepayment, rejectRepayment } =
     useRepaymentApprovals();
@@ -95,7 +98,11 @@ export default function RepaymentApprovalsPage() {
     if (!approveTarget) return;
     try {
       await approveRepayment(approveTarget.id);
-      showSnackbar("Repayment approved.");
+      showSnackbar(
+        approveTarget.operationType === "reversal"
+          ? "Reversal approved."
+          : "Repayment approved."
+      );
     } catch (err) {
       showSnackbar("Failed to approve repayment.", "error");
     } finally {
@@ -239,6 +246,7 @@ export default function RepaymentApprovalsPage() {
                   <TableRow>
                     <TableCell>Created</TableCell>
                     <TableCell>Member</TableCell>
+                    <TableCell>Type</TableCell>
                     <TableCell>Center</TableCell>
                     <TableCell>Collection Date</TableCell>
                     <TableCell align="right">Amount</TableCell>
@@ -259,8 +267,25 @@ export default function RepaymentApprovalsPage() {
                             {getMemberName(item)}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {item.loan?.id ? `Loan ${item.loan.id}` : "No loan"}
+                            {item.operationType === "reversal" &&
+                            item.relatedRepaymentId
+                              ? `Reversal of ${item.relatedRepaymentId}`
+                              : item.loan?.id
+                                ? `Loan ${item.loan.id}`
+                                : "No loan"}
                           </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={getOperationTypeLabel(item)}
+                            size="small"
+                            color={
+                              item.operationType === "reversal"
+                                ? "error"
+                                : "primary"
+                            }
+                            sx={{ fontWeight: 600 }}
+                          />
                         </TableCell>
                         <TableCell>{getCenterName(item)}</TableCell>
                         <TableCell>{formatDate(item.collectionDate)}</TableCell>
@@ -333,7 +358,7 @@ export default function RepaymentApprovalsPage() {
                   })}
                   {!loading && filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">
+                      <TableCell colSpan={10} align="center">
                         <Typography variant="body2" color="text.secondary">
                           No pending repayments found.
                         </Typography>
@@ -348,10 +373,16 @@ export default function RepaymentApprovalsPage() {
       </Box>
 
       <Dialog open={Boolean(approveTarget)} onClose={() => setApproveTarget(null)}>
-        <DialogTitle>Approve repayment</DialogTitle>
+        <DialogTitle>
+          {approveTarget?.operationType === "reversal"
+            ? "Approve reversal request"
+            : "Approve repayment"}
+        </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            This will apply the payment to the loan and update collection totals.
+            {approveTarget?.operationType === "reversal"
+              ? "This will apply the reversal and roll back the original payment from balances."
+              : "This will apply the payment to the loan and update collection totals."}
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>

@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { Repayment, RepaymentStatus } from './repayment.entity';
+import {
+  Repayment,
+  RepaymentOperationType,
+  RepaymentStatus,
+} from './repayment.entity';
 import { Loan } from '../loans/loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Center } from '../centers/entities/center.entity';
@@ -20,6 +24,7 @@ import {
   LoanRepaymentStatus,
 } from './entities/loan-repayment-schedule.entity';
 import { LoanRepaymentAllocation } from './entities/loan-repayment-allocation.entity';
+import { Savings } from '../savings/savings.entity';
 
 @Injectable()
 export class RepaymentsService implements OnModuleInit {
@@ -38,6 +43,8 @@ export class RepaymentsService implements OnModuleInit {
     private readonly scheduleRepo: Repository<LoanRepaymentSchedule>,
     @InjectRepository(LoanRepaymentAllocation)
     private readonly allocationRepo: Repository<LoanRepaymentAllocation>,
+    @InjectRepository(Savings)
+    private readonly savingsRepo: Repository<Savings>,
     private readonly loansService: LoansService,
   ) {}
 
@@ -135,6 +142,8 @@ export class RepaymentsService implements OnModuleInit {
       collectionDate: collectionDateString,
       useSavings: Boolean(useSavings),
       status: RepaymentStatus.PENDING,
+      operationType: RepaymentOperationType.PAYMENT,
+      relatedRepaymentId: null,
       createdById,
     });
     const savedRepayment = await this.repaymentRepo.save(repayment);
@@ -144,6 +153,81 @@ export class RepaymentsService implements OnModuleInit {
     }
 
     return this.approveRepayment(savedRepayment.id, createdById ?? undefined);
+  }
+
+  async requestReversal(
+    repaymentId: string,
+    body: { reason?: string },
+    actor?: { userId?: string; role?: string },
+  ) {
+    const sourceRepayment = await this.repaymentRepo.findOne({
+      where: { id: repaymentId },
+      relations: ['loan', 'member', 'center'],
+    });
+
+    if (!sourceRepayment) {
+      throw new NotFoundException('Repayment not found');
+    }
+
+    if (sourceRepayment.operationType === RepaymentOperationType.REVERSAL) {
+      throw new BadRequestException('Cannot reverse a reversal transaction');
+    }
+
+    if (sourceRepayment.status !== RepaymentStatus.APPROVED) {
+      throw new BadRequestException(
+        'Only approved repayments can be reversed',
+      );
+    }
+
+    const existingReversal = await this.repaymentRepo.findOne({
+      where: {
+        relatedRepaymentId: sourceRepayment.id,
+        operationType: RepaymentOperationType.REVERSAL,
+        status: In([RepaymentStatus.PENDING, RepaymentStatus.APPROVED]),
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (existingReversal) {
+      if (existingReversal.status === RepaymentStatus.PENDING) {
+        throw new BadRequestException(
+          'A reversal request is already pending approval',
+        );
+      }
+      throw new BadRequestException('Repayment has already been reversed');
+    }
+
+    const createdById = actor?.userId ?? null;
+    const shouldAutoApprove =
+      actor?.role === 'manager' || actor?.role === 'admin';
+    const reason = body.reason?.trim();
+
+    const reversal = this.repaymentRepo.create({
+      loan: sourceRepayment.loan,
+      member: sourceRepayment.member,
+      center: sourceRepayment.center,
+      amount: Number(sourceRepayment.amount),
+      notes:
+        reason && reason.length > 0
+          ? reason
+          : `Reversal request for repayment ${sourceRepayment.id}`,
+      collectionDate:
+        sourceRepayment.collectionDate ??
+        this.normalizeCollectionDate(sourceRepayment.createdAt.toISOString()),
+      useSavings: false,
+      status: RepaymentStatus.PENDING,
+      operationType: RepaymentOperationType.REVERSAL,
+      relatedRepaymentId: sourceRepayment.id,
+      createdById,
+    });
+
+    const savedReversal = await this.repaymentRepo.save(reversal);
+
+    if (!shouldAutoApprove) {
+      return savedReversal;
+    }
+
+    return this.approveRepayment(savedReversal.id, createdById ?? undefined);
   }
 
   private parseDate(date: string): Date {
@@ -387,13 +471,29 @@ export class RepaymentsService implements OnModuleInit {
     }
     await this.scheduleRepo.save(schedules);
 
-    const repayments = await this.repaymentRepo.find({
+    const approvedEntries = await this.repaymentRepo.find({
       where: { loan: { id: loan.id }, status: RepaymentStatus.APPROVED },
       relations: ['loan'],
       order: { createdAt: 'ASC' },
     });
 
-    for (const repayment of repayments) {
+    const reversedRepaymentIds = new Set(
+      approvedEntries
+        .filter(
+          (entry) =>
+            entry.operationType === RepaymentOperationType.REVERSAL &&
+            Boolean(entry.relatedRepaymentId),
+        )
+        .map((entry) => entry.relatedRepaymentId as string),
+    );
+
+    const approvedPayments = approvedEntries.filter(
+      (entry) =>
+        entry.operationType !== RepaymentOperationType.REVERSAL &&
+        !reversedRepaymentIds.has(entry.id),
+    );
+
+    for (const repayment of approvedPayments) {
       const paymentDate = repayment.createdAt
         ? repayment.createdAt.toISOString().split('T')[0]
         : this.normalizeCollectionDate();
@@ -431,6 +531,17 @@ export class RepaymentsService implements OnModuleInit {
       throw new BadRequestException('Only pending repayments can be approved');
     }
 
+    if (repayment.operationType === RepaymentOperationType.REVERSAL) {
+      return this.approveReversalRepayment(repayment, actorId);
+    }
+
+    return this.approvePaymentRepayment(repayment, actorId);
+  }
+
+  private async approvePaymentRepayment(
+    repayment: Repayment,
+    actorId?: string,
+  ): Promise<Repayment> {
     const loan = await this.loanRepo.findOne({
       where: { id: repayment.loan?.id },
       relations: ['borrower', 'borrower.center'],
@@ -499,6 +610,154 @@ export class RepaymentsService implements OnModuleInit {
       notes: repayment.notes ?? undefined,
     });
 
+    return this.markRepaymentApproved(repayment, actorId);
+  }
+
+  private async approveReversalRepayment(
+    reversal: Repayment,
+    actorId?: string,
+  ): Promise<Repayment> {
+    const originalRepaymentId = reversal.relatedRepaymentId;
+    if (!originalRepaymentId) {
+      throw new BadRequestException(
+        'Reversal request is missing source repayment reference',
+      );
+    }
+
+    const original = await this.repaymentRepo.findOne({
+      where: { id: originalRepaymentId },
+      relations: ['loan', 'member', 'center'],
+    });
+    if (!original) {
+      throw new NotFoundException('Original repayment not found');
+    }
+    if (original.operationType === RepaymentOperationType.REVERSAL) {
+      throw new BadRequestException(
+        'Original repayment for reversal is invalid',
+      );
+    }
+    if (original.status !== RepaymentStatus.APPROVED) {
+      throw new BadRequestException('Only approved repayments can be reversed');
+    }
+
+    const loan = await this.loanRepo.findOne({
+      where: { id: original.loan?.id },
+      relations: ['borrower', 'borrower.center'],
+    });
+    if (!loan) {
+      throw new NotFoundException('Loan not found');
+    }
+
+    const member = original.member ?? loan.borrower;
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+    const center =
+      original.center ?? member.center ?? loan.borrower?.center ?? null;
+    if (!center?.id) {
+      throw new NotFoundException('Center not found');
+    }
+
+    const originalAllocations = await this.allocationRepo.find({
+      where: { repaymentId: original.id },
+    });
+
+    const totalApplied = originalAllocations.length
+      ? originalAllocations.reduce(
+          (sum, allocation) => sum + Number(allocation.amountApplied || 0),
+          0,
+        )
+      : Number(original.amount || 0);
+    const savingsUsed = originalAllocations.reduce(
+      (sum, allocation) => sum + Number(allocation.savingsPortion || 0),
+      0,
+    );
+
+    const paymentDate = this.parseDate(
+      reversal.collectionDate ??
+        this.normalizeCollectionDate(reversal.createdAt.toISOString()),
+    );
+
+    if (originalAllocations.length > 0) {
+      const rollbackByScheduleId = new Map<string, number>();
+      for (const allocation of originalAllocations) {
+        const current = rollbackByScheduleId.get(allocation.scheduleId) ?? 0;
+        rollbackByScheduleId.set(
+          allocation.scheduleId,
+          current + Number(allocation.amountApplied || 0),
+        );
+      }
+
+      const targetSchedules = await this.scheduleRepo.find({
+        where: { id: In([...rollbackByScheduleId.keys()]) },
+      });
+      for (const schedule of targetSchedules) {
+        const rollbackAmount = rollbackByScheduleId.get(schedule.id) ?? 0;
+        const currentPaid = Number(schedule.amountPaid || 0);
+        schedule.amountPaid = Number(
+          Math.max(0, currentPaid - rollbackAmount).toFixed(2),
+        );
+        schedule.status = this.resolveScheduleStatus(schedule, paymentDate);
+      }
+      if (targetSchedules.length > 0) {
+        await this.scheduleRepo.save(targetSchedules);
+      }
+    }
+
+    const previousAmountPaid = Number(loan.amountPaid || 0);
+    const updatedAmountPaid = Math.max(0, previousAmountPaid - totalApplied);
+    const weeklyAmount = Number(loan.weeklyPaymentAmount || 0);
+    const recomputedWeeksPaid =
+      weeklyAmount > 0 ? Math.floor(updatedAmountPaid / weeklyAmount) : 0;
+    const recomputedBuffer =
+      weeklyAmount > 0
+        ? Number((updatedAmountPaid - recomputedWeeksPaid * weeklyAmount).toFixed(2))
+        : 0;
+
+    loan.amountPaid = updatedAmountPaid;
+    loan.weeksPaid = recomputedWeeksPaid;
+    loan.advancePaymentBuffer = recomputedBuffer;
+    loan.balance = Number(
+      Math.max(0, Number(loan.totalAmount || 0) - updatedAmountPaid).toFixed(2),
+    );
+    loan.savings = Number(
+      (Number(loan.savings || 0) + Number(savingsUsed || 0)).toFixed(2),
+    );
+    if (loan.balance === 0) {
+      loan.status = 'paid';
+    } else if (loan.status === 'paid') {
+      loan.status = 'active';
+    }
+    await this.loanRepo.save(loan);
+
+    if (savingsUsed > 0) {
+      const savingsEntry = this.savingsRepo.create({
+        borrower: member,
+        loan,
+        amount: Number(savingsUsed.toFixed(2)),
+        remarks: `Reversal credit for repayment ${original.id}`,
+      });
+      await this.savingsRepo.save(savingsEntry);
+    }
+
+    await this.reverseCollectionEntry({
+      memberId: member.id,
+      centerId: center.id,
+      collectionDate:
+        original.collectionDate ??
+        this.normalizeCollectionDate(original.createdAt.toISOString()),
+      amountToReverse: totalApplied,
+      totalWeeksPaid: Number(loan.weeksPaid) || 0,
+      notes: reversal.notes ?? undefined,
+    });
+
+    return this.markRepaymentApproved(reversal, actorId);
+  }
+
+  private async markRepaymentApproved(
+    repayment: Repayment,
+    actorId?: string,
+  ): Promise<Repayment> {
     repayment.status = RepaymentStatus.APPROVED;
     repayment.approvedById = actorId ?? null;
     repayment.approvedAt = new Date();
@@ -508,7 +767,6 @@ export class RepaymentsService implements OnModuleInit {
     if (!repayment.collectionDate) {
       repayment.collectionDate = this.normalizeCollectionDate();
     }
-
     return this.repaymentRepo.save(repayment);
   }
 
@@ -553,6 +811,35 @@ export class RepaymentsService implements OnModuleInit {
       where: { loanId },
       order: { weekNumber: 'ASC', dueDate: 'ASC' },
     });
+  }
+
+  private async reverseCollectionEntry(params: {
+    memberId: string;
+    centerId: string;
+    collectionDate: string;
+    amountToReverse: number;
+    totalWeeksPaid: number;
+    notes?: string;
+  }) {
+    const { memberId, centerId, collectionDate, amountToReverse, totalWeeksPaid, notes } =
+      params;
+    const existing = await this.collectionRepo.findOne({
+      where: { memberId, centerId, collectionDate },
+    });
+    if (!existing) {
+      return;
+    }
+
+    const nextReceived = Math.max(
+      0,
+      Number(existing.paymentReceived || 0) - Number(amountToReverse || 0),
+    );
+    existing.paymentReceived = Number(nextReceived.toFixed(2));
+    existing.numberOfPayments = totalWeeksPaid;
+    if (notes) {
+      existing.notes = notes;
+    }
+    await this.collectionRepo.save(existing);
   }
 
   private async recordCollectionEntry(params: {

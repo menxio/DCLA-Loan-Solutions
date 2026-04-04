@@ -55,6 +55,7 @@ interface MembersTableProps {
   formatCurrency: (amount: number) => string;
   onOpenPaymentDialog: (member: MemberWithLoansRow) => void;
   onOpenReloanDialog: (member: MemberWithLoansRow) => void;
+  canReloan: boolean;
 }
 
 const detailCardSx = {
@@ -88,6 +89,7 @@ export function MembersTable({
   formatCurrency,
   onOpenPaymentDialog,
   onOpenReloanDialog,
+  canReloan,
 }: MembersTableProps) {
   const [expandedId, setExpandedId] = useState<string | false>(false);
 
@@ -336,32 +338,34 @@ export function MembersTable({
                         </Button>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Process Reloan">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<AccountBalance />}
-                        onClick={() =>
-                          onOpenReloanDialog({
-                            ...member,
-                            _forcePayoff: !hasActive || balance <= 0,
-                          })
-                        }
-                        sx={{
-                          minWidth: 98,
-                          borderRadius: 2,
-                          fontWeight: 700,
-                          borderColor: "#bfdbfe",
-                          color: "#2563eb",
-                          "&:hover": {
-                            borderColor: "#93c5fd",
-                            backgroundColor: alpha("#3b82f6", 0.08),
-                          },
-                        }}
-                      >
-                        Reloan
-                      </Button>
-                    </Tooltip>
+                    {canReloan && (
+                      <Tooltip title="Process Reloan">
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<AccountBalance />}
+                          onClick={() =>
+                            onOpenReloanDialog({
+                              ...member,
+                              _forcePayoff: !hasActive || balance <= 0,
+                            })
+                          }
+                          sx={{
+                            minWidth: 98,
+                            borderRadius: 2,
+                            fontWeight: 700,
+                            borderColor: "#bfdbfe",
+                            color: "#2563eb",
+                            "&:hover": {
+                              borderColor: "#93c5fd",
+                              backgroundColor: alpha("#3b82f6", 0.08),
+                            },
+                          }}
+                        >
+                          Reloan
+                        </Button>
+                      </Tooltip>
+                    )}
                   </Box>
                 </Box>
               </AccordionSummary>
