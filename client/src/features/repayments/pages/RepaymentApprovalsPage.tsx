@@ -55,7 +55,6 @@ const getCenterName = (repayment: Repayment) =>
 
 const getOperationTypeLabel = (repayment: Repayment) =>
   repayment.operationType === "reversal" ? "Reversal" : "Payment";
-
 export default function RepaymentApprovalsPage() {
   const { pending, loading, error, actingIds, refresh, approveRepayment, rejectRepayment } =
     useRepaymentApprovals();

@@ -494,9 +494,9 @@ export class RepaymentsService implements OnModuleInit {
     );
 
     for (const repayment of approvedPayments) {
-      const paymentDate = repayment.createdAt
-        ? repayment.createdAt.toISOString().split('T')[0]
-        : this.normalizeCollectionDate();
+      const paymentDate = this.normalizeCollectionDate(
+        repayment.collectionDate ?? repayment.createdAt?.toISOString(),
+      );
       await this.applyRepaymentToSchedule({
         loan,
         member,

@@ -86,6 +86,7 @@ export default function LoginPage() {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          mustChangePassword: user.mustChangePassword,
         });
       } else {
         const decoded = JSON.parse(atob(access_token.split(".")[1])) as JwtPayload;
@@ -93,6 +94,7 @@ export default function LoginPage() {
           id: decoded.sub ?? "",
           email: decoded.email ?? "",
           role: decoded.role ?? "user",
+          mustChangePassword: false,
         });
       }
 

@@ -74,6 +74,7 @@ export class UsersService {
       password: hashedPassword,
       role,
       isActive: true,
+      mustChangePassword: true,
     });
 
     const saved = await this.userRepo.save(user);
@@ -120,6 +121,9 @@ export class UsersService {
     }
 
     user.isActive = isActive;
+    if (!isActive) {
+      user.hashedRefreshToken = null;
+    }
     const saved = await this.userRepo.save(user);
     return this.sanitizeUser(saved);
   }
@@ -132,11 +136,27 @@ export class UsersService {
 
     const tempPassword = this.generateTempPassword();
     user.password = await bcrypt.hash(tempPassword, 10);
+    user.mustChangePassword = true;
+    user.hashedRefreshToken = null;
     await this.userRepo.save(user);
 
     return { tempPassword };
   }
 
+  async changePassword(
+    id: string,
+    hashedPassword: string,
+  ): Promise<SafeUser> {
+    const user = await this.userRepo.findOne({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.password = hashedPassword;
+    user.mustChangePassword = false;
+    const saved = await this.userRepo.save(user);
+    return this.sanitizeUser(saved);
+  }
   private async resolveRole(roleName: RoleName) {
     if (!ASSIGNABLE_ROLES.includes(roleName)) {
       throw new BadRequestException('Invalid role assignment');

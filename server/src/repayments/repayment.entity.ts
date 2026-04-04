@@ -21,7 +21,6 @@ export enum RepaymentOperationType {
   PAYMENT = 'payment',
   REVERSAL = 'reversal',
 }
-
 @Entity()
 export class Repayment {
   @PrimaryGeneratedColumn('uuid')
@@ -64,7 +63,6 @@ export class Repayment {
 
   @Column({ type: 'uuid', nullable: true })
   relatedRepaymentId: string | null;
-
   @Column({ type: 'uuid', nullable: true })
   createdById: string | null;
 
