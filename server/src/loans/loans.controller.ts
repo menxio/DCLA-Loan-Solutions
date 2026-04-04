@@ -14,14 +14,13 @@ import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { ReloanDto } from './dto/reloan.dto';
 import { UpdateLoanTermDto } from './dto/update-loan-term.dto';
-import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 
+@Roles('admin')
 @Controller('loans')
 export class LoansController {
   constructor(private readonly loansService: LoansService) {}
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
   @Post()
   create(@Body() createLoanDto: CreateLoanDto) {
     return this.loansService.create(createLoanDto);
@@ -49,19 +48,16 @@ export class LoansController {
   }
 
   // Create a reloan for an existing loan (net off or pay off)
-  @Roles(ROLE.Admin, ROLE.Manager)
   @Post(':id/reloan')
   reloan(@Param('id') id: string, @Body() body: ReloanDto) {
     return this.loansService.reloan(id, body);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateLoanDto: UpdateLoanDto) {
     return this.loansService.update(id, updateLoanDto);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager)
   @Patch(':id/term')
   updateTerm(
     @Param('id') id: string,
@@ -70,7 +66,6 @@ export class LoansController {
     return this.loansService.updateTermWeeks(id, body.termWeeks);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string) {

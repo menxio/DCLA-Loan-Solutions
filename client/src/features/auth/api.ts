@@ -10,11 +10,6 @@ import type {
 } from "./types";
 import type { User } from "../../types/auth";
 
-type ChangePasswordResponse = {
-  message: string;
-  user: User;
-};
-
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 // Create axios instance
@@ -66,9 +61,7 @@ export const authService = {
   },
 
   // Change password
-  changePassword: async (
-    data: PasswordChangeData
-  ): Promise<ChangePasswordResponse> => {
+  changePassword: async (data: PasswordChangeData) => {
     const response = await authApi.put("/change-password", data);
     return response.data;
   },

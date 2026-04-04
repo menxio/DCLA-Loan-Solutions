@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Repayment, RepaymentStatus } from '../repayments/repayment.entity';
+import { Repayment } from '../repayments/repayment.entity';
 import { Savings } from '../savings/savings.entity';
 import { TransactionsQueryDto } from './dto/transactions-query.dto';
 
@@ -130,10 +130,6 @@ export class TransactionsService {
       .leftJoinAndSelect('member.center', 'center')
       .leftJoinAndSelect('repayment.loan', 'loan')
       .leftJoinAndSelect('repayment.center', 'repaymentCenter');
-
-    qb.andWhere('repayment.status = :status', {
-      status: RepaymentStatus.APPROVED,
-    });
 
     if (memberId) {
       qb.andWhere('member.id = :memberId', { memberId });

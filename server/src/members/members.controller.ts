@@ -13,14 +13,13 @@ import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { FindMembersQueryDto } from './dto/find-members-query.dto';
-import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 
+@Roles('admin')
 @Controller('members')
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
   @Post()
   create(@Body() createMemberDto: CreateMemberDto) {
     return this.membersService.create(createMemberDto);
@@ -41,13 +40,11 @@ export class MembersController {
     return this.membersService.getCenterMembers(centerId);
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
   @Put(':id')
   update(@Param('id') id: string, @Body() updateMemberDto: UpdateMemberDto) {
     return this.membersService.update(id, updateMemberDto); // removed +id
   }
 
-  @Roles(ROLE.Admin, ROLE.Manager, ROLE.LoanProcessor)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.membersService.remove(id); // removed +id

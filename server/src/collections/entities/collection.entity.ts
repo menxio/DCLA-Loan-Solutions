@@ -6,7 +6,6 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  Unique,
 } from 'typeorm';
 import { Center } from '../../centers/entities/center.entity';
 import { Member } from '../../members/entities/member.entity';
@@ -18,11 +17,6 @@ export enum AdvancePaymentStatus {
 }
 
 @Entity()
-@Unique('UQ_collection_member_center_date', [
-  'memberId',
-  'centerId',
-  'collectionDate',
-])
 export class Collection {
   @PrimaryGeneratedColumn('uuid')
   id: string;

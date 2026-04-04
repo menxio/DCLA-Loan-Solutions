@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
@@ -12,7 +7,6 @@ import { ConfigService } from '@nestjs/config';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { User } from '../users/user.entity';
-import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -76,7 +70,7 @@ export class AuthService {
       this.logger.debug(`Attempting to validate user with email: ${email}`);
       const user = await this.usersService.findByEmail(email);
 
-      if (!user || !user.isActive) {
+      if (!user) {
         this.logger.warn(`Validation failed: user with email ${email} not found`);
         return null;
       }
@@ -154,35 +148,5 @@ export class AuthService {
   async logout(userId: string) {
     await this.usersService.updateRefreshTokenHash(userId, null);
     return { success: true };
-  }
-
-  async changePassword(userId: string, dto: ChangePasswordDto) {
-    const user = await this.usersService.findById(userId);
-
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('User account is inactive or missing');
-    }
-
-    const passwordMatch = await bcrypt.compare(dto.currentPassword, user.password);
-    if (!passwordMatch) {
-      throw new UnauthorizedException('Current password is incorrect');
-    }
-
-    if (dto.currentPassword === dto.newPassword) {
-      throw new BadRequestException(
-        'New password must be different from current password',
-      );
-    }
-
-    const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
-    const updatedUser = await this.usersService.changePassword(
-      userId,
-      hashedPassword,
-    );
-
-    return {
-      message: 'Password changed successfully',
-      user: updatedUser,
-    };
   }
 }

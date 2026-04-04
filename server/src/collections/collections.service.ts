@@ -13,7 +13,7 @@ import { Center } from '../centers/entities/center.entity';
 import { Member } from '../members/entities/member.entity';
 import { CollectionsRepository } from './collections.repository';
 import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
-import { Repayment, RepaymentStatus } from '../repayments/repayment.entity';
+import { Repayment } from '../repayments/repayment.entity';
 
 @Injectable()
 export class CollectionsService {
@@ -93,9 +93,6 @@ export class CollectionsService {
       .select('COALESCE(SUM(repayment.amount), 0)', 'total')
       .leftJoin('repayment.center', 'center')
       .where('center.id = :centerId', { centerId })
-      .andWhere('repayment.status = :status', {
-        status: RepaymentStatus.APPROVED,
-      })
       .andWhere(
         'repayment.createdAt >= :start AND repayment.createdAt < :end',
         {
