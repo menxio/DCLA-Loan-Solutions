@@ -4,6 +4,8 @@ import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 import { RejectRepaymentDto } from './dto/reject-repayment.dto';
 import { RequestRepaymentReversalDto } from './dto/request-repayment-reversal.dto';
+import { ApprovePendingCollectionDto } from './dto/approve-pending-collection.dto';
+import { RejectPendingCollectionDto } from './dto/reject-pending-collection.dto';
 
 @Controller('repayments')
 export class RepaymentsController {
@@ -41,6 +43,39 @@ export class RepaymentsController {
   @Get('pending')
   findPending() {
     return this.repaymentsService.findPendingRepayments();
+  }
+
+  @Roles(ROLE.Manager)
+  @Get('pending/collections')
+  findPendingCollections() {
+    return this.repaymentsService.findPendingCollections();
+  }
+
+  @Roles(ROLE.Manager)
+  @Post('pending/collections/approve')
+  approveCollection(
+    @Body() body: ApprovePendingCollectionDto,
+    @Req() req: { user?: { userId?: string } },
+  ) {
+    return this.repaymentsService.approvePendingCollection(
+      body.centerId,
+      body.collectionDate,
+      req.user?.userId,
+    );
+  }
+
+  @Roles(ROLE.Manager)
+  @Post('pending/collections/reject')
+  rejectCollection(
+    @Body() body: RejectPendingCollectionDto,
+    @Req() req: { user?: { userId?: string } },
+  ) {
+    return this.repaymentsService.rejectPendingCollection(
+      body.centerId,
+      body.collectionDate,
+      req.user?.userId,
+      body.reason,
+    );
   }
 
   @Roles(ROLE.Manager)

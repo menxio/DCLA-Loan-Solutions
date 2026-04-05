@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { repaymentsService } from "../api";
-import type { Repayment } from "../types";
+import type { PendingRepaymentCollectionGroup } from "../types";
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error) {
@@ -10,67 +10,89 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 };
 
 export function useRepaymentApprovals() {
-  const [pending, setPending] = useState<Repayment[]>([]);
+  const [pendingCollections, setPendingCollections] = useState<
+    PendingRepaymentCollectionGroup[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actingIds, setActingIds] = useState<Set<string>>(new Set());
 
-  const updateActing = (id: string, isActing: boolean) => {
+  const getActionKey = (centerId: string, collectionDate: string) =>
+    `${centerId}::${collectionDate}`;
+
+  const updateActing = (actionKey: string, isActing: boolean) => {
     setActingIds((prev) => {
       const next = new Set(prev);
       if (isActing) {
-        next.add(id);
+        next.add(actionKey);
       } else {
-        next.delete(id);
+        next.delete(actionKey);
       }
       return next;
     });
   };
 
-  const fetchPending = useCallback(async () => {
+  const fetchPendingCollections = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await repaymentsService.getPending();
-      setPending(data);
+      const data = await repaymentsService.getPendingCollections();
+      setPendingCollections(data);
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to load pending repayments."));
+      setError(getErrorMessage(err, "Failed to load pending collections."));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchPending();
-  }, [fetchPending]);
+    fetchPendingCollections();
+  }, [fetchPendingCollections]);
 
-  const approveRepayment = async (id: string) => {
-    updateActing(id, true);
+  const approveCollection = async (centerId: string, collectionDate: string) => {
+    const actionKey = getActionKey(centerId, collectionDate);
+    updateActing(actionKey, true);
     try {
-      await repaymentsService.approve(id);
-      setPending((prev) => prev.filter((item) => item.id !== id));
+      await repaymentsService.approveCollection(centerId, collectionDate);
+      setPendingCollections((prev) =>
+        prev.filter(
+          (item) =>
+            !(item.centerId === centerId && item.collectionDate === collectionDate)
+        )
+      );
     } finally {
-      updateActing(id, false);
+      updateActing(actionKey, false);
     }
   };
 
-  const rejectRepayment = async (id: string, reason?: string) => {
-    updateActing(id, true);
+  const rejectCollection = async (
+    centerId: string,
+    collectionDate: string,
+    reason?: string
+  ) => {
+    const actionKey = getActionKey(centerId, collectionDate);
+    updateActing(actionKey, true);
     try {
-      await repaymentsService.reject(id, reason);
-      setPending((prev) => prev.filter((item) => item.id !== id));
+      await repaymentsService.rejectCollection(centerId, collectionDate, reason);
+      setPendingCollections((prev) =>
+        prev.filter(
+          (item) =>
+            !(item.centerId === centerId && item.collectionDate === collectionDate)
+        )
+      );
     } finally {
-      updateActing(id, false);
+      updateActing(actionKey, false);
     }
   };
 
   return {
-    pending,
+    pendingCollections,
     loading,
     error,
     actingIds,
-    refresh: fetchPending,
-    approveRepayment,
-    rejectRepayment,
+    getActionKey,
+    refresh: fetchPendingCollections,
+    approveCollection,
+    rejectCollection,
   };
 }

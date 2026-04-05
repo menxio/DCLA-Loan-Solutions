@@ -24,17 +24,10 @@ import { CheckCircle, FactCheck, Refresh } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import { useRepaymentApprovals } from "../hooks/useRepaymentApprovals";
-import type { Repayment } from "../types";
+import type { PendingRepaymentCollectionGroup } from "../types";
 
 const formatCurrency = (value: number) =>
   `PHP ${Number(value || 0).toLocaleString()}`;
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) return "N/A";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-};
 
 const formatDate = (value?: string | null) => {
   if (!value) return "N/A";
@@ -43,26 +36,24 @@ const formatDate = (value?: string | null) => {
   return date.toLocaleDateString();
 };
 
-const getMemberName = (repayment: Repayment) => {
-  const member = repayment.member;
-  if (!member) return "Unknown member";
-  const name = [member.lastName, member.firstName].filter(Boolean).join(", ");
-  return name || "Unknown member";
-};
-
-const getCenterName = (repayment: Repayment) =>
-  repayment.center?.name || "Unknown center";
-
-const getOperationTypeLabel = (repayment: Repayment) =>
-  repayment.operationType === "reversal" ? "Reversal" : "Payment";
 export default function RepaymentApprovalsPage() {
-  const { pending, loading, error, actingIds, refresh, approveRepayment, rejectRepayment } =
-    useRepaymentApprovals();
+  const {
+    pendingCollections,
+    loading,
+    error,
+    actingIds,
+    getActionKey,
+    refresh,
+    approveCollection,
+    rejectCollection,
+  } = useRepaymentApprovals();
+
   const [search, setSearch] = useState("");
-  const [approveTarget, setApproveTarget] = useState<Repayment | null>(null);
+  const [approveTarget, setApproveTarget] =
+    useState<PendingRepaymentCollectionGroup | null>(null);
   const [rejectState, setRejectState] = useState<{
     open: boolean;
-    target: Repayment | null;
+    target: PendingRepaymentCollectionGroup | null;
     reason: string;
   }>({ open: false, target: null, reason: "" });
   const [snackbar, setSnackbar] = useState<{
@@ -73,18 +64,19 @@ export default function RepaymentApprovalsPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return pending;
-    return pending.filter((item) => {
-      const memberName = getMemberName(item).toLowerCase();
-      const centerName = getCenterName(item).toLowerCase();
-      const loanId = item.loan?.id?.toLowerCase() || "";
-      return (
-        memberName.includes(query) ||
-        centerName.includes(query) ||
-        loanId.includes(query)
-      );
+    if (!query) return pendingCollections;
+
+    return pendingCollections.filter((item) => {
+      const centerName = (item.centerName || "").toLowerCase();
+      const collectionDate = item.collectionDate || "";
+      return centerName.includes(query) || collectionDate.includes(query);
     });
-  }, [pending, search]);
+  }, [pendingCollections, search]);
+
+  const totalPendingEntries = useMemo(
+    () => pendingCollections.reduce((sum, item) => sum + Number(item.pendingCount || 0), 0),
+    [pendingCollections]
+  );
 
   const showSnackbar = (
     message: string,
@@ -95,15 +87,12 @@ export default function RepaymentApprovalsPage() {
 
   const handleApprove = async () => {
     if (!approveTarget) return;
+
     try {
-      await approveRepayment(approveTarget.id);
-      showSnackbar(
-        approveTarget.operationType === "reversal"
-          ? "Reversal approved."
-          : "Repayment approved."
-      );
+      await approveCollection(approveTarget.centerId, approveTarget.collectionDate);
+      showSnackbar("Collection approved successfully.");
     } catch (err) {
-      showSnackbar("Failed to approve repayment.", "error");
+      showSnackbar("Failed to approve collection.", "error");
     } finally {
       setApproveTarget(null);
     }
@@ -111,17 +100,22 @@ export default function RepaymentApprovalsPage() {
 
   const handleReject = async () => {
     if (!rejectState.target) return;
+
     try {
-      await rejectRepayment(rejectState.target.id, rejectState.reason);
-      showSnackbar("Repayment rejected.");
+      await rejectCollection(
+        rejectState.target.centerId,
+        rejectState.target.collectionDate,
+        rejectState.reason
+      );
+      showSnackbar("Collection rejected.");
     } catch (err) {
-      showSnackbar("Failed to reject repayment.", "error");
+      showSnackbar("Failed to reject collection.", "error");
     } finally {
       setRejectState({ open: false, target: null, reason: "" });
     }
   };
 
-  if (loading && pending.length === 0) {
+  if (loading && pendingCollections.length === 0) {
     return (
       <DashboardLayout>
         <PageLoadingSkeleton showStats={false} filterCount={2} rowCount={8} />
@@ -168,27 +162,27 @@ export default function RepaymentApprovalsPage() {
               </Box>
               <Box>
                 <Typography variant="h4" fontWeight="bold" color="#1e293b">
-                  Repayment Approvals
+                  Collection Approvals
                 </Typography>
                 <Typography variant="body1" color="#64748b">
-                  Review and approve cashier-posted repayments.
+                  Approve or reject pending collections by center and business date.
                 </Typography>
               </Box>
             </Box>
 
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
               <Chip
-                label={`${pending.length} pending`}
+                label={`${filtered.length} pending collections / ${totalPendingEntries} entries`}
                 color="warning"
                 sx={{ fontWeight: 600 }}
               />
               <TextField
                 size="small"
-                placeholder="Search member or center"
+                placeholder="Search center or date"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 sx={{
-                  minWidth: 220,
+                  minWidth: 240,
                   "& .MuiOutlinedInput-root": {
                     backgroundColor: "white",
                     borderRadius: 2,
@@ -243,67 +237,49 @@ export default function RepaymentApprovalsPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Created</TableCell>
-                    <TableCell>Member</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Center</TableCell>
                     <TableCell>Collection Date</TableCell>
-                    <TableCell align="right">Amount</TableCell>
-                    <TableCell>Savings</TableCell>
-                    <TableCell>Notes</TableCell>
+                    <TableCell>Center</TableCell>
+                    <TableCell align="right">Entries</TableCell>
+                    <TableCell align="right">Payments</TableCell>
+                    <TableCell align="right">Reversals</TableCell>
+                    <TableCell align="right">Payment Total</TableCell>
+                    <TableCell align="right">Reversal Total</TableCell>
+                    <TableCell align="right">Net Total</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {filtered.map((item) => {
-                    const isActing = actingIds.has(item.id);
+                    const isActing = actingIds.has(
+                      getActionKey(item.centerId, item.collectionDate)
+                    );
+
                     return (
-                      <TableRow key={item.id} hover>
-                        <TableCell>{formatDateTime(item.createdAt)}</TableCell>
+                      <TableRow key={`${item.centerId}-${item.collectionDate}`} hover>
+                        <TableCell>{formatDate(item.collectionDate)}</TableCell>
                         <TableCell>
                           <Typography sx={{ fontWeight: 600 }}>
-                            {getMemberName(item)}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {item.operationType === "reversal" &&
-                            item.relatedRepaymentId
-                              ? `Reversal of ${item.relatedRepaymentId}`
-                              : item.loan?.id
-                                ? `Loan ${item.loan.id}`
-                                : "No loan"}
+                            {item.centerName || "Unknown center"}
                           </Typography>
                         </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={getOperationTypeLabel(item)}
-                            size="small"
-                            color={
-                              item.operationType === "reversal"
-                                ? "error"
-                                : "primary"
-                            }
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell>{getCenterName(item)}</TableCell>
-                        <TableCell>{formatDate(item.collectionDate)}</TableCell>
+                        <TableCell align="right">{item.pendingCount}</TableCell>
+                        <TableCell align="right">{item.paymentCount}</TableCell>
+                        <TableCell align="right">{item.reversalCount}</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700 }}>
-                          {formatCurrency(item.amount)}
+                          {formatCurrency(item.paymentAmount)}
                         </TableCell>
-                        <TableCell>{item.useSavings ? "Yes" : "No"}</TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              maxWidth: 200,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {item.notes || "No notes"}
-                          </Typography>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>
+                          {formatCurrency(item.reversalAmount)}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          sx={{
+                            fontWeight: 700,
+                            color: item.netAmount < 0 ? "error.main" : "text.primary",
+                          }}
+                        >
+                          {formatCurrency(item.netAmount)}
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -355,11 +331,12 @@ export default function RepaymentApprovalsPage() {
                       </TableRow>
                     );
                   })}
+
                   {!loading && filtered.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={10} align="center">
                         <Typography variant="body2" color="text.secondary">
-                          No pending repayments found.
+                          No pending collections found.
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -372,16 +349,17 @@ export default function RepaymentApprovalsPage() {
       </Box>
 
       <Dialog open={Boolean(approveTarget)} onClose={() => setApproveTarget(null)}>
-        <DialogTitle>
-          {approveTarget?.operationType === "reversal"
-            ? "Approve reversal request"
-            : "Approve repayment"}
-        </DialogTitle>
+        <DialogTitle>Approve collection</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {approveTarget?.operationType === "reversal"
-              ? "This will apply the reversal and roll back the original payment from balances."
-              : "This will apply the payment to the loan and update collection totals."}
+            This will approve all pending repayments for
+            {" "}
+            <strong>{approveTarget?.centerName || "Unknown center"}</strong>
+            {" "}
+            on
+            {" "}
+            <strong>{formatDate(approveTarget?.collectionDate)}</strong>
+            .
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
@@ -398,7 +376,7 @@ export default function RepaymentApprovalsPage() {
               },
             }}
           >
-            Approve
+            Approve Collection
           </Button>
         </DialogActions>
       </Dialog>
@@ -407,10 +385,11 @@ export default function RepaymentApprovalsPage() {
         open={rejectState.open}
         onClose={() => setRejectState({ open: false, target: null, reason: "" })}
       >
-        <DialogTitle>Reject repayment</DialogTitle>
+        <DialogTitle>Reject collection</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
-            Optionally add a reason to help the cashier understand the rejection.
+            This will reject all pending repayments in the selected collection.
+            Add a reason to help cashier correction.
           </DialogContentText>
           <TextField
             fullWidth
@@ -425,19 +404,13 @@ export default function RepaymentApprovalsPage() {
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
           <Button
-            onClick={() =>
-              setRejectState({ open: false, target: null, reason: "" })
-            }
+            onClick={() => setRejectState({ open: false, target: null, reason: "" })}
             sx={{ color: "#64748b" }}
           >
             Cancel
           </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleReject}
-          >
-            Reject
+          <Button variant="contained" color="error" onClick={handleReject}>
+            Reject Collection
           </Button>
         </DialogActions>
       </Dialog>

@@ -26,6 +26,26 @@ import {
 import { LoanRepaymentAllocation } from './entities/loan-repayment-allocation.entity';
 import { Savings } from '../savings/savings.entity';
 
+export interface PendingRepaymentCollectionGroup {
+  centerId: string;
+  centerName: string;
+  collectionDate: string;
+  pendingCount: number;
+  paymentCount: number;
+  reversalCount: number;
+  paymentAmount: number;
+  reversalAmount: number;
+  netAmount: number;
+}
+
+export interface PendingCollectionActionResult {
+  centerId: string;
+  collectionDate: string;
+  processedCount: number;
+  approvedCount?: number;
+  rejectedCount?: number;
+}
+
 @Injectable()
 export class RepaymentsService implements OnModuleInit {
   constructor(
@@ -516,6 +536,176 @@ export class RepaymentsService implements OnModuleInit {
       relations: ['loan', 'member', 'center'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  private businessDateExpression(alias: string): string {
+    return `COALESCE(${alias}."collectionDate", (${alias}."createdAt" AT TIME ZONE 'UTC')::date)`;
+  }
+
+  async findPendingCollections(): Promise<PendingRepaymentCollectionGroup[]> {
+    const businessDateExpr = this.businessDateExpression('repayment');
+    const rows = await this.repaymentRepo
+      .createQueryBuilder('repayment')
+      .leftJoin('repayment.center', 'center')
+      .select('center.id', 'centerId')
+      .addSelect(`COALESCE(center.name, 'Unknown center')`, 'centerName')
+      .addSelect(`${businessDateExpr}::text`, 'collectionDate')
+      .addSelect('COUNT(*)::int', 'pendingCount')
+      .addSelect(
+        `SUM(CASE WHEN repayment.operationType = :paymentType THEN 1 ELSE 0 END)::int`,
+        'paymentCount',
+      )
+      .addSelect(
+        `SUM(CASE WHEN repayment.operationType = :reversalType THEN 1 ELSE 0 END)::int`,
+        'reversalCount',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN repayment.operationType = :paymentType THEN repayment.amount ELSE 0 END), 0)::numeric`,
+        'paymentAmount',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN repayment.operationType = :reversalType THEN repayment.amount ELSE 0 END), 0)::numeric`,
+        'reversalAmount',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE
+          WHEN repayment.operationType = :reversalType THEN -repayment.amount
+          ELSE repayment.amount
+        END), 0)::numeric`,
+        'netAmount',
+      )
+      .where('repayment.status = :pendingStatus', {
+        pendingStatus: RepaymentStatus.PENDING,
+      })
+      .andWhere('center.id IS NOT NULL')
+      .setParameters({
+        paymentType: RepaymentOperationType.PAYMENT,
+        reversalType: RepaymentOperationType.REVERSAL,
+      })
+      .groupBy('center.id')
+      .addGroupBy('center.name')
+      .addGroupBy(businessDateExpr)
+      .orderBy(`${businessDateExpr}`, 'DESC')
+      .addOrderBy('center.name', 'ASC')
+      .getRawMany<{
+        centerId: string;
+        centerName: string;
+        collectionDate: string;
+        pendingCount: string;
+        paymentCount: string;
+        reversalCount: string;
+        paymentAmount: string;
+        reversalAmount: string;
+        netAmount: string;
+      }>();
+
+    return rows.map((row) => ({
+      centerId: row.centerId,
+      centerName: row.centerName || 'Unknown center',
+      collectionDate: row.collectionDate,
+      pendingCount: Number(row.pendingCount || 0),
+      paymentCount: Number(row.paymentCount || 0),
+      reversalCount: Number(row.reversalCount || 0),
+      paymentAmount: Number(row.paymentAmount || 0),
+      reversalAmount: Number(row.reversalAmount || 0),
+      netAmount: Number(row.netAmount || 0),
+    }));
+  }
+
+  private async findPendingRepaymentsByCollection(
+    centerId: string,
+    collectionDate: string,
+  ): Promise<Repayment[]> {
+    const businessDateExpr = this.businessDateExpression('repayment');
+    return this.repaymentRepo
+      .createQueryBuilder('repayment')
+      .leftJoinAndSelect('repayment.loan', 'loan')
+      .leftJoinAndSelect('repayment.member', 'member')
+      .leftJoinAndSelect('repayment.center', 'center')
+      .where('repayment.status = :pendingStatus', {
+        pendingStatus: RepaymentStatus.PENDING,
+      })
+      .andWhere('center.id = :centerId', { centerId })
+      .andWhere(`${businessDateExpr} = CAST(:collectionDate AS date)`, {
+        collectionDate,
+      })
+      .orderBy('repayment.createdAt', 'ASC')
+      .getMany();
+  }
+
+  async approvePendingCollection(
+    centerId: string,
+    collectionDate: string,
+    actorId?: string,
+  ): Promise<PendingCollectionActionResult> {
+    const normalizedDate = this.normalizeCollectionDate(collectionDate);
+    const pendingRepayments = await this.findPendingRepaymentsByCollection(
+      centerId,
+      normalizedDate,
+    );
+
+    if (!pendingRepayments.length) {
+      throw new NotFoundException(
+        'No pending repayments found for the selected collection',
+      );
+    }
+
+    for (const repayment of pendingRepayments) {
+      try {
+        await this.approveRepayment(repayment.id, actorId);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown approval error';
+        throw new BadRequestException(
+          `Failed to approve collection. Repayment ${repayment.id}: ${message}`,
+        );
+      }
+    }
+
+    return {
+      centerId,
+      collectionDate: normalizedDate,
+      processedCount: pendingRepayments.length,
+      approvedCount: pendingRepayments.length,
+    };
+  }
+
+  async rejectPendingCollection(
+    centerId: string,
+    collectionDate: string,
+    actorId?: string,
+    reason?: string,
+  ): Promise<PendingCollectionActionResult> {
+    const normalizedDate = this.normalizeCollectionDate(collectionDate);
+    const pendingRepayments = await this.findPendingRepaymentsByCollection(
+      centerId,
+      normalizedDate,
+    );
+
+    if (!pendingRepayments.length) {
+      throw new NotFoundException(
+        'No pending repayments found for the selected collection',
+      );
+    }
+
+    for (const repayment of pendingRepayments) {
+      try {
+        await this.rejectRepayment(repayment.id, actorId, reason);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown rejection error';
+        throw new BadRequestException(
+          `Failed to reject collection. Repayment ${repayment.id}: ${message}`,
+        );
+      }
+    }
+
+    return {
+      centerId,
+      collectionDate: normalizedDate,
+      processedCount: pendingRepayments.length,
+      rejectedCount: pendingRepayments.length,
+    };
   }
 
   async approveRepayment(id: string, actorId?: string): Promise<Repayment> {

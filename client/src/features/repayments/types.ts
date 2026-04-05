@@ -32,3 +32,15 @@ export interface Repayment {
   loan?: RepaymentLoan;
   createdById?: string | null;
 }
+
+export interface PendingRepaymentCollectionGroup {
+  centerId: string;
+  centerName: string;
+  collectionDate: string;
+  pendingCount: number;
+  paymentCount: number;
+  reversalCount: number;
+  paymentAmount: number;
+  reversalAmount: number;
+  netAmount: number;
+}

@@ -1,9 +1,13 @@
 import api from "@utils/api";
-import type { Repayment } from "./types";
+import type { PendingRepaymentCollectionGroup, Repayment } from "./types";
 
 export const repaymentsService = {
   getPending: async (): Promise<Repayment[]> => {
     const response = await api.get("/repayments/pending");
+    return response.data;
+  },
+  getPendingCollections: async (): Promise<PendingRepaymentCollectionGroup[]> => {
+    const response = await api.get("/repayments/pending/collections");
     return response.data;
   },
   requestReversal: async (
@@ -21,6 +25,28 @@ export const repaymentsService = {
   },
   reject: async (id: string, reason?: string): Promise<Repayment> => {
     const response = await api.post(`/repayments/${id}/reject`, {
+      reason,
+    });
+    return response.data;
+  },
+  approveCollection: async (
+    centerId: string,
+    collectionDate: string
+  ): Promise<{ centerId: string; collectionDate: string; processedCount: number }> => {
+    const response = await api.post("/repayments/pending/collections/approve", {
+      centerId,
+      collectionDate,
+    });
+    return response.data;
+  },
+  rejectCollection: async (
+    centerId: string,
+    collectionDate: string,
+    reason?: string
+  ): Promise<{ centerId: string; collectionDate: string; processedCount: number }> => {
+    const response = await api.post("/repayments/pending/collections/reject", {
+      centerId,
+      collectionDate,
       reason,
     });
     return response.data;
