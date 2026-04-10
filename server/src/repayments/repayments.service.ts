@@ -629,158 +629,71 @@ export class RepaymentsService implements OnModuleInit {
   }
 
   async findPendingCollections(): Promise<PendingRepaymentCollectionGroup[]> {
-    const rows = await this.collectionBatchRepo
-      .createQueryBuilder('batch')
-      .leftJoin('batch.center', 'center')
-      .leftJoin(
-        'batch.repayments',
-        'entry',
-        'entry.status = :pendingStatus',
-        { pendingStatus: RepaymentStatus.PENDING },
-      )
-      .where('batch.status = :batchStatus', {
-        batchStatus: CollectionBatchStatus.PENDING,
-      })
-      .select('batch.id', 'batchId')
-      .addSelect('center.id', 'centerId')
-      .addSelect(`COALESCE(center.name, 'Unknown center')`, 'centerName')
-      .addSelect('batch.collectionDate::text', 'collectionDate')
-      .addSelect('COUNT(entry.id)::int', 'pendingCount')
-      .addSelect(
-        `SUM(CASE WHEN entry.operationType = :paymentType THEN 1 ELSE 0 END)::int`,
-        'paymentCount',
-      )
-      .addSelect(
-        `SUM(CASE WHEN entry.operationType = :reversalType THEN 1 ELSE 0 END)::int`,
-        'reversalCount',
-      )
-      .addSelect(
-        `COALESCE(SUM(CASE WHEN entry.operationType = :paymentType THEN entry.amount ELSE 0 END), 0)::numeric`,
-        'paymentAmount',
-      )
-      .addSelect(
-        `COALESCE(SUM(CASE WHEN entry.operationType = :reversalType THEN entry.amount ELSE 0 END), 0)::numeric`,
-        'reversalAmount',
-      )
-      .addSelect(
-        `COALESCE(SUM(CASE
-          WHEN entry.operationType = :reversalType THEN -entry.amount
-          ELSE entry.amount
-        END), 0)::numeric`,
-        'netAmount',
-      )
-      .andWhere('center.id IS NOT NULL')
-      .setParameters({
-        paymentType: RepaymentOperationType.PAYMENT,
-        reversalType: RepaymentOperationType.REVERSAL,
-      })
-      .groupBy('batch.id')
-      .addGroupBy('batch.collectionDate')
-      .addGroupBy('center.id')
-      .addGroupBy('center.name')
-      .having('COUNT(entry.id) > 0')
-      .orderBy('batch.collectionDate', 'DESC')
-      .addOrderBy('center.name', 'ASC')
-      .getRawMany<{
-        batchId: string;
-        centerId: string;
-        centerName: string;
-        collectionDate: string;
-        pendingCount: string;
-        paymentCount: string;
-        reversalCount: string;
-        paymentAmount: string;
-        reversalAmount: string;
-        netAmount: string;
-      }>();
+    const pendingEntries = await this.repaymentRepo.find({
+      where: { status: RepaymentStatus.PENDING },
+      relations: ['center', 'batch'],
+      order: { createdAt: 'DESC' },
+    });
 
-    const batched = rows.map((row) => ({
-      batchId: row.batchId,
-      centerId: row.centerId,
-      centerName: row.centerName || 'Unknown center',
-      collectionDate: row.collectionDate,
-      pendingCount: Number(row.pendingCount || 0),
-      paymentCount: Number(row.paymentCount || 0),
-      reversalCount: Number(row.reversalCount || 0),
-      paymentAmount: Number(row.paymentAmount || 0),
-      reversalAmount: Number(row.reversalAmount || 0),
-      netAmount: Number(row.netAmount || 0),
-    }));
+    const grouped = new Map<string, PendingRepaymentCollectionGroup>();
 
-    const businessDateExpr = this.businessDateExpression('repayment');
-    const unbatched = await this.repaymentRepo
-      .createQueryBuilder('repayment')
-      .leftJoin('repayment.center', 'center')
-      .select('NULL', 'batchId')
-      .addSelect('center.id', 'centerId')
-      .addSelect(`COALESCE(center.name, 'Unknown center')`, 'centerName')
-      .addSelect(`${businessDateExpr}::text`, 'collectionDate')
-      .addSelect('COUNT(*)::int', 'pendingCount')
-      .addSelect(
-        `SUM(CASE WHEN repayment.operationType = :paymentType THEN 1 ELSE 0 END)::int`,
-        'paymentCount',
-      )
-      .addSelect(
-        `SUM(CASE WHEN repayment.operationType = :reversalType THEN 1 ELSE 0 END)::int`,
-        'reversalCount',
-      )
-      .addSelect(
-        `COALESCE(SUM(CASE WHEN repayment.operationType = :paymentType THEN repayment.amount ELSE 0 END), 0)::numeric`,
-        'paymentAmount',
-      )
-      .addSelect(
-        `COALESCE(SUM(CASE WHEN repayment.operationType = :reversalType THEN repayment.amount ELSE 0 END), 0)::numeric`,
-        'reversalAmount',
-      )
-      .addSelect(
-        `COALESCE(SUM(CASE
-          WHEN repayment.operationType = :reversalType THEN -repayment.amount
-          ELSE repayment.amount
-        END), 0)::numeric`,
-        'netAmount',
-      )
-      .where('repayment.status = :pendingStatus', {
-        pendingStatus: RepaymentStatus.PENDING,
-      })
-      .andWhere('repayment.batchId IS NULL')
-      .andWhere('center.id IS NOT NULL')
-      .setParameters({
-        paymentType: RepaymentOperationType.PAYMENT,
-        reversalType: RepaymentOperationType.REVERSAL,
-      })
-      .groupBy('center.id')
-      .addGroupBy('center.name')
-      .addGroupBy(businessDateExpr)
-      .orderBy(`${businessDateExpr}`, 'DESC')
-      .addOrderBy('center.name', 'ASC')
-      .getRawMany<{
-        batchId: string | null;
-        centerId: string;
-        centerName: string;
-        collectionDate: string;
-        pendingCount: string;
-        paymentCount: string;
-        reversalCount: string;
-        paymentAmount: string;
-        reversalAmount: string;
-        netAmount: string;
-      }>();
+    for (const entry of pendingEntries) {
+      const center = entry.center;
+      if (!center?.id) {
+        continue;
+      }
 
-    return [
-      ...batched,
-      ...unbatched.map((row) => ({
-        batchId: row.batchId ?? null,
-        centerId: row.centerId,
-        centerName: row.centerName || 'Unknown center',
-        collectionDate: row.collectionDate,
-        pendingCount: Number(row.pendingCount || 0),
-        paymentCount: Number(row.paymentCount || 0),
-        reversalCount: Number(row.reversalCount || 0),
-        paymentAmount: Number(row.paymentAmount || 0),
-        reversalAmount: Number(row.reversalAmount || 0),
-        netAmount: Number(row.netAmount || 0),
-      })),
-    ];
+      if (entry.batchId && entry.batch?.status !== CollectionBatchStatus.PENDING) {
+        continue;
+      }
+
+      const collectionDate = this.normalizeCollectionDate(
+        entry.collectionDate ?? entry.createdAt?.toISOString(),
+      );
+      const batchId = entry.batchId ?? null;
+      const key = `${batchId ?? 'legacy'}::${center.id}::${collectionDate}`;
+      const amount = Number(entry.amount || 0);
+      const operationType = entry.operationType;
+
+      const current = grouped.get(key) ?? {
+        batchId,
+        centerId: center.id,
+        centerName: center.name || 'Unknown center',
+        collectionDate,
+        pendingCount: 0,
+        paymentCount: 0,
+        reversalCount: 0,
+        paymentAmount: 0,
+        reversalAmount: 0,
+        netAmount: 0,
+      };
+
+      current.pendingCount += 1;
+      if (operationType === RepaymentOperationType.REVERSAL) {
+        current.reversalCount += 1;
+        current.reversalAmount += amount;
+        current.netAmount -= amount;
+      } else {
+        current.paymentCount += 1;
+        current.paymentAmount += amount;
+        current.netAmount += amount;
+      }
+
+      grouped.set(key, current);
+    }
+
+    return [...grouped.values()]
+      .map((item) => ({
+        ...item,
+        paymentAmount: Number(item.paymentAmount.toFixed(2)),
+        reversalAmount: Number(item.reversalAmount.toFixed(2)),
+        netAmount: Number(item.netAmount.toFixed(2)),
+      }))
+      .sort(
+        (a, b) =>
+          b.collectionDate.localeCompare(a.collectionDate) ||
+          a.centerName.localeCompare(b.centerName),
+      );
   }
 
   private async findPendingRepaymentsByCollection(
