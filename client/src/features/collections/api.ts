@@ -220,6 +220,16 @@ export const collectionsService = {
     const response = await repaymentsApi.post("/", data);
     return response.data;
   },
+
+  getPendingRepaymentsForCollection: async (
+    centerId: string,
+    collectionDate: string
+  ): Promise<Repayment[]> => {
+    const response = await repaymentsApi.get(
+      `/pending/collections/${centerId}/${collectionDate}/repayments`
+    );
+    return response.data;
+  },
 };
 
 export default collectionsService;

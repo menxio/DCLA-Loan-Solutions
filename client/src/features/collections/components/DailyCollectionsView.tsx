@@ -16,6 +16,7 @@ import {
   CheckCircle,
   Schedule,
   Warning,
+  HourglassEmpty,
   Visibility,
   FileDownload,
 } from "@mui/icons-material";
@@ -41,6 +42,9 @@ type MemberWithLoansExtended = MemberWithLoans & {
   netCashReleasedForDate?: number;
 };
 
+const getGroupKey = (group: DailyCollectionGroup) =>
+  `${group.centerId}::${group.collectionDate}`;
+
 export default function DailyCollectionsView({
   data,
   onViewDetails,
@@ -50,6 +54,9 @@ export default function DailyCollectionsView({
   const [exportError, setExportError] = useState<string | null>(null);
   const [centerMembersMap, setCenterMembersMap] = useState<
     Record<string, MemberWithLoansExtended[]>
+  >({});
+  const [pendingPaymentMemberIdsMap, setPendingPaymentMemberIdsMap] = useState<
+    Record<string, string[]>
   >({});
   const [membersLoading, setMembersLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -65,6 +72,7 @@ export default function DailyCollectionsView({
       if (!cancelled) {
         setMembersLoading(true);
         setCenterMembersMap({});
+        setPendingPaymentMemberIdsMap({});
       }
       try {
         const results = await Promise.all(
@@ -85,25 +93,43 @@ export default function DailyCollectionsView({
                   group.collectionDate
                 )
               );
+              const pendingRepayments =
+                await collectionsService.getPendingRepaymentsForCollection(
+                  group.centerId,
+                  group.collectionDate
+                );
               return {
                 centerId: group.centerId,
+                groupKey: getGroupKey(group),
                 members: withCollections as MemberWithLoansExtended[],
+                pendingMemberIds: pendingRepayments
+                  .filter((repayment) => repayment.operationType !== "reversal")
+                  .map((repayment) => repayment.member?.id)
+                  .filter((id): id is string => Boolean(id)),
               };
             } catch {
               return {
                 centerId: group.centerId,
+                groupKey: getGroupKey(group),
                 members: [] as MemberWithLoansExtended[],
+                pendingMemberIds: [] as string[],
               };
             }
           })
         );
         if (!cancelled) {
           const map: Record<string, MemberWithLoansExtended[]> = {};
+          const pendingMap: Record<string, string[]> = {};
           results.forEach((r) => (map[r.centerId] = r.members));
+          results.forEach((r) => (pendingMap[r.groupKey] = r.pendingMemberIds));
           setCenterMembersMap(map);
+          setPendingPaymentMemberIdsMap(pendingMap);
         }
       } catch {
-        if (!cancelled) setCenterMembersMap({});
+        if (!cancelled) {
+          setCenterMembersMap({});
+          setPendingPaymentMemberIdsMap({});
+        }
       } finally {
         if (!cancelled) {
           setMembersLoading(false);
@@ -114,6 +140,7 @@ export default function DailyCollectionsView({
       fetchAll();
     } else {
       setCenterMembersMap({});
+      setPendingPaymentMemberIdsMap({});
       setMembersLoading(false);
     }
     return () => {
@@ -151,14 +178,21 @@ export default function DailyCollectionsView({
     (group: DailyCollectionGroup) => {
       const members = getMembersFor(group.centerId);
       if (members.length === 0) {
-        return { paid: 0, partial: 0, unpaid: 0 };
+        return { paid: 0, partial: 0, pending: 0, unpaid: 0 };
       }
+      const pendingMemberIds = new Set(
+        pendingPaymentMemberIdsMap[getGroupKey(group)] ?? []
+      );
       const collectionMap = new Map(
         group.collections.map((collection) => [collection.memberId, collection])
       );
       return members.reduce(
         (acc, member) => {
           if (!hasActiveLoan(member)) return acc;
+          if (pendingMemberIds.has(member.id)) {
+            acc.pending += 1;
+            return acc;
+          }
           const collection = (collectionMap.get(member.id) || null) as
             | Collection
             | null;
@@ -175,16 +209,18 @@ export default function DailyCollectionsView({
           }
           return acc;
         },
-        { paid: 0, partial: 0, unpaid: 0 }
+        { paid: 0, partial: 0, pending: 0, unpaid: 0 }
       );
     },
-    [getMembersFor]
+    [getMembersFor, pendingPaymentMemberIdsMap]
   );
 
   const getPaidCount = (group: DailyCollectionGroup) =>
     getStatusCounts(group).paid;
   const getPartialCount = (group: DailyCollectionGroup) =>
     getStatusCounts(group).partial;
+  const getPendingCount = (group: DailyCollectionGroup) =>
+    getStatusCounts(group).pending;
   const getUnpaidCount = (group: DailyCollectionGroup) =>
     getStatusCounts(group).unpaid;
 
@@ -621,7 +657,7 @@ export default function DailyCollectionsView({
           <CardContent sx={{ p: 3 }}>
             {/* Statistics Cards */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Total Members"
                   value={group.totalMembers}
@@ -629,7 +665,7 @@ export default function DailyCollectionsView({
                   color="primary"
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Paid"
                   value={getPaidCount(group)}
@@ -637,7 +673,7 @@ export default function DailyCollectionsView({
                   color="success"
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Partial"
                   value={getPartialCount(group)}
@@ -645,7 +681,15 @@ export default function DailyCollectionsView({
                   color="warning"
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={2.4}>
+                <CollectionStatsCard
+                  title="Pending"
+                  value={getPendingCount(group)}
+                  icon={<HourglassEmpty />}
+                  color="info"
+                />
+              </Grid>
+              <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Unpaid"
                   value={getUnpaidCount(group)}

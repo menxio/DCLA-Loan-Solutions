@@ -1,6 +1,6 @@
 import type { Collection, MemberWithLoans } from "../types";
 
-type StatusLabel = "PAID" | "PARTIAL" | "UNPAID";
+type StatusLabel = "PAID" | "PARTIAL" | "UNPAID" | "PENDING";
 type StatusColor = "success" | "warning" | "error";
 
 export interface MemberStatusResult {

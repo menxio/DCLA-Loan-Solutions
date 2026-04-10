@@ -5,7 +5,7 @@ interface CollectionStatsCardProps {
   title: string;
   value: string | number;
   icon: React.ReactNode;
-  color: "primary" | "success" | "warning" | "error";
+  color: "primary" | "success" | "warning" | "error" | "info";
   subtitle?: string;
 }
 
@@ -21,6 +21,7 @@ export default function CollectionStatsCard({
     success: "#10b981",
     warning: "#f59e0b",
     error: "#ef4444",
+    info: "#0284c7",
   };
 
   return (

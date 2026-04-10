@@ -25,6 +25,11 @@ type MemberLoan = MemberWithLoans["loans"][number] & {
   savings?: number;
 };
 
+const getActiveLoans = (member: MemberWithLoans): MemberLoan[] =>
+  ((member.loans ?? []) as MemberLoan[]).filter(
+    (loan) => (loan.status || "").toLowerCase() === "active"
+  );
+
 interface PaymentDialogProps {
   open: boolean;
   member: MemberWithLoans | null;
@@ -72,11 +77,15 @@ export function PaymentDialog({
         throw new Error("Payment amount must be a positive number or zero");
       }
 
-      const activeLoan = member.loans.find(
-        (l) => l.status === "active"
-      ) as MemberLoan | undefined;
+      const activeLoans = getActiveLoans(member);
+      const activeLoan = activeLoans[0];
       if (!activeLoan) {
         throw new Error("No active loan found for member");
+      }
+      if (activeLoans.length > 1) {
+        throw new Error(
+          "Member has multiple active loans. Resolve loan records before posting payment."
+        );
       }
 
       const weeklyPaymentDue =
@@ -131,9 +140,8 @@ export function PaymentDialog({
 
   if (!member) return null;
 
-  const activeLoan = member.loans.find(
-    (l) => l.status === "active"
-  ) as MemberLoan | undefined;
+  const activeLoans = getActiveLoans(member);
+  const activeLoan = activeLoans.length === 1 ? activeLoans[0] : undefined;
   const weeklyPayment =
     activeLoan?.weeklyPaymentAmount || member.weeklyPaymentAmount || 0;
   const availableSavings = Number(activeLoan?.savings ?? 0);
@@ -146,6 +154,7 @@ export function PaymentDialog({
     : 0;
   const isSubmitDisabled =
     processing ||
+    activeLoans.length !== 1 ||
     (!useSavings && paymentAmountNum <= 0) ||
     (useSavings && (shortfall <= 0 || availableSavings <= 0));
 
@@ -184,6 +193,13 @@ export function PaymentDialog({
         {error && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
             {error}
+          </Alert>
+        )}
+
+        {activeLoans.length > 1 && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            Member has multiple active loans. Resolve loan records before
+            posting payment.
           </Alert>
         )}
 
