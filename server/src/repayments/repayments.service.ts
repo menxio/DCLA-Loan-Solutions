@@ -25,8 +25,13 @@ import {
 } from './entities/loan-repayment-schedule.entity';
 import { LoanRepaymentAllocation } from './entities/loan-repayment-allocation.entity';
 import { Savings } from '../savings/savings.entity';
+import {
+  CollectionBatch,
+  CollectionBatchStatus,
+} from './entities/collection-batch.entity';
 
 export interface PendingRepaymentCollectionGroup {
+  batchId: string | null;
   centerId: string;
   centerName: string;
   collectionDate: string;
@@ -39,6 +44,7 @@ export interface PendingRepaymentCollectionGroup {
 }
 
 export interface PendingCollectionActionResult {
+  batchId?: string | null;
   centerId: string;
   collectionDate: string;
   processedCount: number;
@@ -65,6 +71,8 @@ export class RepaymentsService implements OnModuleInit {
     private readonly allocationRepo: Repository<LoanRepaymentAllocation>,
     @InjectRepository(Savings)
     private readonly savingsRepo: Repository<Savings>,
+    @InjectRepository(CollectionBatch)
+    private readonly collectionBatchRepo: Repository<CollectionBatch>,
     private readonly loansService: LoansService,
   ) {}
 
@@ -96,6 +104,63 @@ export class RepaymentsService implements OnModuleInit {
     }
     const today = new Date();
     return today.toISOString().split('T')[0];
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === '23505'
+    );
+  }
+
+  private async ensurePendingCollectionBatch(
+    centerId: string,
+    collectionDate: string,
+    submittedById?: string | null,
+  ): Promise<CollectionBatch> {
+    const existing = await this.collectionBatchRepo.findOne({
+      where: {
+        centerId,
+        collectionDate,
+        status: CollectionBatchStatus.PENDING,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const created = this.collectionBatchRepo.create({
+      centerId,
+      collectionDate,
+      status: CollectionBatchStatus.PENDING,
+      submittedById: submittedById ?? null,
+      submittedAt: new Date(),
+    });
+
+    try {
+      return await this.collectionBatchRepo.save(created);
+    } catch (error) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      const current = await this.collectionBatchRepo.findOne({
+        where: {
+          centerId,
+          collectionDate,
+          status: CollectionBatchStatus.PENDING,
+        },
+      });
+
+      if (!current) {
+        throw error;
+      }
+
+      return current;
+    }
   }
 
   async create(body: {
@@ -152,6 +217,13 @@ export class RepaymentsService implements OnModuleInit {
     const createdById = actor?.userId ?? null;
     const shouldAutoApprove =
       actor?.role === 'manager' || actor?.role === 'admin';
+    const pendingBatch = shouldAutoApprove
+      ? null
+      : await this.ensurePendingCollectionBatch(
+          center.id,
+          collectionDateString,
+          createdById,
+        );
 
     const repayment = this.repaymentRepo.create({
       loan,
@@ -164,6 +236,7 @@ export class RepaymentsService implements OnModuleInit {
       status: RepaymentStatus.PENDING,
       operationType: RepaymentOperationType.PAYMENT,
       relatedRepaymentId: null,
+      batchId: pendingBatch?.id ?? null,
       createdById,
     });
     const savedRepayment = await this.repaymentRepo.save(repayment);
@@ -221,6 +294,20 @@ export class RepaymentsService implements OnModuleInit {
     const shouldAutoApprove =
       actor?.role === 'manager' || actor?.role === 'admin';
     const reason = body.reason?.trim();
+    const sourceCenterId = sourceRepayment.center?.id;
+    if (!sourceCenterId) {
+      throw new NotFoundException('Center not found');
+    }
+    const reversalCollectionDate =
+      sourceRepayment.collectionDate ??
+      this.normalizeCollectionDate(sourceRepayment.createdAt.toISOString());
+    const pendingBatch = shouldAutoApprove
+      ? null
+      : await this.ensurePendingCollectionBatch(
+          sourceCenterId,
+          reversalCollectionDate,
+          createdById,
+        );
 
     const reversal = this.repaymentRepo.create({
       loan: sourceRepayment.loan,
@@ -231,13 +318,12 @@ export class RepaymentsService implements OnModuleInit {
         reason && reason.length > 0
           ? reason
           : `Reversal request for repayment ${sourceRepayment.id}`,
-      collectionDate:
-        sourceRepayment.collectionDate ??
-        this.normalizeCollectionDate(sourceRepayment.createdAt.toISOString()),
+      collectionDate: reversalCollectionDate,
       useSavings: false,
       status: RepaymentStatus.PENDING,
       operationType: RepaymentOperationType.REVERSAL,
       relatedRepaymentId: sourceRepayment.id,
+      batchId: pendingBatch?.id ?? null,
       createdById,
     });
 
@@ -543,11 +629,90 @@ export class RepaymentsService implements OnModuleInit {
   }
 
   async findPendingCollections(): Promise<PendingRepaymentCollectionGroup[]> {
+    const rows = await this.collectionBatchRepo
+      .createQueryBuilder('batch')
+      .leftJoin('batch.center', 'center')
+      .leftJoin(
+        'batch.repayments',
+        'entry',
+        'entry.status = :pendingStatus',
+        { pendingStatus: RepaymentStatus.PENDING },
+      )
+      .where('batch.status = :batchStatus', {
+        batchStatus: CollectionBatchStatus.PENDING,
+      })
+      .select('batch.id', 'batchId')
+      .addSelect('center.id', 'centerId')
+      .addSelect(`COALESCE(center.name, 'Unknown center')`, 'centerName')
+      .addSelect('batch.collectionDate::text', 'collectionDate')
+      .addSelect('COUNT(entry.id)::int', 'pendingCount')
+      .addSelect(
+        `SUM(CASE WHEN entry.operationType = :paymentType THEN 1 ELSE 0 END)::int`,
+        'paymentCount',
+      )
+      .addSelect(
+        `SUM(CASE WHEN entry.operationType = :reversalType THEN 1 ELSE 0 END)::int`,
+        'reversalCount',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN entry.operationType = :paymentType THEN entry.amount ELSE 0 END), 0)::numeric`,
+        'paymentAmount',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN entry.operationType = :reversalType THEN entry.amount ELSE 0 END), 0)::numeric`,
+        'reversalAmount',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE
+          WHEN entry.operationType = :reversalType THEN -entry.amount
+          ELSE entry.amount
+        END), 0)::numeric`,
+        'netAmount',
+      )
+      .andWhere('center.id IS NOT NULL')
+      .setParameters({
+        paymentType: RepaymentOperationType.PAYMENT,
+        reversalType: RepaymentOperationType.REVERSAL,
+      })
+      .groupBy('batch.id')
+      .addGroupBy('batch.collectionDate')
+      .addGroupBy('center.id')
+      .addGroupBy('center.name')
+      .having('COUNT(entry.id) > 0')
+      .orderBy('batch.collectionDate', 'DESC')
+      .addOrderBy('center.name', 'ASC')
+      .getRawMany<{
+        batchId: string;
+        centerId: string;
+        centerName: string;
+        collectionDate: string;
+        pendingCount: string;
+        paymentCount: string;
+        reversalCount: string;
+        paymentAmount: string;
+        reversalAmount: string;
+        netAmount: string;
+      }>();
+
+    const batched = rows.map((row) => ({
+      batchId: row.batchId,
+      centerId: row.centerId,
+      centerName: row.centerName || 'Unknown center',
+      collectionDate: row.collectionDate,
+      pendingCount: Number(row.pendingCount || 0),
+      paymentCount: Number(row.paymentCount || 0),
+      reversalCount: Number(row.reversalCount || 0),
+      paymentAmount: Number(row.paymentAmount || 0),
+      reversalAmount: Number(row.reversalAmount || 0),
+      netAmount: Number(row.netAmount || 0),
+    }));
+
     const businessDateExpr = this.businessDateExpression('repayment');
-    const rows = await this.repaymentRepo
+    const unbatched = await this.repaymentRepo
       .createQueryBuilder('repayment')
       .leftJoin('repayment.center', 'center')
-      .select('center.id', 'centerId')
+      .select('NULL', 'batchId')
+      .addSelect('center.id', 'centerId')
       .addSelect(`COALESCE(center.name, 'Unknown center')`, 'centerName')
       .addSelect(`${businessDateExpr}::text`, 'collectionDate')
       .addSelect('COUNT(*)::int', 'pendingCount')
@@ -577,6 +742,7 @@ export class RepaymentsService implements OnModuleInit {
       .where('repayment.status = :pendingStatus', {
         pendingStatus: RepaymentStatus.PENDING,
       })
+      .andWhere('repayment.batchId IS NULL')
       .andWhere('center.id IS NOT NULL')
       .setParameters({
         paymentType: RepaymentOperationType.PAYMENT,
@@ -588,6 +754,7 @@ export class RepaymentsService implements OnModuleInit {
       .orderBy(`${businessDateExpr}`, 'DESC')
       .addOrderBy('center.name', 'ASC')
       .getRawMany<{
+        batchId: string | null;
         centerId: string;
         centerName: string;
         collectionDate: string;
@@ -599,17 +766,21 @@ export class RepaymentsService implements OnModuleInit {
         netAmount: string;
       }>();
 
-    return rows.map((row) => ({
-      centerId: row.centerId,
-      centerName: row.centerName || 'Unknown center',
-      collectionDate: row.collectionDate,
-      pendingCount: Number(row.pendingCount || 0),
-      paymentCount: Number(row.paymentCount || 0),
-      reversalCount: Number(row.reversalCount || 0),
-      paymentAmount: Number(row.paymentAmount || 0),
-      reversalAmount: Number(row.reversalAmount || 0),
-      netAmount: Number(row.netAmount || 0),
-    }));
+    return [
+      ...batched,
+      ...unbatched.map((row) => ({
+        batchId: row.batchId ?? null,
+        centerId: row.centerId,
+        centerName: row.centerName || 'Unknown center',
+        collectionDate: row.collectionDate,
+        pendingCount: Number(row.pendingCount || 0),
+        paymentCount: Number(row.paymentCount || 0),
+        reversalCount: Number(row.reversalCount || 0),
+        paymentAmount: Number(row.paymentAmount || 0),
+        reversalAmount: Number(row.reversalAmount || 0),
+        netAmount: Number(row.netAmount || 0),
+      })),
+    ];
   }
 
   private async findPendingRepaymentsByCollection(
@@ -633,16 +804,35 @@ export class RepaymentsService implements OnModuleInit {
       .getMany();
   }
 
+  private async findPendingRepaymentsByBatch(
+    batchId: string,
+  ): Promise<Repayment[]> {
+    return this.repaymentRepo.find({
+      where: {
+        batchId,
+        status: RepaymentStatus.PENDING,
+      },
+      relations: ['loan', 'member', 'center'],
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   async approvePendingCollection(
     centerId: string,
     collectionDate: string,
     actorId?: string,
   ): Promise<PendingCollectionActionResult> {
     const normalizedDate = this.normalizeCollectionDate(collectionDate);
-    const pendingRepayments = await this.findPendingRepaymentsByCollection(
-      centerId,
-      normalizedDate,
-    );
+    const pendingBatch = await this.collectionBatchRepo.findOne({
+      where: {
+        centerId,
+        collectionDate: normalizedDate,
+        status: CollectionBatchStatus.PENDING,
+      },
+    });
+    const pendingRepayments = pendingBatch
+      ? await this.findPendingRepaymentsByBatch(pendingBatch.id)
+      : await this.findPendingRepaymentsByCollection(centerId, normalizedDate);
 
     if (!pendingRepayments.length) {
       throw new NotFoundException(
@@ -662,7 +852,18 @@ export class RepaymentsService implements OnModuleInit {
       }
     }
 
+    if (pendingBatch) {
+      pendingBatch.status = CollectionBatchStatus.APPROVED;
+      pendingBatch.approvedById = actorId ?? null;
+      pendingBatch.approvedAt = new Date();
+      pendingBatch.rejectedById = null;
+      pendingBatch.rejectedAt = null;
+      pendingBatch.rejectedReason = null;
+      await this.collectionBatchRepo.save(pendingBatch);
+    }
+
     return {
+      batchId: pendingBatch?.id ?? null,
       centerId,
       collectionDate: normalizedDate,
       processedCount: pendingRepayments.length,
@@ -677,10 +878,16 @@ export class RepaymentsService implements OnModuleInit {
     reason?: string,
   ): Promise<PendingCollectionActionResult> {
     const normalizedDate = this.normalizeCollectionDate(collectionDate);
-    const pendingRepayments = await this.findPendingRepaymentsByCollection(
-      centerId,
-      normalizedDate,
-    );
+    const pendingBatch = await this.collectionBatchRepo.findOne({
+      where: {
+        centerId,
+        collectionDate: normalizedDate,
+        status: CollectionBatchStatus.PENDING,
+      },
+    });
+    const pendingRepayments = pendingBatch
+      ? await this.findPendingRepaymentsByBatch(pendingBatch.id)
+      : await this.findPendingRepaymentsByCollection(centerId, normalizedDate);
 
     if (!pendingRepayments.length) {
       throw new NotFoundException(
@@ -700,7 +907,18 @@ export class RepaymentsService implements OnModuleInit {
       }
     }
 
+    if (pendingBatch) {
+      pendingBatch.status = CollectionBatchStatus.REJECTED;
+      pendingBatch.rejectedById = actorId ?? null;
+      pendingBatch.rejectedAt = new Date();
+      pendingBatch.rejectedReason = reason?.trim() || null;
+      pendingBatch.approvedById = null;
+      pendingBatch.approvedAt = null;
+      await this.collectionBatchRepo.save(pendingBatch);
+    }
+
     return {
+      batchId: pendingBatch?.id ?? null,
       centerId,
       collectionDate: normalizedDate,
       processedCount: pendingRepayments.length,

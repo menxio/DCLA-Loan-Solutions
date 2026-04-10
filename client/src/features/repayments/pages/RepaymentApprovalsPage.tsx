@@ -89,7 +89,11 @@ export default function RepaymentApprovalsPage() {
     if (!approveTarget) return;
 
     try {
-      await approveCollection(approveTarget.centerId, approveTarget.collectionDate);
+      await approveCollection(
+        approveTarget.centerId,
+        approveTarget.collectionDate,
+        approveTarget.batchId
+      );
       showSnackbar("Collection approved successfully.");
     } catch (err) {
       showSnackbar("Failed to approve collection.", "error");
@@ -105,7 +109,8 @@ export default function RepaymentApprovalsPage() {
       await rejectCollection(
         rejectState.target.centerId,
         rejectState.target.collectionDate,
-        rejectState.reason
+        rejectState.reason,
+        rejectState.target.batchId
       );
       showSnackbar("Collection rejected.");
     } catch (err) {
@@ -252,11 +257,14 @@ export default function RepaymentApprovalsPage() {
                 <TableBody>
                   {filtered.map((item) => {
                     const isActing = actingIds.has(
-                      getActionKey(item.centerId, item.collectionDate)
+                      getActionKey(item.centerId, item.collectionDate, item.batchId)
                     );
 
                     return (
-                      <TableRow key={`${item.centerId}-${item.collectionDate}`} hover>
+                      <TableRow
+                        key={`${item.batchId ?? "legacy"}-${item.centerId}-${item.collectionDate}`}
+                        hover
+                      >
                         <TableCell>{formatDate(item.collectionDate)}</TableCell>
                         <TableCell>
                           <Typography sx={{ fontWeight: 600 }}>

@@ -11,6 +11,7 @@ import { LoansModule } from '../loans/loans.module';
 import { LoanRepaymentSchedule } from './entities/loan-repayment-schedule.entity';
 import { LoanRepaymentAllocation } from './entities/loan-repayment-allocation.entity';
 import { Savings } from '../savings/savings.entity';
+import { CollectionBatch } from './entities/collection-batch.entity';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { Savings } from '../savings/savings.entity';
       LoanRepaymentSchedule,
       LoanRepaymentAllocation,
       Savings,
+      CollectionBatch,
     ]),
     LoansModule,
   ],

@@ -17,8 +17,11 @@ export function useRepaymentApprovals() {
   const [error, setError] = useState<string | null>(null);
   const [actingIds, setActingIds] = useState<Set<string>>(new Set());
 
-  const getActionKey = (centerId: string, collectionDate: string) =>
-    `${centerId}::${collectionDate}`;
+  const getActionKey = (
+    centerId: string,
+    collectionDate: string,
+    batchId?: string | null
+  ) => `${batchId ?? "legacy"}::${centerId}::${collectionDate}`;
 
   const updateActing = (actionKey: string, isActing: boolean) => {
     setActingIds((prev) => {
@@ -49,8 +52,12 @@ export function useRepaymentApprovals() {
     fetchPendingCollections();
   }, [fetchPendingCollections]);
 
-  const approveCollection = async (centerId: string, collectionDate: string) => {
-    const actionKey = getActionKey(centerId, collectionDate);
+  const approveCollection = async (
+    centerId: string,
+    collectionDate: string,
+    batchId?: string | null
+  ) => {
+    const actionKey = getActionKey(centerId, collectionDate, batchId);
     updateActing(actionKey, true);
     try {
       await repaymentsService.approveCollection(centerId, collectionDate);
@@ -68,9 +75,10 @@ export function useRepaymentApprovals() {
   const rejectCollection = async (
     centerId: string,
     collectionDate: string,
-    reason?: string
+    reason?: string,
+    batchId?: string | null
   ) => {
-    const actionKey = getActionKey(centerId, collectionDate);
+    const actionKey = getActionKey(centerId, collectionDate, batchId);
     updateActing(actionKey, true);
     try {
       await repaymentsService.rejectCollection(centerId, collectionDate, reason);

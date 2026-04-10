@@ -34,6 +34,7 @@ export interface Repayment {
 }
 
 export interface PendingRepaymentCollectionGroup {
+  batchId: string | null;
   centerId: string;
   centerName: string;
   collectionDate: string;

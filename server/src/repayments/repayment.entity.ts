@@ -5,11 +5,13 @@ import {
   ManyToOne,
   CreateDateColumn,
   OneToMany,
+  JoinColumn,
 } from 'typeorm';
 import { Loan } from '../loans/loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Center } from '../centers/entities/center.entity';
 import { LoanRepaymentAllocation } from './entities/loan-repayment-allocation.entity';
+import { CollectionBatch } from './entities/collection-batch.entity';
 
 export enum RepaymentStatus {
   PENDING = 'pending',
@@ -63,6 +65,17 @@ export class Repayment {
 
   @Column({ type: 'uuid', nullable: true })
   relatedRepaymentId: string | null;
+
+  @ManyToOne(() => CollectionBatch, (batch) => batch.repayments, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'batchId' })
+  batch: CollectionBatch | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  batchId: string | null;
+
   @Column({ type: 'uuid', nullable: true })
   createdById: string | null;
 
