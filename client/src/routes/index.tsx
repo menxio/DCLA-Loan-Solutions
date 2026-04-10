@@ -2,6 +2,11 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import { useAuthStore } from "@features/auth/authStore";
 import FullScreenLoader from "@components/common/FullScreenLoader";
+import ForbiddenPage from "@components/common/ForbiddenPage";
+import {
+  canAccessPath,
+  getDefaultRouteForRole,
+} from "@features/auth/access";
 
 const LoginPage = lazy(() => import("@features/auth/pages/LoginPage"));
 const DashboardPage = lazy(() => import("@features/dashboard/pages/DashboardPage"));
@@ -18,11 +23,27 @@ const PortfolioPage = lazy(
 const TransactionHistoryPage = lazy(
   () => import("@features/transactions/pages/TransactionHistoryPage")
 );
+const UserManagementPage = lazy(
+  () => import("@features/users/pages/UserManagementPage")
+);
+const RepaymentApprovalsPage = lazy(
+  () => import("@features/repayments/pages/RepaymentApprovalsPage")
+);
+const LoanWaiversPage = lazy(
+  () => import("@features/loans/pages/LoanWaiversPage")
+);
 
 export default function AppRouter() {
   const token = useAuthStore((state) => state.token);
+  const role = useAuthStore((state) => state.user?.role);
   const isInitialized = useAuthStore((state) => state.isInitialized);
-  const defaultAuthenticatedRoute = "/dashboard";
+  const defaultAuthenticatedRoute = getDefaultRouteForRole(role);
+  const renderProtectedRoute = (path: string, element: JSX.Element) => {
+    if (!token) {
+      return <Navigate to="/login" />;
+    }
+    return canAccessPath(role, path) ? element : <ForbiddenPage />;
+  };
 
   if (!isInitialized) {
     return <FullScreenLoader />;
@@ -43,27 +64,54 @@ export default function AppRouter() {
         />
         <Route
           path="/dashboard"
-          element={token ? <DashboardPage /> : <Navigate to="/login" />}
+          element={renderProtectedRoute("/dashboard", <DashboardPage />)}
         />
         <Route
           path="/member-management"
-          element={token ? <MemberManagementPage /> : <Navigate to="/login" />}
+          element={renderProtectedRoute(
+            "/member-management",
+            <MemberManagementPage />
+          )}
         />
         <Route
           path="/centers"
-          element={token ? <CentersPage /> : <Navigate to="/login" />}
+          element={renderProtectedRoute("/centers", <CentersPage />)}
         />
         <Route
           path="/collections"
-          element={token ? <CollectionsPage /> : <Navigate to="/login" />}
+          element={renderProtectedRoute("/collections", <CollectionsPage />)}
         />
         <Route
           path="/portfolio"
-          element={token ? <PortfolioPage /> : <Navigate to="/login" />}
+          element={renderProtectedRoute("/portfolio", <PortfolioPage />)}
         />
         <Route
           path="/transactions"
-          element={token ? <TransactionHistoryPage /> : <Navigate to="/login" />}
+          element={renderProtectedRoute(
+            "/transactions",
+            <TransactionHistoryPage />
+          )}
+        />
+        <Route
+          path="/admin/users"
+          element={renderProtectedRoute("/admin/users", <UserManagementPage />)}
+        />
+        <Route
+          path="/approvals"
+          element={renderProtectedRoute("/approvals", <RepaymentApprovalsPage />)}
+        />
+        <Route
+          path="/waivers"
+          element={renderProtectedRoute("/waivers", <LoanWaiversPage />)}
+        />
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to={token ? defaultAuthenticatedRoute : "/login"}
+              replace
+            />
+          }
         />
       </Routes>
     </Suspense>

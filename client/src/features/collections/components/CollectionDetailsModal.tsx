@@ -38,6 +38,8 @@ import { PaymentDialog } from "./PaymentDialog";
 import { ReloanDialog } from "./ReloanDialog";
 import { CollectionSummaryCards } from "./CollectionSummaryCards";
 import { MembersTable } from "./MembersTable";
+import type { Repayment } from "@features/repayments/types";
+import { useAuthStore } from "@features/auth/authStore";
 import {
   evaluateMemberStatus,
   hasActiveLoan,
@@ -93,6 +95,9 @@ export default function CollectionDetailsModal({
   onClose,
   onDataChanged,
 }: CollectionDetailsModalProps) {
+  const role = useAuthStore((state) => state.user?.role ?? "");
+  const canReloan = role === "loan processor";
+
   // State management
   const [members, setMembers] = useState<MemberWithLoansExtended[]>([]);
   const [loading, setLoading] = useState(false);
@@ -264,16 +269,25 @@ export default function CollectionDetailsModal({
     setSelectedMember(null);
   }, []);
 
-  const handlePaymentSuccess = useCallback(async () => {
-    await fetchCenterMembers();
-    onDataChanged?.();
-    setToast({
-      open: true,
-      message: "Payment recorded successfully.",
-      severity: "success",
-    });
-    handleClosePaymentDialog();
-  }, [fetchCenterMembers, handleClosePaymentDialog, onDataChanged]);
+  const handlePaymentSuccess = useCallback(
+    async (repayment: Repayment) => {
+      const status = repayment?.status ?? "approved";
+      if (status !== "pending") {
+        await fetchCenterMembers();
+        onDataChanged?.();
+      }
+      setToast({
+        open: true,
+        message:
+          status === "pending"
+            ? "Payment submitted for manager approval."
+            : "Payment recorded successfully.",
+        severity: "success",
+      });
+      handleClosePaymentDialog();
+    },
+    [fetchCenterMembers, handleClosePaymentDialog, onDataChanged]
+  );
 
   const handleReloanSuccess = useCallback(async () => {
     await fetchCenterMembers();
@@ -782,6 +796,7 @@ export default function CollectionDetailsModal({
                 formatCurrency={formatCurrency}
                 onOpenPaymentDialog={handleOpenPaymentDialog}
                 onOpenReloanDialog={handleOpenReloanDialog}
+                canReloan={canReloan}
               />
             </>
           )}
@@ -839,7 +854,7 @@ export default function CollectionDetailsModal({
       />
 
       <ReloanDialog
-        open={reloanDialogOpen}
+        open={canReloan && reloanDialogOpen}
         member={selectedMember}
         onClose={handleCloseReloanDialog}
         onSuccess={handleReloanSuccess}

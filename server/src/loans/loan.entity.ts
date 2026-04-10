@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Member } from '../members/entities/member.entity';
 import { LoanRepaymentSchedule } from '../repayments/entities/loan-repayment-schedule.entity';
+import { LoanWaiver } from './entities/loan-waiver.entity';
 
 @Entity()
 export class Loan {
@@ -57,6 +58,18 @@ export class Loan {
   @Column('decimal', { precision: 12, scale: 2, nullable: true })
   netCashReleased: number | null;
 
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  pastDueInterestAccrued: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  pastDueInterestWaived: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  penaltyAccrued: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  penaltyWaived: number;
+
   @Column({ nullable: true })
   loanCreatedDate: Date;
 
@@ -71,4 +84,7 @@ export class Loan {
     (schedule) => schedule.loan,
   )
   repaymentSchedule: LoanRepaymentSchedule[];
+
+  @OneToMany(() => LoanWaiver, (waiver) => waiver.loan)
+  waivers: LoanWaiver[];
 }

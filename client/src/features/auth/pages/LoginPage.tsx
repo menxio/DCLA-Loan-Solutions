@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { authService } from "../api";
 import { useAuthStore } from "../authStore";
+import { getDefaultRouteForRole } from "../access";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -85,6 +86,7 @@ export default function LoginPage() {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          mustChangePassword: user.mustChangePassword,
         });
       } else {
         const decoded = JSON.parse(atob(access_token.split(".")[1])) as JwtPayload;
@@ -92,10 +94,11 @@ export default function LoginPage() {
           id: decoded.sub ?? "",
           email: decoded.email ?? "",
           role: decoded.role ?? "user",
+          mustChangePassword: false,
         });
       }
 
-      navigate("/dashboard");
+      navigate(getDefaultRouteForRole(user?.role), { replace: true });
     } catch (err: unknown) {
       const errorMessage = axios.isAxiosError<{ message?: string }>(err)
         ? err.response?.data?.message ?? "Invalid credentials"

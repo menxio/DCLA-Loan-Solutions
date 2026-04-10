@@ -13,7 +13,11 @@ import { Center } from '../centers/entities/center.entity';
 import { Member } from '../members/entities/member.entity';
 import { CollectionsRepository } from './collections.repository';
 import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
-import { Repayment } from '../repayments/repayment.entity';
+import {
+  Repayment,
+  RepaymentOperationType,
+  RepaymentStatus,
+} from '../repayments/repayment.entity';
 
 @Injectable()
 export class CollectionsService {
@@ -90,9 +94,19 @@ export class CollectionsService {
 
     const raw = await this.repaymentRepo
       .createQueryBuilder('repayment')
-      .select('COALESCE(SUM(repayment.amount), 0)', 'total')
+      .select(
+        `COALESCE(SUM(CASE
+          WHEN repayment.operationType = :reversalType THEN -repayment.amount
+          ELSE repayment.amount
+        END), 0)`,
+        'total',
+      )
       .leftJoin('repayment.center', 'center')
       .where('center.id = :centerId', { centerId })
+      .andWhere('repayment.status = :status', {
+        status: RepaymentStatus.APPROVED,
+      })
+      .setParameter('reversalType', RepaymentOperationType.REVERSAL)
       .andWhere(
         'repayment.createdAt >= :start AND repayment.createdAt < :end',
         {

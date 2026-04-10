@@ -18,6 +18,7 @@ import { Payment, AccountBalance, Savings } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import collectionsService from "../api";
 import type { MemberWithLoans } from "../types";
+import type { Repayment } from "@features/repayments/types";
 
 type MemberLoan = MemberWithLoans["loans"][number] & {
   weeklyPaymentAmount?: number;
@@ -28,7 +29,7 @@ interface PaymentDialogProps {
   open: boolean;
   member: MemberWithLoans | null;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (repayment: Repayment) => void;
   formatCurrency: (amount: number) => string;
   centerId: string;
   collectionDate: string;
@@ -107,7 +108,7 @@ export function PaymentDialog({
         }
       }
 
-      await collectionsService.createRepayment({
+      const repayment = await collectionsService.createRepayment({
         loanId: activeLoan.id,
         memberId: member.id,
         centerId,
@@ -117,7 +118,7 @@ export function PaymentDialog({
         useSavings,
       });
 
-      onSuccess();
+      onSuccess(repayment);
     } catch (error) {
       console.error("Failed to process payment:", error);
       setError(
