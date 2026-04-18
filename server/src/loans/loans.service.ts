@@ -12,6 +12,7 @@ import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { ReloanDto } from './dto/reloan.dto';
 import { ApplyLoanWaiverDto } from './dto/apply-loan-waiver.dto';
+import { FindMemberLoansQueryDto } from './dto/find-member-loans-query.dto';
 import {
   LoanRepaymentSchedule,
   LoanRepaymentStatus,
@@ -259,12 +260,34 @@ export class LoansService {
     });
   }
 
-  async findByMember(memberId: string): Promise<Loan[]> {
-    return this.loanRepository.find({
-      where: { borrower: { id: memberId } },
-      relations: ['borrower'],
-      order: { createdAt: 'DESC' },
-    });
+  async findByMember(memberId: string, query: FindMemberLoansQueryDto) {
+    const { status = 'all', page = 1, limit = 10 } = query;
+
+    const qb = this.loanRepository
+      .createQueryBuilder('loan')
+      .leftJoinAndSelect('loan.borrower', 'borrower')
+      .where('borrower.id = :memberId', { memberId })
+      .orderBy('loan.createdAt', 'DESC');
+
+    if (status !== 'all') {
+      qb.andWhere('loan.status = :status', { status });
+    }
+
+    const normalizedLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+    const normalizedPage = Math.max(Number(page) || 1, 1);
+
+    qb.skip((normalizedPage - 1) * normalizedLimit).take(normalizedLimit);
+
+    const [items, total] = await qb.getManyAndCount();
+    const totalPages = Math.ceil(total / normalizedLimit) || 1;
+
+    return {
+      items,
+      total,
+      page: normalizedPage,
+      limit: normalizedLimit,
+      totalPages,
+    };
   }
 
   async findOne(id: string): Promise<Loan> {
