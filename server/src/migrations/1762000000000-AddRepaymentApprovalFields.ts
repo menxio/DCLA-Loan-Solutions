@@ -6,35 +6,42 @@ export class AddRepaymentApprovalFields1762000000000
   name = 'AddRepaymentApprovalFields1762000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_type WHERE typname = 'repayment_status_enum'
+        ) THEN
+          CREATE TYPE "repayment_status_enum" AS ENUM ('pending', 'approved', 'rejected');
+        END IF;
+      END$$;
+    `);
     await queryRunner.query(
-      `CREATE TYPE "repayment_status_enum" AS ENUM ('pending', 'approved', 'rejected')`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "collectionDate" date`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "collectionDate" date`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "useSavings" boolean NOT NULL DEFAULT false`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "useSavings" boolean NOT NULL DEFAULT false`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "status" "repayment_status_enum" NOT NULL DEFAULT 'approved'`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "status" "repayment_status_enum" NOT NULL DEFAULT 'approved'`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "createdById" uuid`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "createdById" uuid`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "approvedById" uuid`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "approvedById" uuid`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "approvedAt" TIMESTAMP`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "rejectedById" uuid`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "rejectedById" uuid`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "rejectedAt" TIMESTAMP`,
     );
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "rejectedAt" TIMESTAMP`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "rejectedReason" text`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "rejectedReason" text`,
     );
   }
 

@@ -5,20 +5,20 @@ export class AddLoanWaiverFields1762200000000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "loan" ADD "pastDueInterestAccrued" numeric(12,2) NOT NULL DEFAULT '0'`,
+      `ALTER TABLE "loan" ADD COLUMN IF NOT EXISTS "pastDueInterestAccrued" numeric(12,2) NOT NULL DEFAULT '0'`,
     );
     await queryRunner.query(
-      `ALTER TABLE "loan" ADD "pastDueInterestWaived" numeric(12,2) NOT NULL DEFAULT '0'`,
+      `ALTER TABLE "loan" ADD COLUMN IF NOT EXISTS "pastDueInterestWaived" numeric(12,2) NOT NULL DEFAULT '0'`,
     );
     await queryRunner.query(
-      `ALTER TABLE "loan" ADD "penaltyAccrued" numeric(12,2) NOT NULL DEFAULT '0'`,
+      `ALTER TABLE "loan" ADD COLUMN IF NOT EXISTS "penaltyAccrued" numeric(12,2) NOT NULL DEFAULT '0'`,
     );
     await queryRunner.query(
-      `ALTER TABLE "loan" ADD "penaltyWaived" numeric(12,2) NOT NULL DEFAULT '0'`,
+      `ALTER TABLE "loan" ADD COLUMN IF NOT EXISTS "penaltyWaived" numeric(12,2) NOT NULL DEFAULT '0'`,
     );
 
     await queryRunner.query(`
-      CREATE TABLE "loan_waiver" (
+      CREATE TABLE IF NOT EXISTS "loan_waiver" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "loanId" uuid NOT NULL,
         "pastDueInterestWaived" numeric(12,2) NOT NULL DEFAULT '0',
@@ -34,11 +34,22 @@ export class AddLoanWaiverFields1762200000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(
-      `CREATE INDEX "IDX_loan_waiver_loan_id" ON "loan_waiver" ("loanId")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_loan_waiver_loan_id" ON "loan_waiver" ("loanId")`,
     );
-    await queryRunner.query(
-      `ALTER TABLE "loan_waiver" ADD CONSTRAINT "FK_loan_waiver_loan" FOREIGN KEY ("loanId") REFERENCES "loan"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
-    );
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM information_schema.table_constraints
+          WHERE constraint_name = 'FK_loan_waiver_loan'
+            AND table_schema = 'public'
+            AND table_name = 'loan_waiver'
+        ) THEN
+          ALTER TABLE "loan_waiver" ADD CONSTRAINT "FK_loan_waiver_loan" FOREIGN KEY ("loanId") REFERENCES "loan"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+        END IF;
+      END$$;
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

@@ -6,12 +6,19 @@ export class CreateCollectionBatch1762500000000
   name = 'CreateCollectionBatch1762500000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `CREATE TYPE "collection_batch_status_enum" AS ENUM ('pending', 'approved', 'rejected')`,
-    );
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_type WHERE typname = 'collection_batch_status_enum'
+        ) THEN
+          CREATE TYPE "collection_batch_status_enum" AS ENUM ('pending', 'approved', 'rejected');
+        END IF;
+      END$$;
+    `);
 
     await queryRunner.query(`
-      CREATE TABLE "collection_batch" (
+      CREATE TABLE IF NOT EXISTS "collection_batch" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "centerId" uuid NOT NULL,
         "collectionDate" date NOT NULL,
@@ -31,18 +38,29 @@ export class CreateCollectionBatch1762500000000
     `);
 
     await queryRunner.query(
-      `CREATE INDEX "IDX_collection_batch_status_date_center" ON "collection_batch" ("status", "collectionDate", "centerId")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_collection_batch_status_date_center" ON "collection_batch" ("status", "collectionDate", "centerId")`,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "UQ_collection_batch_pending_center_date" ON "collection_batch" ("centerId", "collectionDate") WHERE "status" = 'pending'`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_collection_batch_pending_center_date" ON "collection_batch" ("centerId", "collectionDate") WHERE "status" = 'pending'`,
     );
 
-    await queryRunner.query(`ALTER TABLE "repayment" ADD "batchId" uuid`);
+    await queryRunner.query(`ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "batchId" uuid`);
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM information_schema.table_constraints
+          WHERE constraint_name = 'FK_repayment_batch'
+            AND table_schema = 'public'
+            AND table_name = 'repayment'
+        ) THEN
+          ALTER TABLE "repayment" ADD CONSTRAINT "FK_repayment_batch" FOREIGN KEY ("batchId") REFERENCES "collection_batch"("id") ON DELETE SET NULL ON UPDATE NO ACTION;
+        END IF;
+      END$$;
+    `);
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD CONSTRAINT "FK_repayment_batch" FOREIGN KEY ("batchId") REFERENCES "collection_batch"("id") ON DELETE SET NULL ON UPDATE NO ACTION`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX "IDX_repayment_batch_status" ON "repayment" ("batchId", "status")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_repayment_batch_status" ON "repayment" ("batchId", "status")`,
     );
 
     await queryRunner.query(`

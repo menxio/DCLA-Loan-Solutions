@@ -6,16 +6,23 @@ export class AddRepaymentOperationFields1762100000000
   name = 'AddRepaymentOperationFields1762100000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_type WHERE typname = 'repayment_operation_type_enum'
+        ) THEN
+          CREATE TYPE "repayment_operation_type_enum" AS ENUM ('payment', 'reversal');
+        END IF;
+      END$$;
+    `);
+
     await queryRunner.query(
-      `CREATE TYPE "repayment_operation_type_enum" AS ENUM ('payment', 'reversal')`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "operationType" "repayment_operation_type_enum" NOT NULL DEFAULT 'payment'`,
     );
 
     await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "operationType" "repayment_operation_type_enum" NOT NULL DEFAULT 'payment'`,
-    );
-
-    await queryRunner.query(
-      `ALTER TABLE "repayment" ADD "relatedRepaymentId" uuid`,
+      `ALTER TABLE "repayment" ADD COLUMN IF NOT EXISTS "relatedRepaymentId" uuid`,
     );
   }
 
