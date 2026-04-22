@@ -17,12 +17,19 @@ export class TransactionsQueryDto {
   @IsOptional()
   @IsIn([
     'repayment',
+    'waiver',
     'savings',
     'savings_deposit',
     'savings_withdrawal',
     'all',
   ])
-  type?: 'repayment' | 'savings' | 'savings_deposit' | 'savings_withdrawal' | 'all';
+  type?:
+    | 'repayment'
+    | 'waiver'
+    | 'savings'
+    | 'savings_deposit'
+    | 'savings_withdrawal'
+    | 'all';
 
   @IsOptional()
   @IsString()

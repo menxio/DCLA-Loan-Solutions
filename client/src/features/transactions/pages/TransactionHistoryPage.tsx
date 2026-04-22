@@ -42,6 +42,7 @@ import { repaymentsService } from "@features/repayments/api";
 const typeOptions = [
   { value: "all", label: "All Transactions" },
   { value: "repayment", label: "Loan Repayments" },
+  { value: "waiver", label: "Loan Waivers" },
   { value: "savings_deposit", label: "Savings Deposits" },
   { value: "savings_withdrawal", label: "Savings Withdrawals" },
 ];
@@ -58,6 +59,21 @@ const formatDate = (value: string) => {
 const directionColors: Record<string, "success" | "error" | "default"> = {
   credit: "success",
   debit: "error",
+};
+
+const getTransactionTypeLabel = (type: TransactionFilterType | "waiver") => {
+  switch (type) {
+    case "repayment":
+      return "Repayment";
+    case "waiver":
+      return "Waiver";
+    case "savings_deposit":
+      return "Savings Deposit";
+    case "savings_withdrawal":
+      return "Savings Withdrawal";
+    default:
+      return type;
+  }
 };
 
 export default function TransactionHistoryPage() {
@@ -92,6 +108,7 @@ export default function TransactionHistoryPage() {
     const totals = transactions.reduce(
       (acc, tx) => {
         if (tx.type === "repayment") acc.repayments += 1;
+        if (tx.type === "waiver") acc.waivers += 1;
         if (tx.type === "savings_deposit") acc.deposits += 1;
         if (tx.type === "savings_withdrawal") acc.withdrawals += 1;
         if (tx.direction === "credit") {
@@ -103,6 +120,7 @@ export default function TransactionHistoryPage() {
       },
       {
         repayments: 0,
+        waivers: 0,
         deposits: 0,
         withdrawals: 0,
         totalCredits: 0,
@@ -187,7 +205,7 @@ export default function TransactionHistoryPage() {
                 Transaction History
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Review repayments and savings activity across all centers.
+                Review repayments, waivers, and savings activity across all centers.
               </Typography>
             </Box>
           </Box>
@@ -268,7 +286,7 @@ export default function TransactionHistoryPage() {
         </Paper>
 
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={3}>
+          <Grid item xs={12} md={4}>
             <Card
               sx={{
                 borderRadius: 3,
@@ -286,7 +304,7 @@ export default function TransactionHistoryPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid item xs={12} md={4}>
             <Card sx={{ borderRadius: 3, border: "1px solid #e2e8f0" }}>
               <CardContent>
                 <Typography variant="subtitle2" color="text.secondary">
@@ -298,7 +316,19 @@ export default function TransactionHistoryPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ borderRadius: 3, border: "1px solid #e2e8f0" }}>
+              <CardContent>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Waivers
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  {stats.waivers}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
             <Card sx={{ borderRadius: 3, border: "1px solid #e2e8f0" }}>
               <CardContent>
                 <Typography variant="subtitle2" color="text.secondary">
@@ -310,7 +340,7 @@ export default function TransactionHistoryPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid item xs={12} md={4}>
             <Card sx={{ borderRadius: 3, border: "1px solid #e2e8f0" }}>
               <CardContent>
                 <Typography variant="subtitle2" color="text.secondary">
@@ -374,8 +404,8 @@ export default function TransactionHistoryPage() {
                     <TableCell>
                       {transaction.member.center?.name ?? "No center"}
                     </TableCell>
-                    <TableCell sx={{ textTransform: "capitalize" }}>
-                      {transaction.type.replace("_", " ")}
+                    <TableCell>
+                      {getTransactionTypeLabel(transaction.type)}
                     </TableCell>
                     <TableCell>
                       <Chip
