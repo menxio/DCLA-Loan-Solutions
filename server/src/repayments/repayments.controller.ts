@@ -51,6 +51,18 @@ export class RepaymentsController {
     return this.repaymentsService.findPendingCollections();
   }
 
+  @Roles(ROLE.Manager, ROLE.Cashier)
+  @Get('pending/collections/:centerId/:collectionDate/repayments')
+  findPendingRepaymentsForCollection(
+    @Param('centerId') centerId: string,
+    @Param('collectionDate') collectionDate: string,
+  ) {
+    return this.repaymentsService.findPendingRepaymentsForCollection(
+      centerId,
+      collectionDate,
+    );
+  }
+
   @Roles(ROLE.Manager)
   @Post('pending/collections/approve')
   approveCollection(

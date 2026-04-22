@@ -78,7 +78,16 @@ const statusChipStyles: Record<string, { bg: string; color: string }> = {
   PAID: { bg: "#dcfce7", color: "#15803d" },
   PARTIAL: { bg: "#fef3c7", color: "#b45309" },
   UNPAID: { bg: "#fee2e2", color: "#dc2626" },
+  PENDING: { bg: "#e0f2fe", color: "#0369a1" },
 };
+
+const getActiveLoans = (member: MemberWithLoansRow): MemberLoan[] =>
+  (member.loans ?? []).filter(
+    (loan) => (loan.status || "").toLowerCase() === "active"
+  );
+
+const summaryGridColumns =
+  "minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) auto";
 
 export function MembersTable({
   members,
@@ -135,7 +144,8 @@ export function MembersTable({
         <Box
           sx={{
             display: { xs: "none", md: "grid" },
-            gridTemplateColumns: "48px minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) auto",
+            gridTemplateColumns: `${summaryGridColumns} 40px`,
+            columnGap: 2,
             alignItems: "center",
             px: 3,
             py: 2.25,
@@ -145,7 +155,6 @@ export function MembersTable({
             fontWeight: 700,
           }}
         >
-          <Box />
           <Typography variant="body2" sx={{ fontWeight: 700 }}>
             Client Name
           </Typography>
@@ -161,23 +170,44 @@ export function MembersTable({
           >
             Actions
           </Typography>
+          <Box />
         </Box>
 
         {members.map((member, index) => {
-          const activeLoan = member.loans?.find((loan) => loan.status === "active");
+          const activeLoans = getActiveLoans(member);
+          const activeLoan =
+            activeLoans.length === 1 ? activeLoans[0] : undefined;
           const { received, due } = getCollectionMetrics(member);
           const paymentInfo = getPaymentInfo(member);
           const weeksPaid = paymentInfo.weeksCovered ?? 0;
-          const hasActive = Boolean(activeLoan);
-          const principal = Number(activeLoan?.principalAmount ?? 0);
-          const totalAmount = Number(activeLoan?.totalAmount ?? 0);
-          const termWeeks = Number(activeLoan?.termWeeks ?? 0);
+          const hasActive = activeLoans.length > 0;
+          const hasSingleActiveLoan = activeLoans.length === 1;
+          const principal = hasSingleActiveLoan
+            ? Number(activeLoan?.principalAmount ?? 0)
+            : Number(member.totalLoanAmount ?? 0);
+          const totalAmount = hasSingleActiveLoan
+            ? Number(activeLoan?.totalAmount ?? 0)
+            : Number(member.overallAmount ?? 0);
+          const termWeeks = hasSingleActiveLoan
+            ? Number(activeLoan?.termWeeks ?? 0)
+            : Number(member.totalTermWeeks ?? 0);
           const weekly =
             due ||
             Number(
-              activeLoan?.weeklyPaymentAmount ?? member.weeklyPaymentAmount ?? 0
+              hasSingleActiveLoan
+                ? activeLoan?.weeklyPaymentAmount ??
+                    member.weeklyPaymentAmount ??
+                    0
+                : member.weeklyPaymentAmount ?? 0
             );
-          const balance = Number(activeLoan?.balance ?? 0);
+          const balance = hasSingleActiveLoan
+            ? Number(activeLoan?.balance ?? 0)
+            : Number(member.totalBalance ?? 0);
+          const canPostPayment = hasSingleActiveLoan && balance > 0;
+          const paymentTooltip =
+            activeLoans.length > 1
+              ? "Multiple active loans found. Resolve loan records before posting payment."
+              : "Process Payment";
           const statusLabel = getStatusLabel(member);
           const paymentColor =
             due > 0
@@ -234,7 +264,7 @@ export function MembersTable({
                     display: "grid",
                     gridTemplateColumns: {
                       xs: "1fr",
-                      md: "minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) auto",
+                      md: summaryGridColumns,
                     },
                     gap: { xs: 1.5, md: 2 },
                     alignItems: "center",
@@ -314,14 +344,14 @@ export function MembersTable({
                     }}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <Tooltip title="Process Payment">
+                    <Tooltip title={paymentTooltip}>
                       <span>
                         <Button
                           variant="outlined"
                           size="small"
                           startIcon={<Payment />}
                           onClick={() => onOpenPaymentDialog(member)}
-                          disabled={!hasActive || balance <= 0}
+                          disabled={!canPostPayment}
                           sx={{
                             minWidth: 98,
                             borderRadius: 2,

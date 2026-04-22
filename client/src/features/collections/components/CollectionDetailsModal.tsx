@@ -109,6 +109,9 @@ export default function CollectionDetailsModal({
   const [latestCollections, setLatestCollections] = useState<Collection[]>(
     collectionGroup?.collections ?? []
   );
+  const [pendingPaymentMemberIds, setPendingPaymentMemberIds] = useState<
+    Set<string>
+  >(new Set());
   const [totalCenterMembers, setTotalCenterMembers] = useState(
     collectionGroup?.totalMembers ?? 0
   );
@@ -182,6 +185,29 @@ export default function CollectionDetailsModal({
         advancePaymentAmount: Number(col.advancePaymentAmount ?? 0),
       }));
       setLatestCollections(normalisedCollections);
+
+      let pendingRepayments: Repayment[] = [];
+      try {
+        pendingRepayments =
+          await collectionsService.getPendingRepaymentsForCollection(
+            collectionGroup.centerId,
+            collectionGroup.collectionDate
+          );
+      } catch (innerErr) {
+        console.warn(
+          "Failed to refresh pending repayments, using empty pending state:",
+          innerErr
+        );
+      }
+      setPendingPaymentMemberIds(
+        new Set(
+          pendingRepayments
+            .filter((repayment) => repayment.operationType !== "reversal")
+            .map((repayment) => repayment.member?.id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
       const collectionsMap = new Map(
         normalisedCollections.map((col) => [col.memberId, col])
       );
@@ -244,6 +270,7 @@ export default function CollectionDetailsModal({
     } else if (!open) {
       // Reset state when modal closes
       setMembers([]);
+      setPendingPaymentMemberIds(new Set());
       setError(null);
       setSelectedMember(null);
     }
@@ -272,10 +299,8 @@ export default function CollectionDetailsModal({
   const handlePaymentSuccess = useCallback(
     async (repayment: Repayment) => {
       const status = repayment?.status ?? "approved";
-      if (status !== "pending") {
-        await fetchCenterMembers();
-        onDataChanged?.();
-      }
+      await fetchCenterMembers();
+      onDataChanged?.();
       setToast({
         open: true,
         message:
@@ -310,12 +335,28 @@ export default function CollectionDetailsModal({
       const collection =
         collectionByMemberId.get(member.id) ||
         (member.collection as Collection | undefined);
+      if (pendingPaymentMemberIds.has(member.id)) {
+        const statusInfo = evaluateMemberStatus(member, {
+          collection,
+          referenceDate: referenceDate ?? collectionGroup?.collectionDate ?? undefined,
+        });
+        return {
+          ...statusInfo,
+          label: "PENDING",
+          color: "warning",
+        };
+      }
       return evaluateMemberStatus(member, {
         collection,
         referenceDate: referenceDate ?? collectionGroup?.collectionDate ?? undefined,
       });
     },
-    [collectionByMemberId, referenceDate, collectionGroup?.collectionDate]
+    [
+      collectionByMemberId,
+      pendingPaymentMemberIds,
+      referenceDate,
+      collectionGroup?.collectionDate,
+    ]
   );
 
   const buildExportMembers = useCallback(() => {
@@ -513,7 +554,9 @@ export default function CollectionDetailsModal({
           acc.paidCount += 1;
         } else if (statusInfo.label === "PARTIAL") {
           acc.partialCount += 1;
-        } else {
+        } else if (statusInfo.label === "PENDING") {
+          acc.pendingCount += 1;
+        } else if (statusInfo.label === "UNPAID") {
           acc.unpaidCount += 1;
         }
         return acc;
@@ -521,6 +564,7 @@ export default function CollectionDetailsModal({
       {
         paidCount: 0,
         partialCount: 0,
+        pendingCount: 0,
         unpaidCount: 0,
         totalOverallAmount: 0,
         totalRemainingBalance: 0,

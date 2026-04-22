@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Schedule,
   Warning,
+  HourglassEmpty,
   AccountBalance,
   TrendingUp,
   AttachMoney,
@@ -20,6 +21,7 @@ import type { DailyCollectionGroup } from "../types";
 interface ComputedStats {
   paidCount: number;
   partialCount: number;
+  pendingCount: number;
   unpaidCount: number;
   totalOverallAmount: number;
   totalRemainingBalance: number;
@@ -73,6 +75,13 @@ export function CollectionSummaryCards({
       bgColor: "#fffbeb",
     },
     {
+      title: "Pending",
+      value: computedStats?.pendingCount || 0,
+      icon: HourglassEmpty,
+      color: "#0284c7",
+      bgColor: "#e0f2fe",
+    },
+    {
       title: "Unpaid",
       value: computedStats?.unpaidCount || 0,
       icon: Warning,
@@ -115,7 +124,7 @@ export function CollectionSummaryCards({
       {/* Status Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {summaryCards.map((card, index) => (
-          <Grid item xs={6} md={3} key={index}>
+          <Grid item xs={6} md={2.4} key={index}>
             <Card
               sx={{
                 textAlign: "center",

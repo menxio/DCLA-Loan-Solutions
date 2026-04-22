@@ -213,6 +213,33 @@ export class RepaymentsService implements OnModuleInit {
     if (!member) throw new NotFoundException('Member not found');
     if (!center) throw new NotFoundException('Center not found');
 
+    if (loan.status !== 'active') {
+      throw new BadRequestException('Cannot post payment for a non-active loan');
+    }
+
+    if (loan.borrower?.id !== member.id) {
+      throw new BadRequestException('Loan does not belong to the member');
+    }
+
+    if (member.center?.id !== center.id) {
+      throw new BadRequestException('Member does not belong to the center');
+    }
+
+    const activeLoans = await this.loanRepo.find({
+      where: { borrower: { id: member.id }, status: 'active' },
+    });
+    if (activeLoans.length > 1) {
+      throw new BadRequestException(
+        'Member has multiple active loans. Resolve loan records before posting payment',
+      );
+    }
+
+    if (activeLoans.length !== 1 || activeLoans[0].id !== loan.id) {
+      throw new BadRequestException(
+        'Submitted loan is not the member active loan',
+      );
+    }
+
     const collectionDateString = this.normalizeCollectionDate(collectionDate);
     const createdById = actor?.userId ?? null;
     const shouldAutoApprove =
@@ -694,6 +721,14 @@ export class RepaymentsService implements OnModuleInit {
           b.collectionDate.localeCompare(a.collectionDate) ||
           a.centerName.localeCompare(b.centerName),
       );
+  }
+
+  async findPendingRepaymentsForCollection(
+    centerId: string,
+    collectionDate: string,
+  ): Promise<Repayment[]> {
+    const normalizedDate = this.normalizeCollectionDate(collectionDate);
+    return this.findPendingRepaymentsByCollection(centerId, normalizedDate);
   }
 
   private async findPendingRepaymentsByCollection(
