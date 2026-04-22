@@ -1,8 +1,11 @@
-# DCLA Loan Solutions - Lending Management System
+ï»¿# DCLA Loan Solutions - Lending Management System
 
 A loan and collections management system with a NestJS + PostgreSQL backend and a React + MUI frontend.
 
-For a deep, up-to-date walkthrough of the architecture and flow, see `ARCHITECTURE.md`.
+For up-to-date design and flow documentation:
+
+- `ARCHITECTURE.md` (full system architecture, module boundaries, role model, finance safety rules)
+- `COLLECTIONS_FLOW.md` (focused walkthrough of payment posting, manager approvals, reversals, and collection summaries)
 
 ## Tech Stack
 
@@ -28,27 +31,27 @@ For a deep, up-to-date walkthrough of the architecture and flow, see `ARCHITECTU
 ```
 DCLA-Loan-Solutions/
 +-- server/                 # NestJS API
-¦   +-- src/
-¦   ¦   +-- auth/           # Auth, JWT, guards
-¦   ¦   +-- centers/        # Centers feature
-¦   ¦   +-- collections/    # Collections feature
-¦   ¦   +-- loans/          # Loans feature
-¦   ¦   +-- members/        # Members feature
-¦   ¦   +-- portfolio/      # Portfolio reporting
-¦   ¦   +-- repayments/     # Repayment schedules & allocations
-¦   ¦   +-- roles/          # Roles
-¦   ¦   +-- savings/        # Savings
-¦   ¦   +-- transactions/   # Transactions history
-¦   ¦   +-- main.ts         # App bootstrap
-¦   +-- package.json
+Â¦   +-- src/
+Â¦   Â¦   +-- auth/           # Auth, JWT, guards
+Â¦   Â¦   +-- centers/        # Centers feature
+Â¦   Â¦   +-- collections/    # Collections feature
+Â¦   Â¦   +-- loans/          # Loans feature
+Â¦   Â¦   +-- members/        # Members feature
+Â¦   Â¦   +-- portfolio/      # Portfolio reporting
+Â¦   Â¦   +-- repayments/     # Repayment schedules & allocations
+Â¦   Â¦   +-- roles/          # Roles
+Â¦   Â¦   +-- savings/        # Savings
+Â¦   Â¦   +-- transactions/   # Transactions history
+Â¦   Â¦   +-- main.ts         # App bootstrap
+Â¦   +-- package.json
 +-- client/                 # React app
-¦   +-- src/
-¦   ¦   +-- components/     # Shared UI
-¦   ¦   +-- features/       # Feature modules (auth, member, collections, etc.)
-¦   ¦   +-- routes/         # App routes
-¦   ¦   +-- utils/          # Axios client, helpers
-¦   ¦   +-- main.tsx        # App entry
-¦   +-- package.json
+Â¦   +-- src/
+Â¦   Â¦   +-- components/     # Shared UI
+Â¦   Â¦   +-- features/       # Feature modules (auth, member, collections, etc.)
+Â¦   Â¦   +-- routes/         # App routes
+Â¦   Â¦   +-- utils/          # Axios client, helpers
+Â¦   Â¦   +-- main.tsx        # App entry
+Â¦   +-- package.json
 +-- README.md
 ```
 
