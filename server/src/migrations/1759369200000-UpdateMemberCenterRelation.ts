@@ -44,15 +44,21 @@ export class UpdateMemberCenterRelation1759369200000
       );
     }
 
-    await queryRunner.createForeignKey(
-      'member',
-      new TableForeignKey({
-        columnNames: ['centerId'],
-        referencedTableName: 'center',
-        referencedColumnNames: ['id'],
-        onDelete: 'SET NULL',
-      }),
+    const refreshedTable = await queryRunner.getTable('member');
+    const newFk = refreshedTable?.foreignKeys.find((fk) =>
+      fk.columnNames.includes('centerId'),
     );
+    if (!newFk) {
+      await queryRunner.createForeignKey(
+        'member',
+        new TableForeignKey({
+          columnNames: ['centerId'],
+          referencedTableName: 'center',
+          referencedColumnNames: ['id'],
+          onDelete: 'SET NULL',
+        }),
+      );
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -68,14 +74,20 @@ export class UpdateMemberCenterRelation1759369200000
       await queryRunner.dropForeignKey('member', existingFk);
     }
 
-    await queryRunner.createForeignKey(
-      'member',
-      new TableForeignKey({
-        columnNames: ['centerId'],
-        referencedTableName: 'center',
-        referencedColumnNames: ['id'],
-        onDelete: 'NO ACTION',
-      }),
+    const refreshedTable = await queryRunner.getTable('member');
+    const newFk = refreshedTable?.foreignKeys.find((fk) =>
+      fk.columnNames.includes('centerId'),
     );
+    if (!newFk) {
+      await queryRunner.createForeignKey(
+        'member',
+        new TableForeignKey({
+          columnNames: ['centerId'],
+          referencedTableName: 'center',
+          referencedColumnNames: ['id'],
+          onDelete: 'NO ACTION',
+        }),
+      );
+    }
   }
 }

@@ -7,7 +7,7 @@ export class AddMustChangePasswordToUser1762400000000
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "user" ADD "mustChangePassword" boolean NOT NULL DEFAULT false`,
+      `ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "mustChangePassword" boolean NOT NULL DEFAULT false`,
     );
   }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -16,6 +16,14 @@ import {
   Snackbar,
   ToggleButton,
   ToggleButtonGroup,
+  Divider,
+  Pagination,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from "@mui/material";
 import {
   Close,
@@ -24,14 +32,22 @@ import {
   TrendingUp,
   Savings,
   Schedule,
+  History,
 } from "@mui/icons-material";
 import axios from "axios";
-import type { Loan, LoanFormData } from "../types";
+import type {
+  Loan,
+  LoanFormData,
+  LoanRepaymentScheduleRow,
+  MemberLoanStatusFilter,
+} from "../types";
 import type { Member } from "@features/member/types";
 import { LoansAPI } from "../api";
 import LoanForm from "./LoanForm";
 import { calculateLoanDetails, formatCurrency } from "../utils/loanCalculations";
 import { generateLoanPassbookPDF } from "@components/export/loanPassbookPDF";
+import { TransactionsAPI } from "@features/transactions/api";
+import type { TransactionHistoryItem } from "@features/transactions/types";
 
 interface LoanModalProps {
   open: boolean;
@@ -47,36 +63,133 @@ export default function LoanModal({
   onLoanCreated,
 }: LoanModalProps) {
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [activeLoan, setActiveLoan] = useState<Loan | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loanListLoading, setLoanListLoading] = useState(false);
   const [creatingLoan, setCreatingLoan] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loanListFilter, setLoanListFilter] =
+    useState<MemberLoanStatusFilter>("all");
+  const [loanListPage, setLoanListPage] = useState(1);
+  const [loanListTotalPages, setLoanListTotalPages] = useState(1);
+  const [loanListTotal, setLoanListTotal] = useState(0);
+  const [memberLoanCount, setMemberLoanCount] = useState(0);
   const [termDialogOpen, setTermDialogOpen] = useState(false);
   const [termValue, setTermValue] = useState<4 | 8 | 12>(4);
   const [termUpdating, setTermUpdating] = useState(false);
   const [termMessage, setTermMessage] = useState<string | null>(null);
   const [termError, setTermError] = useState<string | null>(null);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [historyLoan, setHistoryLoan] = useState<Loan | null>(null);
+  const [historySchedule, setHistorySchedule] = useState<LoanRepaymentScheduleRow[]>([]);
+  const [historyTransactions, setHistoryTransactions] = useState<TransactionHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const loanListCacheRef = useRef(
+    new Map<
+      string,
+      {
+        items: Loan[];
+        total: number;
+        page: number;
+        totalPages: number;
+      }
+    >()
+  );
+  const memberLoanCountRef = useRef<number | null>(null);
+  const activeLoanRef = useRef<Loan | null | undefined>(undefined);
+
+  const historyPageSize = 10;
+  const loanHistoryPageSize = 2;
 
   const loadLoans = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
-      const memberLoans = await LoansAPI.getByMember(member.id);
-      // Sort by createdAt desc so newest first
-      const sorted = [...memberLoans].sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      setLoans(sorted);
+      const cacheKey = `${member.id}:${loanListFilter}:${loanListPage}`;
+      const cached = loanListCacheRef.current.get(cacheKey);
+
+      if (cached) {
+        setLoans(cached.items);
+        setLoanListPage(cached.page);
+        setLoanListTotalPages(cached.totalPages);
+        setLoanListTotal(cached.total);
+        if (memberLoanCountRef.current !== null) {
+          setMemberLoanCount(memberLoanCountRef.current);
+        }
+        if (activeLoanRef.current !== undefined) {
+          setActiveLoan(activeLoanRef.current);
+        }
+        return;
+      }
+
+      setLoanListLoading(true);
+
+      const historyPromise = LoansAPI.getByMember(member.id, {
+        status: loanListFilter,
+        page: loanListPage,
+        limit: loanHistoryPageSize,
+      });
+
+      const requests: Promise<unknown>[] = [historyPromise];
+      let activePromise: Promise<Awaited<ReturnType<typeof LoansAPI.getByMember>>> | null = null;
+      let summaryPromise: Promise<Awaited<ReturnType<typeof LoansAPI.getByMember>>> | null = null;
+
+      if (activeLoanRef.current === undefined) {
+        activePromise = LoansAPI.getByMember(member.id, {
+          status: "active",
+          page: 1,
+          limit: 1,
+        });
+        requests.push(activePromise);
+      }
+
+      if (memberLoanCountRef.current === null) {
+        summaryPromise = LoansAPI.getByMember(member.id, {
+          status: "all",
+          page: 1,
+          limit: 1,
+        });
+        requests.push(summaryPromise);
+      }
+
+      await Promise.all(requests);
+
+      const historyResponse = await historyPromise;
+      loanListCacheRef.current.set(cacheKey, {
+        items: historyResponse.items,
+        total: historyResponse.total,
+        page: historyResponse.page,
+        totalPages: historyResponse.totalPages,
+      });
+
+      if (activePromise) {
+        const activeResponse = await activePromise;
+        activeLoanRef.current = activeResponse.items[0] ?? null;
+        setActiveLoan(activeLoanRef.current);
+      }
+
+      if (summaryPromise) {
+        const summaryResponse = await summaryPromise;
+        memberLoanCountRef.current = summaryResponse.total;
+        setMemberLoanCount(summaryResponse.total);
+      }
+
+      setLoans(historyResponse.items);
+      setLoanListPage(historyResponse.page);
+      setLoanListTotalPages(historyResponse.totalPages);
+      setLoanListTotal(historyResponse.total);
     } catch (err) {
       setError("Failed to load loans");
       console.error("Error loading loans:", err);
     } finally {
-      setLoading(false);
+      setLoanListLoading(false);
     }
-  }, [member.id]);
+  }, [loanListFilter, loanListPage, member.id]);
 
   // Get the active loan (should be only one)
-  const activeLoan = loans.find((loan) => loan.status === "active");
   const hasActiveLoan = Boolean(activeLoan);
   const canEditTerm =
     hasActiveLoan && Number(activeLoan?.weeksPaid || 0) === 0;
@@ -100,6 +213,20 @@ export default function LoanModal({
   }, [open, loadLoans]);
 
   useEffect(() => {
+    if (open) return;
+    loanListCacheRef.current.clear();
+    memberLoanCountRef.current = null;
+    activeLoanRef.current = undefined;
+    setLoans([]);
+    setActiveLoan(null);
+    setLoanListFilter("all");
+    setLoanListPage(1);
+    setLoanListTotalPages(1);
+    setLoanListTotal(0);
+    setMemberLoanCount(0);
+  }, [open]);
+
+  useEffect(() => {
     if (activeLoan) {
       setTermValue(activeLoan.termWeeks as 4 | 8 | 12);
     }
@@ -118,6 +245,36 @@ export default function LoanModal({
     setTermError(null);
   };
 
+  const loadLoanHistory = useCallback(
+    async (loan: Loan, pageNumber = 1) => {
+      try {
+        setHistoryLoading(true);
+        setHistoryError(null);
+
+        const [schedule, transactions] = await Promise.all([
+          LoansAPI.getRepaymentSchedule(loan.id),
+          TransactionsAPI.getHistory({
+            loanId: loan.id,
+            page: pageNumber,
+            limit: historyPageSize,
+          }),
+        ]);
+
+        setHistorySchedule(schedule);
+        setHistoryTransactions(transactions.items);
+        setHistoryPage(transactions.page);
+        setHistoryTotalPages(transactions.totalPages);
+        setHistoryTotal(transactions.total);
+      } catch (err) {
+        setHistoryError("Failed to load loan history.");
+        console.error("Error loading loan history:", err);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    []
+  );
+
   const handleUpdateTerm = async () => {
     if (!activeLoan) return;
     setTermUpdating(true);
@@ -126,6 +283,8 @@ export default function LoanModal({
       await LoansAPI.updateTerm(activeLoan.id, { termWeeks: termValue });
       setTermDialogOpen(false);
       setTermMessage("Term weeks updated successfully.");
+      loanListCacheRef.current.clear();
+      activeLoanRef.current = undefined;
       await loadLoans();
     } catch (err: unknown) {
       const message = axios.isAxiosError<{ message?: string | string[] }>(err)
@@ -143,6 +302,32 @@ export default function LoanModal({
 
   const handleCloseTermMessage = () => setTermMessage(null);
 
+  const handleOpenHistoryDialog = async (loan: Loan) => {
+    setHistoryLoan(loan);
+    setHistoryDialogOpen(true);
+    await loadLoanHistory(loan, 1);
+  };
+
+  const handleCloseHistoryDialog = () => {
+    if (historyLoading) return;
+    setHistoryDialogOpen(false);
+    setHistoryLoan(null);
+    setHistorySchedule([]);
+    setHistoryTransactions([]);
+    setHistoryError(null);
+    setHistoryPage(1);
+    setHistoryTotalPages(1);
+    setHistoryTotal(0);
+  };
+
+  const handleHistoryPageChange = async (
+    _: React.ChangeEvent<unknown>,
+    pageNumber: number
+  ) => {
+    if (!historyLoan || pageNumber === historyPage) return;
+    await loadLoanHistory(historyLoan, pageNumber);
+  };
+
   const handleCreateLoan = async (formData: LoanFormData) => {
     setLoading(true);
     try {
@@ -150,6 +335,9 @@ export default function LoanModal({
         borrowerId: member.id,
         ...formData,
       });
+      loanListCacheRef.current.clear();
+      memberLoanCountRef.current = null;
+      activeLoanRef.current = undefined;
       await loadLoans(); // Reload loans
       setCreatingLoan(false);
       onLoanCreated?.();
@@ -245,6 +433,50 @@ export default function LoanModal({
     }
   };
 
+  const getScheduleStatusColor = (
+    status: LoanRepaymentScheduleRow["status"]
+  ): "default" | "warning" | "success" | "info" => {
+    switch (status) {
+      case "paid":
+        return "success";
+      case "partial":
+        return "warning";
+      case "advance":
+        return "info";
+      default:
+        return "default";
+    }
+  };
+
+  const getTransactionTypeLabel = (type: TransactionHistoryItem["type"]) => {
+    switch (type) {
+      case "repayment":
+        return "Repayment";
+      case "savings_deposit":
+        return "Savings Deposit";
+      case "savings_withdrawal":
+        return "Savings Withdrawal";
+      default:
+        return type;
+    }
+  };
+
+  const handleLoanFilterChange = (
+    _: React.MouseEvent<HTMLElement>,
+    nextFilter: MemberLoanStatusFilter | null
+  ) => {
+    if (!nextFilter || nextFilter === loanListFilter) return;
+    setLoanListFilter(nextFilter);
+    setLoanListPage(1);
+  };
+
+  const showBlockingLoanLoader =
+    loanListLoading &&
+    !creatingLoan &&
+    !activeLoan &&
+    loans.length === 0 &&
+    memberLoanCount === 0;
+
   return (
     <>
     <Dialog
@@ -287,7 +519,7 @@ export default function LoanModal({
           </Alert>
         )}
 
-        {loading && !creatingLoan ? (
+        {showBlockingLoanLoader ? (
           <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
             <CircularProgress />
           </Box>
@@ -298,7 +530,7 @@ export default function LoanModal({
             onSubmit={handleCreateLoan}
             onCancel={() => setCreatingLoan(false)}
             loading={loading}
-            isFirstLoan={loans.length === 0}
+            isFirstLoan={memberLoanCount === 0}
           />
         ) : !activeLoan ? (
           // No active loan - show create loan option
@@ -459,23 +691,62 @@ export default function LoanModal({
         )}
 
         {/* Show loan history if there are any loans (active or past) */}
-        {loans.length > 0 && (
+        {memberLoanCount > 0 && (
           <Box sx={{ mt: 4 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b", mb: 2 }}>
-              Loan History
-            </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 2,
+                mb: 2,
+                flexWrap: "wrap",
+              }}
+            >
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                  Loan History
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {loanListTotal} result{loanListTotal === 1 ? "" : "s"} for {loanListFilter}
+                </Typography>
+              </Box>
+              <ToggleButtonGroup
+                size="small"
+                color="primary"
+                exclusive
+                value={loanListFilter}
+                onChange={handleLoanFilterChange}
+              >
+                <ToggleButton value="all" disabled={loanListLoading}>All</ToggleButton>
+                <ToggleButton value="active" disabled={loanListLoading}>Active</ToggleButton>
+                <ToggleButton value="paid" disabled={loanListLoading}>Paid</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+            {loanListLoading && (
+              <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            )}
             <Grid container spacing={2}>
               {loans.map((loan) => (
                 <Grid item xs={12} key={loan.id}>
                   <Paper
+                    onClick={() => void handleOpenHistoryDialog(loan)}
                     sx={{
                       p: 2,
+                      cursor: "pointer",
                       background: loan.status === 'active' 
                         ? "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)" 
                         : "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
                       border: loan.status === 'active' 
                         ? "1px solid #3b82f6" 
                         : "1px solid #cbd5e1",
+                      transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                      "&:hover": {
+                        transform: "translateY(-1px)",
+                        boxShadow: "0 8px 20px rgba(15, 23, 42, 0.08)",
+                      },
                     }}
                   >
                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -502,6 +773,9 @@ export default function LoanModal({
                             ? new Date(loan.loanCreatedDate).toLocaleDateString()
                             : new Date(loan.createdAt).toLocaleDateString()}
                         </Typography>
+                        <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
+                          Click to view repayment history
+                        </Typography>
                       </Box>
                       <Chip
                         label={getStatusLabel(loan.status)}
@@ -512,7 +786,33 @@ export default function LoanModal({
                   </Paper>
                 </Grid>
               ))}
+              {!loanListLoading && loans.length === 0 && (
+                <Grid item xs={12}>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      textAlign: "center",
+                      border: "1px solid #e2e8f0",
+                      background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      No {loanListFilter === "all" ? "" : loanListFilter + " "}loans found on this page.
+                    </Typography>
+                  </Paper>
+                </Grid>
+              )}
             </Grid>
+            {loanListTotalPages > 1 && (
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 2.5 }}>
+                <Pagination
+                  count={loanListTotalPages}
+                  page={loanListPage}
+                  color="primary"
+                  onChange={(_, pageNumber) => setLoanListPage(pageNumber)}
+                />
+              </Box>
+            )}
           </Box>
         )}
       </DialogContent>
@@ -542,6 +842,235 @@ export default function LoanModal({
           </Button>
         </DialogActions>
       )}
+    </Dialog>
+    <Dialog
+      open={historyDialogOpen}
+      onClose={handleCloseHistoryDialog}
+      fullWidth
+      maxWidth="lg"
+    >
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <History color="primary" />
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              {historyLoan ? `Loan History - ${historyLoan.id.slice(0, 8)}...` : "Loan History"}
+            </Typography>
+            {historyLoan && (
+              <Typography variant="body2" color="text.secondary">
+                {member.firstName} {member.lastName} | {getStatusLabel(historyLoan.status)}
+              </Typography>
+            )}
+          </Box>
+        </Box>
+        <IconButton onClick={handleCloseHistoryDialog} disabled={historyLoading} size="small">
+          <Close />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers>
+        {historyError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {historyError}
+          </Alert>
+        )}
+
+        {historyLoan && (
+          <Paper
+            sx={{
+              p: 2.5,
+              mb: 3,
+              borderRadius: 2,
+              border: "1px solid #e2e8f0",
+              background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+            }}
+          >
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="caption" color="text.secondary">
+                  Principal
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                  {formatCurrency(historyLoan.principalAmount)}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="caption" color="text.secondary">
+                  Weekly Payment
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                  {formatCurrency(historyLoan.weeklyPaymentAmount)}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="caption" color="text.secondary">
+                  Amount Paid
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                  {formatCurrency(historyLoan.amountPaid)}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="caption" color="text.secondary">
+                  Remaining Balance
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                  {formatCurrency(historyLoan.balance)}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+        )}
+
+        {historyLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={7}>
+              <Paper sx={{ borderRadius: 2, border: "1px solid #e2e8f0" }}>
+                <Box sx={{ p: 2.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                    Repayment Schedule
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Fixed schedule for this loan only.
+                  </Typography>
+                </Box>
+                <Divider />
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Week</TableCell>
+                        <TableCell>Due Date</TableCell>
+                        <TableCell align="right">Due</TableCell>
+                        <TableCell align="right">Paid</TableCell>
+                        <TableCell>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {historySchedule.map((row) => (
+                        <TableRow key={row.id} hover>
+                          <TableCell>{row.weekNumber}</TableCell>
+                          <TableCell>{new Date(row.dueDate).toLocaleDateString()}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.amountDue)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.amountPaid)}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={row.status.toUpperCase()}
+                              color={getScheduleStatusColor(row.status)}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {historySchedule.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center">
+                            <Typography variant="body2" color="text.secondary">
+                              No repayment schedule found for this loan.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            </Grid>
+
+            <Grid item xs={12} md={5}>
+              <Paper sx={{ borderRadius: 2, border: "1px solid #e2e8f0" }}>
+                <Box sx={{ p: 2.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                    Loan Transactions
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Queried by `loanId` and paged {historyPageSize} at a time.
+                  </Typography>
+                </Box>
+                <Divider />
+                <Box sx={{ p: 2.5 }}>
+                  {historyTransactions.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      No transactions found for this loan.
+                    </Typography>
+                  ) : (
+                    <Box sx={{ display: "grid", gap: 1.5 }}>
+                      {historyTransactions.map((transaction) => (
+                        <Paper
+                          key={transaction.id}
+                          variant="outlined"
+                          sx={{ p: 1.5, borderRadius: 2, backgroundColor: "#fff" }}
+                        >
+                          <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {getTransactionTypeLabel(transaction.type)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(transaction.createdAt).toLocaleString()}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {transaction.notes || "No notes"}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ textAlign: "right" }}>
+                              <Chip
+                                size="small"
+                                color={transaction.direction === "credit" ? "success" : "error"}
+                                label={transaction.direction.toUpperCase()}
+                                sx={{ mb: 1 }}
+                              />
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {formatCurrency(transaction.amount)}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Paper>
+                      ))}
+                    </Box>
+                  )}
+
+                  {historyTotalPages > 1 && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        mt: 2,
+                        gap: 2,
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary">
+                        {historyTotal} transaction{historyTotal === 1 ? "" : "s"}
+                      </Typography>
+                      <Pagination
+                        count={historyTotalPages}
+                        page={historyPage}
+                        size="small"
+                        color="primary"
+                        onChange={handleHistoryPageChange}
+                      />
+                    </Box>
+                  )}
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleCloseHistoryDialog}>Close</Button>
+      </DialogActions>
     </Dialog>
     <Dialog
       open={termDialogOpen}

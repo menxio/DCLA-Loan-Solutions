@@ -158,6 +158,28 @@ export interface LoansResponse {
   loans: Loan[];
 }
 
+export type MemberLoanStatusFilter =
+  | "all"
+  | "active"
+  | "paid"
+  | "defaulted"
+  | "netoff"
+  | "payoff";
+
+export interface MemberLoansQuery {
+  status?: MemberLoanStatusFilter;
+  page?: number;
+  limit?: number;
+}
+
+export interface MemberLoansResponse {
+  items: Loan[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface LoanStatsResponse {
   stats: LoanStats;
 }

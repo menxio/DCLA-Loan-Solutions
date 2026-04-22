@@ -4,6 +4,8 @@ import type {
   ApplyLoanWaiverResponse,
   CreateLoanData,
   Loan,
+  MemberLoansQuery,
+  MemberLoansResponse,
   LoanWaiver,
   LoanWaiverCandidate,
   ReloanEligibility,
@@ -17,8 +19,11 @@ export const LoansAPI = {
     return res.data;
   },
 
-  getByMember: async (memberId: string): Promise<Loan[]> => {
-    const res = await api.get(`/loans/member/${memberId}`);
+  getByMember: async (
+    memberId: string,
+    params: MemberLoansQuery = {}
+  ): Promise<MemberLoansResponse> => {
+    const res = await api.get(`/loans/member/${memberId}`, { params });
     return res.data;
   },
 

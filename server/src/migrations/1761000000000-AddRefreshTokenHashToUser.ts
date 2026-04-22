@@ -7,7 +7,7 @@ export class AddRefreshTokenHashToUser1761000000000
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "user" ADD COLUMN "hashedRefreshToken" character varying`,
+      `ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "hashedRefreshToken" character varying`,
     );
   }
 

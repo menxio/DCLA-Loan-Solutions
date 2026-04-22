@@ -52,6 +52,14 @@ export interface PendingCollectionActionResult {
   rejectedCount?: number;
 }
 
+export interface RepaymentScheduleRepairSummary {
+  loansScanned: number;
+  loansRepaired: number;
+  schedulesCreated: number;
+  allocationsDeleted: number;
+  approvedRepaymentsReplayed: number;
+}
+
 @Injectable()
 export class RepaymentsService implements OnModuleInit {
   constructor(
@@ -93,6 +101,79 @@ export class RepaymentsService implements OnModuleInit {
       await this.ensureLoanSchedule(loan, borrower, center);
       await this.replayExistingRepayments(loan, borrower, center);
     }
+  }
+
+  async repairExistingRepaymentSchedules(
+    onProgress?: (message: string) => void,
+  ): Promise<RepaymentScheduleRepairSummary> {
+    const loans = await this.loanRepo.find({
+      relations: ['borrower', 'borrower.center'],
+      order: { createdAt: 'ASC' },
+    });
+
+    const summary: RepaymentScheduleRepairSummary = {
+      loansScanned: loans.length,
+      loansRepaired: 0,
+      schedulesCreated: 0,
+      allocationsDeleted: 0,
+      approvedRepaymentsReplayed: 0,
+    };
+
+    for (const [index, loan] of loans.entries()) {
+      const borrower = loan.borrower;
+      if (!borrower) {
+        continue;
+      }
+
+      const center = borrower.center ?? null;
+      const schedulesBefore = await this.scheduleRepo.find({
+        where: { loanId: loan.id },
+      });
+      const scheduleCountBefore = schedulesBefore.length;
+
+      const approvedEntries = await this.repaymentRepo.find({
+        where: { loan: { id: loan.id }, status: RepaymentStatus.APPROVED },
+        relations: ['loan'],
+        order: { createdAt: 'ASC' },
+      });
+
+      const deletedAllocations = schedulesBefore.length
+        ? await this.allocationRepo.count({
+            where: { scheduleId: In(schedulesBefore.map((schedule) => schedule.id)) },
+          })
+        : 0;
+
+      onProgress?.(
+        `Repairing loan ${index + 1}/${loans.length}: ${loan.id} (${approvedEntries.length} approved repayments)`,
+      );
+
+      await this.ensureLoanSchedule(loan, borrower, center);
+      await this.replayExistingRepayments(loan, borrower, center);
+
+      const scheduleCountAfter = await this.scheduleRepo.count({
+        where: { loanId: loan.id },
+      });
+      const reversedRepaymentIds = new Set(
+        approvedEntries
+          .filter(
+            (entry) =>
+              entry.operationType === RepaymentOperationType.REVERSAL &&
+              Boolean(entry.relatedRepaymentId),
+          )
+          .map((entry) => entry.relatedRepaymentId as string),
+      );
+
+      summary.loansRepaired += 1;
+      summary.schedulesCreated += Math.max(0, scheduleCountAfter - scheduleCountBefore);
+      summary.allocationsDeleted += deletedAllocations;
+      summary.approvedRepaymentsReplayed += approvedEntries.filter(
+        (entry) =>
+          entry.operationType !== RepaymentOperationType.REVERSAL &&
+          !reversedRepaymentIds.has(entry.id),
+      ).length;
+    }
+
+    return summary;
   }
 
   private normalizeCollectionDate(collectionDate?: string): string {
@@ -526,8 +607,8 @@ export class RepaymentsService implements OnModuleInit {
     let remaining = allocationAmount;
     let cashRemaining = Math.max(0, cashPortion);
     let savingsRemaining = Math.max(0, savingsPortion);
-    const touched: LoanRepaymentSchedule[] = [];
-    const allocations: LoanRepaymentAllocation[] = [];
+    const touched = new Map<string, LoanRepaymentSchedule>();
+    const allocations = new Map<string, LoanRepaymentAllocation>();
 
     for (const schedule of schedules) {
       const due = Number(schedule.amountDue || 0);
@@ -541,8 +622,9 @@ export class RepaymentsService implements OnModuleInit {
       const savingsApplied = applied - cashApplied;
       schedule.amountPaid = Number((paid + applied).toFixed(2));
       schedule.status = this.resolveScheduleStatus(schedule, paymentDateObj);
-      touched.push(schedule);
-      allocations.push(
+      touched.set(schedule.id, schedule);
+      allocations.set(
+        schedule.id,
         this.allocationRepo.create({
           repaymentId: repayment.id,
           scheduleId: schedule.id,
@@ -562,24 +644,44 @@ export class RepaymentsService implements OnModuleInit {
         (Number(last.advanceApplied || 0) + remaining).toFixed(2),
       );
       last.status = LoanRepaymentStatus.PAID;
-      touched.push(last);
-      allocations.push(
-        this.allocationRepo.create({
-          repaymentId: repayment.id,
-          scheduleId: last.id,
-          amountApplied: remaining,
-          cashPortion: Math.min(cashRemaining, remaining),
-          savingsPortion: Math.max(0, remaining - cashRemaining),
-        }),
-      );
+      touched.set(last.id, last);
+      const cashApplied = Math.min(cashRemaining, remaining);
+      const savingsApplied = Math.max(0, remaining - cashRemaining);
+      const existingAllocation = allocations.get(last.id);
+      if (existingAllocation) {
+        existingAllocation.amountApplied = Number(
+          (
+            Number(existingAllocation.amountApplied || 0) + remaining
+          ).toFixed(2),
+        );
+        existingAllocation.cashPortion = Number(
+          (Number(existingAllocation.cashPortion || 0) + cashApplied).toFixed(2),
+        );
+        existingAllocation.savingsPortion = Number(
+          (
+            Number(existingAllocation.savingsPortion || 0) + savingsApplied
+          ).toFixed(2),
+        );
+      } else {
+        allocations.set(
+          last.id,
+          this.allocationRepo.create({
+            repaymentId: repayment.id,
+            scheduleId: last.id,
+            amountApplied: remaining,
+            cashPortion: cashApplied,
+            savingsPortion: savingsApplied,
+          }),
+        );
+      }
       remaining = 0;
     }
 
-    if (touched.length > 0) {
-      await this.scheduleRepo.save(touched);
+    if (touched.size > 0) {
+      await this.scheduleRepo.save([...touched.values()]);
     }
-    if (allocations.length > 0) {
-      await this.allocationRepo.save(allocations);
+    if (allocations.size > 0) {
+      await this.allocationRepo.save([...allocations.values()]);
     }
   }
 
@@ -1163,10 +1265,22 @@ export class RepaymentsService implements OnModuleInit {
 
     await this.ensureLoanSchedule(loan, member, center);
 
-    return this.scheduleRepo.find({
+    const schedule = await this.scheduleRepo.find({
       where: { loanId },
       order: { weekNumber: 'ASC', dueDate: 'ASC' },
     });
+
+    if (loan.status === 'paid') {
+      return schedule.map((row) => ({
+        ...row,
+        status:
+          row.status === LoanRepaymentStatus.ADVANCE
+            ? LoanRepaymentStatus.PAID
+            : row.status,
+      }));
+    }
+
+    return schedule;
   }
 
   private async reverseCollectionEntry(params: {

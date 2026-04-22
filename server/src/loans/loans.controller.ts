@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  Query,
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
 import { CreateLoanDto } from './dto/create-loan.dto';
@@ -16,6 +17,7 @@ import { UpdateLoanDto } from './dto/update-loan.dto';
 import { ReloanDto } from './dto/reloan.dto';
 import { UpdateLoanTermDto } from './dto/update-loan-term.dto';
 import { ApplyLoanWaiverDto } from './dto/apply-loan-waiver.dto';
+import { FindMemberLoansQueryDto } from './dto/find-member-loans-query.dto';
 import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 
@@ -37,8 +39,11 @@ export class LoansController {
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('member/:id')
-  findByMember(@Param('id') id: string) {
-    return this.loansService.findByMember(id);
+  findByMember(
+    @Param('id') id: string,
+    @Query() query: FindMemberLoansQueryDto,
+  ) {
+    return this.loansService.findByMember(id, query);
   }
 
   @Roles(ROLE.Manager)
