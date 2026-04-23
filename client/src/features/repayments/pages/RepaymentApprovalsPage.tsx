@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -51,6 +52,7 @@ export default function RepaymentApprovalsPage() {
   const [search, setSearch] = useState("");
   const [approveTarget, setApproveTarget] =
     useState<PendingRepaymentCollectionGroup | null>(null);
+  const [approveSubmitting, setApproveSubmitting] = useState(false);
   const [rejectState, setRejectState] = useState<{
     open: boolean;
     target: PendingRepaymentCollectionGroup | null;
@@ -86,8 +88,9 @@ export default function RepaymentApprovalsPage() {
   };
 
   const handleApprove = async () => {
-    if (!approveTarget) return;
+    if (!approveTarget || approveSubmitting) return;
 
+    setApproveSubmitting(true);
     try {
       await approveCollection(
         approveTarget.centerId,
@@ -98,6 +101,7 @@ export default function RepaymentApprovalsPage() {
     } catch (err) {
       showSnackbar("Failed to approve collection.", "error");
     } finally {
+      setApproveSubmitting(false);
       setApproveTarget(null);
     }
   };
@@ -356,7 +360,14 @@ export default function RepaymentApprovalsPage() {
         </Box>
       </Box>
 
-      <Dialog open={Boolean(approveTarget)} onClose={() => setApproveTarget(null)}>
+      <Dialog
+        open={Boolean(approveTarget)}
+        onClose={() => {
+          if (!approveSubmitting) {
+            setApproveTarget(null);
+          }
+        }}
+      >
         <DialogTitle>Approve collection</DialogTitle>
         <DialogContent>
           <DialogContentText>
@@ -371,12 +382,20 @@ export default function RepaymentApprovalsPage() {
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button onClick={() => setApproveTarget(null)} sx={{ color: "#64748b" }}>
+          <Button
+            disabled={approveSubmitting}
+            onClick={() => setApproveTarget(null)}
+            sx={{ color: "#64748b" }}
+          >
             Cancel
           </Button>
           <Button
             variant="contained"
             onClick={handleApprove}
+            disabled={approveSubmitting}
+            startIcon={
+              approveSubmitting ? <CircularProgress size={16} color="inherit" /> : undefined
+            }
             sx={{
               background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
               "&:hover": {
@@ -384,7 +403,7 @@ export default function RepaymentApprovalsPage() {
               },
             }}
           >
-            Approve Collection
+            {approveSubmitting ? "Approving..." : "Approve Collection"}
           </Button>
         </DialogActions>
       </Dialog>
