@@ -73,6 +73,7 @@ export class LoansService {
       termWeeks,
       savings,
       serviceCharge,
+      notarialFee,
       loanCreatedDate,
     } =
       createLoanDto as any;
@@ -120,6 +121,13 @@ export class LoansService {
     if (isNaN(fee) || fee < 0) {
       throw new BadRequestException('serviceCharge must be >= 0 when provided');
     }
+    const legalFee =
+      notarialFee !== undefined && notarialFee !== null
+        ? Number(notarialFee)
+        : 0;
+    if (isNaN(legalFee) || legalFee < 0) {
+      throw new BadRequestException('notarialFee must be >= 0 when provided');
+    }
     const totalSavingsForValidation = previousSavingsTotal + newSavingsContribution;
     if (isFirstLoan && newSavingsContribution <= 0) {
       throw new BadRequestException(
@@ -138,6 +146,8 @@ export class LoansService {
       termWeeks,
       interestRate,
       totalAmount,
+      serviceCharge: fee,
+      notarialFee: legalFee,
       weeklyPaymentAmount,
       balance: totalAmount,
       savings: totalSavingsForValidation,
@@ -151,7 +161,7 @@ export class LoansService {
 
     // Compute net cash released for all loans: principal - fee - savings (never below 0)
     const savingsForCalc = newSavingsContribution;
-    const net = Number(principalAmount) - fee - savingsForCalc;
+    const net = Number(principalAmount) - fee - legalFee - savingsForCalc;
     const netCashReleased = net > 0 ? net : 0;
     (loan as any).netCashReleased = netCashReleased;
 
@@ -306,12 +316,19 @@ export class LoansService {
   }
 
   /**
-   * Reloan flow with flat service charge and Net Off / Pay Off modes.
-   * - payoff: client pays old balance in cash; new principal - serviceCharge is released
-   * - netoff: old balance is deducted from new loan principal; released = new principal - old balance - serviceCharge
+   * Reloan flow with flat service charge and notarial fee plus Net Off / Pay Off modes.
+   * - payoff: client pays old balance in cash; new principal - serviceCharge - notarialFee is released
+   * - netoff: old balance is deducted from new loan principal; released = new principal - old balance - serviceCharge - notarialFee
    */
   async reloan(loanId: string, dto: ReloanDto) {
-    const { newPrincipalAmount, newTermWeeks, mode, serviceCharge, savings } = dto;
+    const {
+      newPrincipalAmount,
+      newTermWeeks,
+      mode,
+      serviceCharge,
+      notarialFee,
+      savings,
+    } = dto;
     if (newPrincipalAmount <= 0)
       throw new BadRequestException('newPrincipalAmount must be > 0');
     if (![4, 8, 12].includes(newTermWeeks))
@@ -340,6 +357,15 @@ export class LoansService {
       );
     }
     const fee = Number(serviceCharge);
+    const legalFee =
+      notarialFee !== undefined && notarialFee !== null
+        ? Number(notarialFee)
+        : 0;
+    if (isNaN(legalFee) || legalFee < 0) {
+      throw new BadRequestException(
+        'notarialFee is required and must be >= 0',
+      );
+    }
     const savingsAmount = savings !== undefined && savings !== null ? Number(savings) : 0;
     if (isNaN(savingsAmount) || savingsAmount < 0) {
       throw new BadRequestException('savings must be >= 0 when provided');
@@ -363,6 +389,7 @@ export class LoansService {
       termWeeks: newTermWeeks,
       savings: savingsAmount,
       serviceCharge: fee,
+      notarialFee: legalFee,
     } as any;
     const newLoan = await this.create(tempCreate);
 
@@ -376,10 +403,16 @@ export class LoansService {
     let netCashReleased = 0;
     if (mode === 'payoff') {
       // Client pays old balance in cash, gets full new loan minus service charge and savings
-      netCashReleased = Number(newPrincipalAmount) - fee - savingsAmount;
+      netCashReleased =
+        Number(newPrincipalAmount) - fee - legalFee - savingsAmount;
     } else {
-      // Net off: old balance is deducted from new loan; also deduct service charge and savings
-      netCashReleased = Number(newPrincipalAmount) - oldRemaining - fee - savingsAmount;
+      // Net off: old balance is deducted from new loan; also deduct service charge, notarial fee, and savings
+      netCashReleased =
+        Number(newPrincipalAmount) -
+        oldRemaining -
+        fee -
+        legalFee -
+        savingsAmount;
       if (netCashReleased < 0) netCashReleased = 0; // Never negative release
     }
 
@@ -397,6 +430,7 @@ export class LoansService {
       newLoanId: newLoan.id,
       mode,
       serviceCharge: fee,
+      notarialFee: legalFee,
       savings: savingsAmount,
       oldRemaining,
       newPrincipalAmount,

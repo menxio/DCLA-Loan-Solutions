@@ -20,5 +20,10 @@ export class ReloanDto {
   @IsNumber()
   @IsOptional()
   @Min(0)
+  notarialFee?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
   savings?: number;
 }

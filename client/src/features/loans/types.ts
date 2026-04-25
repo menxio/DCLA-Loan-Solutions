@@ -25,6 +25,8 @@ export interface Loan {
   termWeeks: number;
   interestRate: number;
   totalAmount: number;
+  serviceCharge: number;
+  notarialFee: number;
   weeklyPaymentAmount: number;
   amountPaid: number;
   balance: number;
@@ -53,6 +55,7 @@ export interface CreateLoanData {
   termWeeks: 4 | 8 | 12;
   savings?: number;
   serviceCharge?: number;
+  notarialFee?: number;
   loanCreatedDate?: Date;
 }
 
@@ -61,6 +64,7 @@ export interface LoanFormData {
   termWeeks: 4 | 8 | 12;
   savings?: number;
   serviceCharge?: number;
+  notarialFee?: number;
   loanCreatedDate?: Date;
 }
 

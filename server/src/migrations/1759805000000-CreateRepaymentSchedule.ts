@@ -8,10 +8,19 @@ export class CreateRepaymentSchedule1759805000000
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
     await queryRunner.query(
-      `CREATE TYPE "public"."loan_repayment_schedule_status_enum" AS ENUM('unpaid', 'partial', 'paid', 'advance')`,
+      `
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_type WHERE typname = 'loan_repayment_schedule_status_enum'
+        ) THEN
+          CREATE TYPE "public"."loan_repayment_schedule_status_enum" AS ENUM('unpaid', 'partial', 'paid', 'advance');
+        END IF;
+      END$$;
+      `,
     );
     await queryRunner.query(`
-      CREATE TABLE "loan_repayment_schedule" (
+      CREATE TABLE IF NOT EXISTS "loan_repayment_schedule" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "loanId" uuid NOT NULL,
         "memberId" uuid,
@@ -29,13 +38,13 @@ export class CreateRepaymentSchedule1759805000000
       )
     `);
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_schedule_loan_week" ON "loan_repayment_schedule" ("loanId", "weekNumber")`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_schedule_loan_week" ON "loan_repayment_schedule" ("loanId", "weekNumber")`,
     );
     await queryRunner.query(
-      `CREATE INDEX "IDX_schedule_loan_due" ON "loan_repayment_schedule" ("loanId", "dueDate")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_schedule_loan_due" ON "loan_repayment_schedule" ("loanId", "dueDate")`,
     );
     await queryRunner.query(`
-      CREATE TABLE "loan_repayment_allocation" (
+      CREATE TABLE IF NOT EXISTS "loan_repayment_allocation" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "repaymentId" uuid NOT NULL,
         "scheduleId" uuid NOT NULL,
@@ -50,28 +59,28 @@ export class CreateRepaymentSchedule1759805000000
       )
     `);
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_allocation_unique" ON "loan_repayment_allocation" ("repaymentId", "scheduleId")`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_allocation_unique" ON "loan_repayment_allocation" ("repaymentId", "scheduleId")`,
     );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `DROP INDEX "public"."IDX_allocation_unique"`,
+      `DROP INDEX IF EXISTS "public"."IDX_allocation_unique"`,
     );
     await queryRunner.query(
-      `DROP TABLE "loan_repayment_allocation"`,
+      `DROP TABLE IF EXISTS "loan_repayment_allocation"`,
     );
     await queryRunner.query(
-      `DROP INDEX "public"."IDX_schedule_loan_due"`,
+      `DROP INDEX IF EXISTS "public"."IDX_schedule_loan_due"`,
     );
     await queryRunner.query(
-      `DROP INDEX "public"."IDX_schedule_loan_week"`,
+      `DROP INDEX IF EXISTS "public"."IDX_schedule_loan_week"`,
     );
     await queryRunner.query(
-      `DROP TABLE "loan_repayment_schedule"`,
+      `DROP TABLE IF EXISTS "loan_repayment_schedule"`,
     );
     await queryRunner.query(
-      `DROP TYPE "public"."loan_repayment_schedule_status_enum"`,
+      `DROP TYPE IF EXISTS "public"."loan_repayment_schedule_status_enum"`,
     );
   }
 }

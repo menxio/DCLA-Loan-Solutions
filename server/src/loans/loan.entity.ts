@@ -13,62 +13,68 @@ import { LoanRepaymentSchedule } from '../repayments/entities/loan-repayment-sch
 @Entity()
 export class Loan {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @ManyToOne(() => Member, (borrower) => borrower.loans)
-  borrower: Member;
+  borrower!: Member;
 
   @Column('decimal', { precision: 12, scale: 2 })
-  principalAmount: number;
+  principalAmount!: number;
 
   @Column('int')
-  termWeeks: number;
+  termWeeks!: number;
 
   @Column('decimal', { precision: 5, scale: 2 })
-  interestRate: number;
+  interestRate!: number;
 
   @Column({ default: 'active' })
-  status: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
+  status!: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
 
   @Column('decimal', { precision: 12, scale: 2 })
-  weeklyPaymentAmount: number;
+  weeklyPaymentAmount!: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
-  amountPaid: number;
+  amountPaid!: number;
 
   @Column('decimal', { precision: 12, scale: 2 })
-  balance: number;
+  balance!: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
-  advancePaymentBuffer: number;
+  advancePaymentBuffer!: number;
 
   @Column('decimal', { precision: 12, scale: 2 })
-  totalAmount: number;
+  totalAmount!: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
-  savings: number;
+  serviceCharge!: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
-  existingSavings: number;
+  notarialFee!: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  savings!: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  existingSavings!: number;
 
   @Column('int', { default: 0 })
-  weeksPaid: number;
+  weeksPaid!: number;
 
   @Column('decimal', { precision: 12, scale: 2, nullable: true })
-  netCashReleased: number | null;
+  netCashReleased!: number | null;
 
   @Column({ nullable: true })
-  loanCreatedDate: Date;
+  loanCreatedDate!: Date;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @OneToMany(
     () => LoanRepaymentSchedule,
     (schedule) => schedule.loan,
   )
-  repaymentSchedule: LoanRepaymentSchedule[];
+  repaymentSchedule!: LoanRepaymentSchedule[];
 }
