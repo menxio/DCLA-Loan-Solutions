@@ -247,6 +247,8 @@ export const loansClient = {
       newTermWeeks: 4 | 8 | 12;
       mode: "payoff" | "netoff";
       serviceCharge?: number;
+      notarialFee?: number;
+      savings?: number;
     }
   ) => {
     const res = await loansApi.post(`/${loanId}/reloan`, body);

@@ -50,6 +50,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
   const [reloanTerm, setReloanTerm] = useState<4 | 8 | 12>(12)
   const [reloanMode, setReloanMode] = useState<"payoff" | "netoff">("netoff")
   const [serviceCharge, setServiceCharge] = useState("")
+  const [notarialFee, setNotarialFee] = useState("")
   const [savings, setSavings] = useState("")
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -64,6 +65,8 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
       setReloanTerm(12)
       setReloanMode("netoff")
       setServiceCharge("")
+      setNotarialFee("")
+      setSavings("")
       setError(null)
       setEligibility(null)
 
@@ -93,15 +96,16 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
 
     const principal = Number(reloanPrincipal) || 0
     const fee = Number(serviceCharge) || 0
+    const legalFee = Number(notarialFee) || 0
     const savingsAmt = Number(savings) || 0
     const oldBalance = Number(member.totalBalance) || 0
 
     if (reloanMode === "payoff") {
-      return Math.max(0, principal - fee - savingsAmt)
+      return Math.max(0, principal - fee - legalFee - savingsAmt)
     } else {
-      return Math.max(0, principal - oldBalance - fee - savingsAmt)
+      return Math.max(0, principal - oldBalance - fee - legalFee - savingsAmt)
     }
-  }, [reloanPrincipal, serviceCharge, savings, member, reloanMode])
+  }, [reloanPrincipal, serviceCharge, notarialFee, savings, member, reloanMode])
 
   const handleSubmit = async () => {
     if (!member) return
@@ -125,6 +129,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
         newTermWeeks: reloanTerm,
         mode: reloanMode,
         serviceCharge: Number(serviceCharge) || 0,
+        notarialFee: Number(notarialFee) || 0,
         ...(savings !== "" ? { savings: Number(savings) || 0 } : {}),
       })
 
@@ -318,7 +323,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
             </FormControl>
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid item xs={12} md={6}>
             <TextField
               fullWidth
               label="Service Charge"
@@ -331,6 +336,22 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                 startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
               }}
               helperText="Processing fee for the reloan"
+            />
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Notarial Fee"
+              type="number"
+              value={notarialFee}
+              onChange={(e) => setNotarialFee(e.target.value)}
+              
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+              InputProps={{
+                startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
+              }}
+              helperText="Legal/notarial fee for the reloan"
             />
           </Grid>
 
@@ -392,6 +413,15 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                 </Typography>
                 <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>
                   -{formatCurrency(Number(serviceCharge) || 0)}
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Less: Notarial Fee:
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>
+                  -{formatCurrency(Number(notarialFee) || 0)}
                 </Typography>
               </Grid>
 

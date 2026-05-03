@@ -104,13 +104,8 @@ export class PortfolioService {
     return Number(value.toFixed(2));
   }
 
-  private getOutstandingPrincipalAmount(loan: Loan): number {
-    const principalAmount = Number(loan.principalAmount || 0);
-    const amountPaid = Number(loan.amountPaid || 0);
-
-    // The current loan model does not persist a separate principal/interest split,
-    // so the principal-only outstanding amount is approximated from principal less total paid.
-    return Math.max(0, principalAmount - amountPaid);
+  private getOutstandingCollectionAmount(loan: Loan): number {
+    return Math.max(0, Number(loan.balance || 0));
   }
 
   private getLoanReferenceDate(loan: Loan): Date {
@@ -621,9 +616,9 @@ export class PortfolioService {
         return sum + effective;
       }, 0);
 
-      // Outstanding collection: principal-only outstanding amount for active loans
+      // Outstanding collection tracks the persisted remaining loan balance.
       const outstandingCollection = activeLoans.reduce(
-        (sum, loan) => sum + this.getOutstandingPrincipalAmount(loan),
+        (sum, loan) => sum + this.getOutstandingCollectionAmount(loan),
         0,
       );
 
