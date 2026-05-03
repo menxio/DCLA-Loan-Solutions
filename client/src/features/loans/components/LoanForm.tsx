@@ -49,6 +49,7 @@ export default function LoanForm({
   const [errors, setErrors] = useState<Partial<LoanFormData>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [serviceCharge, setServiceCharge] = useState<number>(0);
+  const [notarialFee, setNotarialFee] = useState<number>(0);
   const [useCustomDate, setUseCustomDate] = useState<boolean>(false);
 
   // Calculate loan details when form data changes
@@ -126,6 +127,7 @@ export default function LoanForm({
         ...formData,
         savings: savingsContribution,
         serviceCharge,
+        notarialFee,
       });
     } catch (err) {
       setSubmitError("Failed to create loan. Please try again.");
@@ -137,8 +139,9 @@ export default function LoanForm({
   const savingsDeduction = savingsAmount;
   const netCashReleased = Math.max(
     0,
-    Number(formData.principalAmount || 0) -
+      Number(formData.principalAmount || 0) -
       Number(serviceCharge || 0) -
+      Number(notarialFee || 0) -
       savingsDeduction
   );
 
@@ -213,21 +216,44 @@ export default function LoanForm({
             />
           </Grid>
 
-          {/* Service Charge (optional, used for net cash preview only) */}
+          {/* Service Charge */}
           <Grid item xs={12} md={6}>
             <TextField
               fullWidth
-              label="Service Charge (optional)"
+              label="Service Charge"
               type="number"
               value={serviceCharge || ""}
-              onChange={(e) => setServiceCharge(Number((e as any).target.value))}
+              onChange={(e) => {
+                const value = e.target.value;
+                setServiceCharge(value === "" ? 0 : Number(value));
+              }}
               
-              inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*", min: 0 }}
+              onWheel={(e) => e.currentTarget.blur()}
               disabled={loading}
               InputProps={{
                 startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
               }}
-              helperText="Not saved; used to preview net cash to be released"
+            />
+          </Grid>
+
+          {/* Notarial Fee */}
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Notarial Fee"
+              type="number"
+              value={notarialFee || ""}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNotarialFee(value === "" ? 0 : Number(value));
+              }}
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]*", min: 0 }}
+              onWheel={(e) => e.currentTarget.blur()}
+              disabled={loading}
+              InputProps={{
+                startAdornment: <Typography sx={{ mr: 1 }}>₱</Typography>,
+              }}
             />
           </Grid>
 
@@ -388,15 +414,19 @@ export default function LoanForm({
                     Net Cash Released (Preview)
                   </Typography>
                   <Grid container spacing={2} sx={{ mb: 1 }}>
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={3}>
                       <Typography variant="body2" color="text.secondary">New Principal:</Typography>
                       <Typography variant="h6" sx={{ fontWeight: 600 }}>{formatCurrency(Number(formData.principalAmount || 0))}</Typography>
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={3}>
                       <Typography variant="body2" color="text.secondary">Less: Service Charge:</Typography>
                       <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(Number(serviceCharge || 0))}</Typography>
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={3}>
+                      <Typography variant="body2" color="text.secondary">Less: Notarial Fee:</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(Number(notarialFee || 0))}</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
                       <Typography variant="body2" color="text.secondary">Less: Savings Deducted:</Typography>
                       <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>-{formatCurrency(savingsDeduction)}</Typography>
                     </Grid>

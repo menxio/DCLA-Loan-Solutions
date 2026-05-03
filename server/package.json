@@ -21,7 +21,8 @@
   "typeorm": "typeorm-ts-node-commonjs",
   "migration:generate": "npm run typeorm -- migration:generate -d src/data-source.ts",
   "migration:run": "npm run typeorm -- migration:run -d dist/data-source.js",
-  "backfill:loan-service-charge": "ts-node -r tsconfig-paths/register src/scripts/backfill-loan-service-charge.ts"
+  "backfill:repayment-schedule-revenue": "ts-node -r tsconfig-paths/register src/scripts/backfill-repayment-schedule-revenue.ts",
+  "backfill:actual-revenue": "ts-node -r tsconfig-paths/register src/scripts/backfill-actual-revenue.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

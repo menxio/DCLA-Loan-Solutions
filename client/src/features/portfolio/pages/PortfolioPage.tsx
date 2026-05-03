@@ -29,6 +29,7 @@ import DashboardLayout from "@components/layout/PrivateLayout"
 import { usePortfolio } from "../hooks/usePortfolio"
 import { exportPortfolioToExcel } from "../utils/exportUtils"
 import ProjectedIncomeView from "../components/ProjectedIncomeView"
+import RevenueView from "../components/RevenueView"
 
 export default function PortfolioPage() {
   const { data, loading, error, refetch } = usePortfolio()
@@ -310,6 +311,14 @@ export default function PortfolioPage() {
                 <Tab 
                   label={
                     <Box display="flex" alignItems="center" gap={1}>
+                      <Assessment sx={{ fontSize: 20 }} />
+                      <span>Revenue</span>
+                    </Box>
+                  } 
+                />
+                <Tab 
+                  label={
+                    <Box display="flex" alignItems="center" gap={1}>
                       <TrendingUp sx={{ fontSize: 20 }} />
                       <span>Projected Income</span>
                     </Box>
@@ -498,8 +507,14 @@ export default function PortfolioPage() {
             </Box>
           )}
 
-            {/* Projected Income Tab */}
             {activeTab === 1 && (
+              <Box p={3}>
+                <RevenueView />
+              </Box>
+            )}
+
+            {/* Projected Income Tab */}
+            {activeTab === 2 && (
               <Box p={3}>
                 <ProjectedIncomeView />
               </Box>

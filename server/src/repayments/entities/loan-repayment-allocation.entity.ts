@@ -48,6 +48,12 @@ export class LoanRepaymentAllocation {
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   savingsPortion: number;
 
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  principalPortion: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  interestPortion: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

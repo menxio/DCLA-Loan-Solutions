@@ -51,6 +51,12 @@ export class LoanRepaymentSchedule {
   amountDue: number;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  principalDue: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  interestDue: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   amountPaid: number;
 
   @Column({

@@ -20,6 +20,8 @@ import {
   LoanRepaymentStatus,
 } from './entities/loan-repayment-schedule.entity';
 import { LoanRepaymentAllocation } from './entities/loan-repayment-allocation.entity';
+import { buildLoanRepaymentBreakdown } from './loan-repayment-schedule.utils';
+import { getRealizedAllocationSplit } from './loan-repayment-allocation.utils';
 
 @Injectable()
 export class RepaymentsService implements OnModuleInit {
@@ -147,6 +149,7 @@ export class RepaymentsService implements OnModuleInit {
       center,
       amount,
       notes,
+      paymentDate: collectionDateString,
     });
     const savedRepayment = await this.repaymentRepo.save(repayment);
 
@@ -250,10 +253,39 @@ export class RepaymentsService implements OnModuleInit {
     member: Member,
     center: Center | null,
   ): Promise<void> {
-    const existing = await this.scheduleRepo.count({
+    const existingRows = await this.scheduleRepo.find({
       where: { loanId: loan.id },
+      order: { weekNumber: 'ASC' },
     });
-    if (existing > 0) {
+    if (existingRows.length > 0) {
+      const breakdown = buildLoanRepaymentBreakdown(loan);
+      const needsBreakdownBackfill = existingRows.some(
+        (schedule, index) =>
+          Number(schedule.principalDue || 0) !==
+            Number(breakdown[index]?.principalDue ?? 0) ||
+          Number(schedule.interestDue || 0) !==
+            Number(
+              (
+                Number(schedule.amountDue || 0) -
+                Number(breakdown[index]?.principalDue ?? 0)
+              ).toFixed(2),
+            ),
+      );
+
+      if (needsBreakdownBackfill && breakdown.length === existingRows.length) {
+        await this.scheduleRepo.save(
+          existingRows.map((schedule, index) => ({
+            ...schedule,
+            principalDue: breakdown[index]?.principalDue ?? 0,
+            interestDue: Number(
+              (
+                Number(schedule.amountDue || 0) -
+                Number(breakdown[index]?.principalDue ?? 0)
+              ).toFixed(2),
+            ),
+          })),
+        );
+      }
       return;
     }
 
@@ -267,10 +299,12 @@ export class RepaymentsService implements OnModuleInit {
     const memberId = loan.borrower?.id ?? member.id;
     const centerId =
       center?.id ?? loan.borrower?.center?.id ?? member.center?.id ?? null;
+    const breakdown = buildLoanRepaymentBreakdown(loan);
 
     const rows: LoanRepaymentSchedule[] = [];
     for (let i = 0; i < termWeeks; i += 1) {
       const dueDate = this.formatDate(this.addDays(firstDueDate, i * 7));
+      const scheduleBreakdown = breakdown[i];
       const schedule = this.scheduleRepo.create({
         loanId: loan.id,
         memberId: memberId ?? null,
@@ -278,6 +312,9 @@ export class RepaymentsService implements OnModuleInit {
         weekNumber: i + 1,
         dueDate,
         amountDue: weeklyDue,
+        principalDue: scheduleBreakdown?.principalDue ?? 0,
+        interestDue:
+          scheduleBreakdown?.interestDue ?? Math.max(0, Number(weeklyDue || 0)),
         amountPaid: 0,
         status: LoanRepaymentStatus.UNPAID,
         advanceApplied: 0,
@@ -357,6 +394,14 @@ export class RepaymentsService implements OnModuleInit {
       const applied = Math.min(shortfall, remaining);
       const cashApplied = Math.min(cashRemaining, applied);
       const savingsApplied = applied - cashApplied;
+      const realizedSplit = getRealizedAllocationSplit(
+        {
+          amountPaid: paid,
+          interestDue: schedule.interestDue,
+          principalDue: schedule.principalDue,
+        },
+        applied,
+      );
       schedule.amountPaid = Number((paid + applied).toFixed(2));
       schedule.status = this.resolveScheduleStatus(schedule, paymentDateObj);
       touched.push(schedule);
@@ -367,6 +412,8 @@ export class RepaymentsService implements OnModuleInit {
           amountApplied: applied,
           cashPortion: cashApplied,
           savingsPortion: savingsApplied,
+          principalPortion: realizedSplit.principalPortion,
+          interestPortion: realizedSplit.interestPortion,
         }),
       );
       remaining -= applied;
@@ -388,6 +435,8 @@ export class RepaymentsService implements OnModuleInit {
           amountApplied: remaining,
           cashPortion: Math.min(cashRemaining, remaining),
           savingsPortion: Math.max(0, remaining - cashRemaining),
+          principalPortion: 0,
+          interestPortion: 0,
         }),
       );
       remaining = 0;

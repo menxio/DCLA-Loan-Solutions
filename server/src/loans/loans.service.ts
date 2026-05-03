@@ -16,6 +16,7 @@ import {
   LoanRepaymentStatus,
 } from '../repayments/entities/loan-repayment-schedule.entity';
 import { Savings } from '../savings/savings.entity';
+import { buildLoanRepaymentBreakdown } from '../repayments/loan-repayment-schedule.utils';
 
 @Injectable()
 export class LoansService {
@@ -607,9 +608,11 @@ export class LoansService {
     const center = (member as any)?.center ?? null;
     const firstDueDate = this.computeFirstDueDate(loan, member, center);
     const schedules: LoanRepaymentSchedule[] = [];
+    const breakdown = buildLoanRepaymentBreakdown(loan);
 
     for (let i = 0; i < termWeeks; i += 1) {
       const dueDate = this.addDays(firstDueDate, i * 7);
+      const scheduleBreakdown = breakdown[i];
       schedules.push(
         this.scheduleRepository.create({
           loanId: loan.id,
@@ -618,6 +621,9 @@ export class LoansService {
           weekNumber: i + 1,
           dueDate: this.formatDate(dueDate),
           amountDue: weeklyDue,
+          principalDue: scheduleBreakdown?.principalDue ?? 0,
+          interestDue:
+            scheduleBreakdown?.interestDue ?? Math.max(0, weeklyDue),
           amountPaid: 0,
           status: LoanRepaymentStatus.UNPAID,
           advanceApplied: 0,

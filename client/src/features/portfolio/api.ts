@@ -1,5 +1,12 @@
 import axios from 'axios';
-import type { PortfolioSummary, ProjectedIncomeSummary } from './types';
+import type {
+  ActualRevenueSummary,
+  ExpectedRevenueSummary,
+  PortfolioSummary,
+  ProjectedIncomeSummary,
+  RevenueDateFilter,
+  RevenueGranularity,
+} from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -20,6 +27,26 @@ export const portfolioService = {
   // Get projected income data
   getProjectedIncomeData: async (): Promise<ProjectedIncomeSummary> => {
     const response = await portfolioApi.get('/projected-income');
+    return response.data;
+  },
+
+  getExpectedRevenueData: async (
+    granularity: RevenueGranularity,
+    filter?: RevenueDateFilter,
+  ): Promise<ExpectedRevenueSummary> => {
+    const response = await portfolioApi.get('/expected-revenue', {
+      params: { granularity, ...filter },
+    });
+    return response.data;
+  },
+
+  getActualRevenueData: async (
+    granularity: RevenueGranularity,
+    filter?: RevenueDateFilter,
+  ): Promise<ActualRevenueSummary> => {
+    const response = await portfolioApi.get('/actual-revenue', {
+      params: { granularity, ...filter },
+    });
     return response.data;
   },
 };

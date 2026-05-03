@@ -31,6 +31,9 @@ export class Repayment {
   @Column({ type: 'text', nullable: true })
   notes: string;
 
+  @Column({ type: 'date', nullable: true })
+  paymentDate: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
