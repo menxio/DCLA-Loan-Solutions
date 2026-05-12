@@ -17,10 +17,10 @@ async function main() {
   const scheduleRepository = AppDataSource.getRepository(LoanRepaymentSchedule);
 
   const [repayments, schedules, allocations] = await Promise.all([
-    repaymentRepository.find({ order: { createdAt: 'ASC' } }),
+    repaymentRepository.find(),
     scheduleRepository.find(),
     allocationRepository.find({
-      relations: ['repayment'],
+      relations: ['schedule'],
       order: {
         createdAt: 'ASC',
       },
@@ -29,13 +29,8 @@ async function main() {
 
   const scheduleMap = new Map(schedules.map((schedule) => [schedule.id, schedule]));
   const allocationsBySchedule = new Map<string, LoanRepaymentAllocation[]>();
-
-  for (const allocation of allocations) {
-    const rows = allocationsBySchedule.get(allocation.scheduleId) ?? [];
-    rows.push(allocation);
-    allocationsBySchedule.set(allocation.scheduleId, rows);
-  }
-
+  const getLegacyRepaymentDate = (repayment: Repayment): string =>
+    (repayment.createdAt ?? new Date()).toISOString().split('T')[0];
   let updatedRepayments = 0;
   let unchangedRepayments = 0;
   let updatedAllocations = 0;
@@ -46,14 +41,20 @@ async function main() {
 
   for (const repayment of repayments) {
     processedRepayments += 1;
-    const nextPaymentDate =
-      repayment.paymentDate ?? repayment.createdAt.toISOString().split('T')[0];
 
-    if (repayment.paymentDate !== nextPaymentDate && !dryRun) {
-      await repaymentRepository.update(repayment.id, { paymentDate: nextPaymentDate });
-      updatedRepayments += 1;
-    } else {
+    if (repayment.paymentDate) {
       unchangedRepayments += 1;
+    } else {
+      const nextPaymentDate = getLegacyRepaymentDate(repayment);
+      repayment.paymentDate = nextPaymentDate;
+
+      if (!dryRun) {
+        await repaymentRepository.update(repayment.id, {
+          paymentDate: nextPaymentDate,
+        });
+      }
+
+      updatedRepayments += 1;
     }
 
     if (processedRepayments % repaymentProgressEvery === 0) {
@@ -61,6 +62,12 @@ async function main() {
         `[progress] repayments=${processedRepayments}/${repayments.length} | updatedRepayments=${updatedRepayments} | unchangedRepayments=${unchangedRepayments}`,
       );
     }
+  }
+
+  for (const allocation of allocations) {
+    const rows = allocationsBySchedule.get(allocation.scheduleId) ?? [];
+    rows.push(allocation);
+    allocationsBySchedule.set(allocation.scheduleId, rows);
   }
 
   for (const [scheduleId, scheduleAllocations] of allocationsBySchedule.entries()) {
@@ -72,9 +79,33 @@ async function main() {
       continue;
     }
 
-    let runningPaid = 0;
+    scheduleAllocations.sort((left, right) => {
+      const leftDate = left.schedule?.dueDate
+        ? new Date(`${left.schedule.dueDate}T00:00:00Z`).getTime()
+        : undefined;
+      const rightDate = right.schedule?.dueDate
+        ? new Date(`${right.schedule.dueDate}T00:00:00Z`).getTime()
+        : undefined;
 
+      if (leftDate !== rightDate) {
+        return (
+          (leftDate ?? Number.MAX_SAFE_INTEGER) -
+          (rightDate ?? Number.MAX_SAFE_INTEGER)
+        );
+      }
+
+      return (
+        (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0)
+      );
+    });
+
+    let runningPaid = 0;
     for (const allocation of scheduleAllocations) {
+      if (!allocation.schedule) {
+        skippedAllocations += 1;
+        continue;
+      }
+
       const split = getRealizedAllocationSplit(
         {
           amountPaid: runningPaid,
@@ -120,10 +151,10 @@ async function main() {
         mode: dryRun ? 'dry-run' : 'write',
         repaymentsConsidered: repayments.length,
         processedRepayments,
-        schedulesConsidered: allocationsBySchedule.size,
-        processedSchedules,
         updatedRepayments,
         unchangedRepayments,
+        schedulesConsidered: allocationsBySchedule.size,
+        processedSchedules,
         updatedAllocations,
         unchangedAllocations,
         skippedAllocations,

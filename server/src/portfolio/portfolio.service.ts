@@ -4,7 +4,10 @@ import { Repository } from 'typeorm';
 import { Center } from '../centers/entities/center.entity';
 import { Loan } from '../loans/loan.entity';
 import { LoanRepaymentAllocation } from '../repayments/entities/loan-repayment-allocation.entity';
-import { LoanRepaymentSchedule } from '../repayments/entities/loan-repayment-schedule.entity';
+import {
+  LoanRepaymentSchedule,
+  LoanRepaymentStatus,
+} from '../repayments/entities/loan-repayment-schedule.entity';
 import { buildLoanRepaymentBreakdown } from '../repayments/loan-repayment-schedule.utils';
 import { Repayment } from '../repayments/repayment.entity';
 
@@ -110,13 +113,6 @@ export class PortfolioService {
 
   private getLoanReferenceDate(loan: Loan): Date {
     const rawDate = loan.loanCreatedDate ?? loan.createdAt ?? new Date();
-    return new Date(rawDate);
-  }
-
-  private getRepaymentReferenceDate(repayment: Repayment): Date {
-    const rawDate = repayment.paymentDate
-      ? `${repayment.paymentDate}T00:00:00Z`
-      : repayment.createdAt ?? new Date();
     return new Date(rawDate);
   }
 
@@ -458,16 +454,17 @@ export class PortfolioService {
     const [loans, allocations] = await Promise.all([
       this.loanRepo.find(),
       this.allocationRepo.find({
-        relations: ['repayment'],
+        relations: ['schedule'],
         order: { createdAt: 'ASC' },
       }),
     ]);
     const availableMonths = this.buildAvailableMonths([
       ...loans.map((loan) => this.getLoanReferenceDate(loan)),
       ...allocations
-        .filter((allocation) => allocation.repayment)
-        .map((allocation) =>
-          this.getRepaymentReferenceDate(allocation.repayment),
+        .filter((allocation) => allocation.schedule)
+        .map(
+          (allocation) =>
+            new Date(`${allocation.schedule.dueDate}T00:00:00Z`),
         ),
     ]);
 
@@ -513,16 +510,25 @@ export class PortfolioService {
     }
 
     for (const allocation of allocations) {
-      if (!allocation.repayment) {
+      if (!allocation.schedule) {
         continue;
       }
 
-      const repaymentDate = this.getRepaymentReferenceDate(allocation.repayment);
-      if (!this.isDateInRange(repaymentDate, selectedMonthRange)) {
+      if (
+        ![
+          LoanRepaymentStatus.PAID,
+          LoanRepaymentStatus.ADVANCE,
+        ].includes(allocation.schedule.status)
+      ) {
         continue;
       }
 
-      const periodKey = this.getPeriodKey(repaymentDate, normalizedGranularity);
+      const appliedDueDate = new Date(`${allocation.schedule.dueDate}T00:00:00Z`);
+      if (!this.isDateInRange(appliedDueDate, selectedMonthRange)) {
+        continue;
+      }
+
+      const periodKey = this.getPeriodKey(appliedDueDate, normalizedGranularity);
       const period = ensurePeriod(periodKey);
 
       period.actualCollectedInterest = this.roundCurrency(

@@ -352,7 +352,7 @@ export class RepaymentsService implements OnModuleInit {
     allocationAmount: number;
     cashPortion: number;
     savingsPortion: number;
-    paymentDate: string;
+    paymentDate: string | null;
   }): Promise<void> {
     const {
       loan,
@@ -377,7 +377,6 @@ export class RepaymentsService implements OnModuleInit {
       order: { dueDate: 'ASC', weekNumber: 'ASC' },
     });
 
-    const paymentDateObj = new Date(`${paymentDate}T00:00:00Z`);
     let remaining = allocationAmount;
     let cashRemaining = Math.max(0, cashPortion);
     let savingsRemaining = Math.max(0, savingsPortion);
@@ -403,6 +402,8 @@ export class RepaymentsService implements OnModuleInit {
         applied,
       );
       schedule.amountPaid = Number((paid + applied).toFixed(2));
+      const statusDate = paymentDate ?? schedule.dueDate;
+      const paymentDateObj = new Date(`${statusDate}T00:00:00Z`);
       schedule.status = this.resolveScheduleStatus(schedule, paymentDateObj);
       touched.push(schedule);
       allocations.push(
@@ -474,13 +475,35 @@ export class RepaymentsService implements OnModuleInit {
     const repayments = await this.repaymentRepo.find({
       where: { loan: { id: loan.id } },
       relations: ['loan'],
-      order: { createdAt: 'ASC' },
     });
 
     for (const repayment of repayments) {
-      const paymentDate = repayment.createdAt
-        ? repayment.createdAt.toISOString().split('T')[0]
-        : this.normalizeCollectionDate();
+      if (repayment.paymentDate) {
+        continue;
+      }
+
+      repayment.paymentDate = this.formatDate(
+        this.normalizeDate(repayment.createdAt ?? new Date()),
+      );
+      await this.repaymentRepo.update(repayment.id, {
+        paymentDate: repayment.paymentDate,
+      });
+    }
+
+    repayments.sort((left, right) => {
+      const leftDate = this.getRepaymentAppliedDate(left)?.getTime() ?? 0;
+      const rightDate = this.getRepaymentAppliedDate(right)?.getTime() ?? 0;
+
+      if (leftDate !== rightDate) {
+        return leftDate - rightDate;
+      }
+
+      return (
+        (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0)
+      );
+    });
+
+    for (const repayment of repayments) {
       await this.applyRepaymentToSchedule({
         loan,
         member,
@@ -489,9 +512,17 @@ export class RepaymentsService implements OnModuleInit {
         allocationAmount: Number(repayment.amount || 0),
         cashPortion: Number(repayment.amount || 0),
         savingsPortion: 0,
-        paymentDate,
+        paymentDate: repayment.paymentDate,
       });
     }
+  }
+
+  private getRepaymentAppliedDate(repayment: Repayment): Date | null {
+    if (!repayment.paymentDate) {
+      return null;
+    }
+
+    return this.parseDate(repayment.paymentDate);
   }
 
   async getScheduleForLoan(loanId: string) {
