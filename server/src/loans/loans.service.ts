@@ -154,6 +154,7 @@ export class LoansService {
       savings: totalSavingsForValidation,
       existingSavings: 0,
       weeksPaid: 0,
+      paymentCountDisplayOffset: 1,
       amountPaid: 0,
       advancePaymentBuffer: 0,
       status: 'active',

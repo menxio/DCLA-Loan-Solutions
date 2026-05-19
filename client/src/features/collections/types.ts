@@ -21,6 +21,7 @@ export interface MemberWithLoans extends Member {
     loanCreatedDate?: string;
     createdAt?: string;
     netCashReleased?: number;
+    paymentCountDisplayOffset?: number;
   }>;
   totalLoanAmount: number;
   totalBalance: number;

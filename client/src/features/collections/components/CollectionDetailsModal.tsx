@@ -57,6 +57,7 @@ interface Loan {
   savings?: number;
   amountPaid?: number;
   termWeeks?: number;
+  paymentCountDisplayOffset?: number;
   loanCreatedDate?: string;
   createdAt?: string;
 }
@@ -403,10 +404,19 @@ export default function CollectionDetailsModal({
         const metrics = member.__computed?.collectionMetrics;
         const paymentInfo = member.__computed?.paymentInfo;
         const statusLabel = member.__computed?.status?.label ?? "";
-        const paymentsMade =
+        const actualPaymentsMade =
           paymentInfo?.weeksCovered ??
           member.collection?.numberOfPayments ??
           0;
+        const activeLoan = Array.isArray(member.loans)
+          ? member.loans.find(
+              (loan) => (loan?.status || "").toLowerCase() === "active"
+            )
+          : undefined;
+        const paymentOffset = Number(
+          activeLoan?.paymentCountDisplayOffset ?? 0
+        );
+        const paymentsMade = Number(actualPaymentsMade || 0) + paymentOffset;
         const netReleased =
           (member as any)?.netCashReleasedForDate ??
           member.netCashReleased ??

@@ -60,6 +60,9 @@ export class Loan {
   @Column('int', { default: 0 })
   weeksPaid!: number;
 
+  @Column('int', { default: 0 })
+  paymentCountDisplayOffset!: number;
+
   @Column('decimal', { precision: 12, scale: 2, nullable: true })
   netCashReleased!: number | null;
 
