@@ -126,7 +126,10 @@ export const generateLoanPassbookPDF = async (
           const firstDueDate = new Date(releaseDate);
           if (typeof targetWeekday === 'number') {
             const current = releaseDate.getDay();
-            const delta = (targetWeekday - current + 7) % 7;
+            let delta = (targetWeekday - current + 7) % 7;
+            if (delta === 0) {
+              delta = 7;
+            }
             firstDueDate.setDate(releaseDate.getDate() + delta);
           } else {
             firstDueDate.setDate(releaseDate.getDate());
