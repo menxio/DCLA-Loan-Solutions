@@ -8,7 +8,7 @@ export function useCenters() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(3);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCenters = useCallback(async (query?: CentersQuery) => {

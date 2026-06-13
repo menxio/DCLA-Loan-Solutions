@@ -5,9 +5,9 @@ import {
   Typography,
   Grid,
   Button,
-  Avatar,
   Alert,
   CircularProgress,
+  Skeleton,
 } from "@mui/material";
 import {
   CalendarToday,
@@ -16,6 +16,7 @@ import {
   CheckCircle,
   Schedule,
   Warning,
+  HourglassEmpty,
   Visibility,
   FileDownload,
 } from "@mui/icons-material";
@@ -23,7 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import CollectionStatsCard from "./CollectionStatsCard";
 import { exportAllCollectionsToExcel } from "../utils/exportUtils";
 import collectionsService from "../api";
-import type { DailyCollectionGroup, MemberWithLoans } from "../types";
+import type { DailyCollectionGroup, MemberWithLoans, Collection } from "../types";
 import {
   evaluateMemberStatus,
   hasActiveLoan,
@@ -37,6 +38,13 @@ interface DailyCollectionsViewProps {
   loading?: boolean;
 }
 
+type MemberWithLoansExtended = MemberWithLoans & {
+  netCashReleasedForDate?: number;
+};
+
+const getGroupKey = (group: DailyCollectionGroup) =>
+  `${group.centerId}::${group.collectionDate}`;
+
 export default function DailyCollectionsView({
   data,
   onViewDetails,
@@ -45,8 +53,12 @@ export default function DailyCollectionsView({
   const [exportingAll, setExportingAll] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [centerMembersMap, setCenterMembersMap] = useState<
-    Record<string, MemberWithLoans[]>
+    Record<string, MemberWithLoansExtended[]>
   >({});
+  const [pendingPaymentMemberIdsMap, setPendingPaymentMemberIdsMap] = useState<
+    Record<string, string[]>
+  >({});
+  const [membersLoading, setMembersLoading] = useState(false);
   const [search, setSearch] = useState("");
 
   const formatCurrency = (amount: number) => {
@@ -57,6 +69,11 @@ export default function DailyCollectionsView({
   useEffect(() => {
     let cancelled = false;
     const fetchAll = async () => {
+      if (!cancelled) {
+        setMembersLoading(true);
+        setCenterMembersMap({});
+        setPendingPaymentMemberIdsMap({});
+      }
       try {
         const results = await Promise.all(
           data.map(async (group) => {
@@ -65,7 +82,7 @@ export default function DailyCollectionsView({
                 group.centerId
               );
               // Attach today's collection to each member for convenience
-              const withCollections = members.map((m: any) =>
+              const withCollections = members.map((m) =>
                 withNetReleaseForDate(
                   {
                     ...m,
@@ -76,28 +93,56 @@ export default function DailyCollectionsView({
                   group.collectionDate
                 )
               );
+              const pendingRepayments =
+                await collectionsService.getPendingRepaymentsForCollection(
+                  group.centerId,
+                  group.collectionDate
+                );
               return {
                 centerId: group.centerId,
-                members: withCollections as MemberWithLoans[],
+                groupKey: getGroupKey(group),
+                members: withCollections as MemberWithLoansExtended[],
+                pendingMemberIds: pendingRepayments
+                  .filter((repayment) => repayment.operationType !== "reversal")
+                  .map((repayment) => repayment.member?.id)
+                  .filter((id): id is string => Boolean(id)),
               };
             } catch {
               return {
                 centerId: group.centerId,
-                members: [] as MemberWithLoans[],
+                groupKey: getGroupKey(group),
+                members: [] as MemberWithLoansExtended[],
+                pendingMemberIds: [] as string[],
               };
             }
           })
         );
         if (!cancelled) {
-          const map: Record<string, MemberWithLoans[]> = {};
+          const map: Record<string, MemberWithLoansExtended[]> = {};
+          const pendingMap: Record<string, string[]> = {};
           results.forEach((r) => (map[r.centerId] = r.members));
+          results.forEach((r) => (pendingMap[r.groupKey] = r.pendingMemberIds));
           setCenterMembersMap(map);
+          setPendingPaymentMemberIdsMap(pendingMap);
         }
       } catch {
-        if (!cancelled) setCenterMembersMap({});
+        if (!cancelled) {
+          setCenterMembersMap({});
+          setPendingPaymentMemberIdsMap({});
+        }
+      } finally {
+        if (!cancelled) {
+          setMembersLoading(false);
+        }
       }
     };
-    if (data.length > 0) fetchAll();
+    if (data.length > 0) {
+      fetchAll();
+    } else {
+      setCenterMembersMap({});
+      setPendingPaymentMemberIdsMap({});
+      setMembersLoading(false);
+    }
     return () => {
       cancelled = true;
     };
@@ -133,17 +178,26 @@ export default function DailyCollectionsView({
     (group: DailyCollectionGroup) => {
       const members = getMembersFor(group.centerId);
       if (members.length === 0) {
-        return { paid: 0, partial: 0, unpaid: 0 };
+        return { paid: 0, partial: 0, pending: 0, unpaid: 0 };
       }
+      const pendingMemberIds = new Set(
+        pendingPaymentMemberIdsMap[getGroupKey(group)] ?? []
+      );
       const collectionMap = new Map(
         group.collections.map((collection) => [collection.memberId, collection])
       );
       return members.reduce(
         (acc, member) => {
           if (!hasActiveLoan(member)) return acc;
-          const collection = collectionMap.get(member.id) || null;
+          if (pendingMemberIds.has(member.id)) {
+            acc.pending += 1;
+            return acc;
+          }
+          const collection = (collectionMap.get(member.id) || null) as
+            | Collection
+            | null;
           const status = evaluateMemberStatus(member, {
-            collection: collection as any,
+            collection,
             referenceDate: group.collectionDate,
           });
           if (status.label === "PAID") {
@@ -155,16 +209,18 @@ export default function DailyCollectionsView({
           }
           return acc;
         },
-        { paid: 0, partial: 0, unpaid: 0 }
+        { paid: 0, partial: 0, pending: 0, unpaid: 0 }
       );
     },
-    [getMembersFor]
+    [getMembersFor, pendingPaymentMemberIdsMap]
   );
 
   const getPaidCount = (group: DailyCollectionGroup) =>
     getStatusCounts(group).paid;
   const getPartialCount = (group: DailyCollectionGroup) =>
     getStatusCounts(group).partial;
+  const getPendingCount = (group: DailyCollectionGroup) =>
+    getStatusCounts(group).pending;
   const getUnpaidCount = (group: DailyCollectionGroup) =>
     getStatusCounts(group).unpaid;
 
@@ -182,11 +238,7 @@ export default function DailyCollectionsView({
         members.reduce(
           (s, m) =>
             s +
-            Number(
-              (m as any)?.netCashReleasedForDate ??
-                (m as any)?.netCashReleased ??
-                0
-            ),
+            Number(m.netCashReleasedForDate ?? m.netCashReleased ?? 0),
           0
         )
       );
@@ -210,7 +262,7 @@ export default function DailyCollectionsView({
             );
 
             // Map the data to include collection information
-            const membersWithCollections = centerMembers.map((member: any) =>
+            const membersWithCollections = centerMembers.map((member) =>
               withNetReleaseForDate(
                 {
                   ...member,
@@ -226,7 +278,8 @@ export default function DailyCollectionsView({
               )
             );
 
-            const typedMembers = membersWithCollections as MemberWithLoans[];
+            const typedMembers =
+              membersWithCollections as MemberWithLoansExtended[];
             const exportableMembers = typedMembers.filter(
               (member) => hasActiveLoan(member) && hasLoanAmount(member)
             );
@@ -243,7 +296,7 @@ export default function DailyCollectionsView({
             // Return with empty members array to avoid breaking the export
             return {
               group,
-              members: [] as MemberWithLoans[],
+              members: [] as MemberWithLoansExtended[],
             };
           }
         })
@@ -313,6 +366,90 @@ export default function DailyCollectionsView({
           scheduled collections.
         </Typography>
       </Card>
+    );
+  }
+
+  if (membersLoading && Object.keys(centerMembersMap).length === 0) {
+    return (
+      <Box>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 3,
+            p: 3,
+            backgroundColor: "#f8fafc",
+            borderRadius: 2,
+            border: "1px solid #e2e8f0",
+            gap: 2,
+            flexWrap: "wrap",
+          }}
+        >
+          <Box sx={{ flex: 1, minWidth: 280 }}>
+            <Skeleton variant="text" width="40%" height={36} />
+            <Skeleton variant="text" width="30%" height={24} />
+            <Skeleton variant="rounded" width={320} height={40} sx={{ mt: 2 }} />
+            <Box sx={{ display: "flex", gap: 2, mt: 2, flexWrap: "wrap" }}>
+              <Skeleton variant="rounded" width={130} height={56} />
+              <Skeleton variant="rounded" width={130} height={56} />
+              <Skeleton variant="rounded" width={130} height={56} />
+            </Box>
+          </Box>
+          <Skeleton variant="rounded" width={190} height={44} />
+        </Box>
+
+        {Array.from({ length: Math.min(Math.max(data.length, 1), 3) }).map(
+          (_, index) => (
+            <Card
+              key={index}
+              sx={{
+                mb: 4,
+                border: "1px solid #e2e8f0",
+                overflow: "hidden",
+              }}
+            >
+              <Box
+                sx={{
+                  p: 3,
+                  backgroundColor: "#dbeafe",
+                }}
+              >
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={8}>
+                    <Skeleton variant="text" width="40%" height={36} />
+                    <Skeleton variant="text" width="32%" height={24} />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <Skeleton variant="text" width="70%" height={36} />
+                      <Skeleton variant="text" width="55%" height={24} />
+                      <Skeleton variant="text" width="55%" height={24} />
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Box>
+              <CardContent sx={{ p: 3 }}>
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  {Array.from({ length: 4 }).map((__, statIndex) => (
+                    <Grid item xs={6} md={3} key={statIndex}>
+                      <Skeleton variant="rounded" height={88} />
+                    </Grid>
+                  ))}
+                </Grid>
+                <Box sx={{ textAlign: "right" }}>
+                  <Skeleton
+                    variant="rounded"
+                    width={140}
+                    height={42}
+                    sx={{ ml: "auto" }}
+                  />
+                </Box>
+              </CardContent>
+            </Card>
+          )
+        )}
+      </Box>
     );
   }
 
@@ -520,7 +657,7 @@ export default function DailyCollectionsView({
           <CardContent sx={{ p: 3 }}>
             {/* Statistics Cards */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Total Members"
                   value={group.totalMembers}
@@ -528,7 +665,7 @@ export default function DailyCollectionsView({
                   color="primary"
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Paid"
                   value={getPaidCount(group)}
@@ -536,7 +673,7 @@ export default function DailyCollectionsView({
                   color="success"
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Partial"
                   value={getPartialCount(group)}
@@ -544,7 +681,15 @@ export default function DailyCollectionsView({
                   color="warning"
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={2.4}>
+                <CollectionStatsCard
+                  title="Pending"
+                  value={getPendingCount(group)}
+                  icon={<HourglassEmpty />}
+                  color="info"
+                />
+              </Grid>
+              <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Unpaid"
                   value={getUnpaidCount(group)}

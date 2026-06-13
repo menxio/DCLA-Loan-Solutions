@@ -11,22 +11,17 @@ import {
   CheckCircle,
   Schedule,
   Warning,
+  HourglassEmpty,
   AccountBalance,
   TrendingUp,
   AttachMoney,
 } from "@mui/icons-material";
 import type { DailyCollectionGroup } from "../types";
 
-interface MemberWithLoans {
-  id: string;
-  overallAmount?: number;
-  totalBalance?: number;
-  totalSavings?: number;
-}
-
 interface ComputedStats {
   paidCount: number;
   partialCount: number;
+  pendingCount: number;
   unpaidCount: number;
   totalOverallAmount: number;
   totalRemainingBalance: number;
@@ -34,7 +29,6 @@ interface ComputedStats {
 
 interface CollectionSummaryCardsProps {
   collectionGroup: DailyCollectionGroup;
-  members: MemberWithLoans[];
   computedStats: ComputedStats | null;
   formatCurrency: (amount: number) => string;
   totalsOverride?: {
@@ -47,7 +41,6 @@ interface CollectionSummaryCardsProps {
 
 export function CollectionSummaryCards({
   collectionGroup,
-  members,
   computedStats,
   formatCurrency,
   totalsOverride,
@@ -80,6 +73,13 @@ export function CollectionSummaryCards({
       icon: Schedule,
       color: "#f59e0b",
       bgColor: "#fffbeb",
+    },
+    {
+      title: "Pending",
+      value: computedStats?.pendingCount || 0,
+      icon: HourglassEmpty,
+      color: "#0284c7",
+      bgColor: "#e0f2fe",
     },
     {
       title: "Unpaid",
@@ -124,7 +124,7 @@ export function CollectionSummaryCards({
       {/* Status Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {summaryCards.map((card, index) => (
-          <Grid item xs={6} md={3} key={index}>
+          <Grid item xs={6} md={2.4} key={index}>
             <Card
               sx={{
                 textAlign: "center",

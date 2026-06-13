@@ -1,6 +1,6 @@
 import type { Collection, MemberWithLoans } from "../types";
 
-type StatusLabel = "PAID" | "PARTIAL" | "UNPAID";
+type StatusLabel = "PAID" | "PARTIAL" | "UNPAID" | "PENDING";
 type StatusColor = "success" | "warning" | "error";
 
 export interface MemberStatusResult {
@@ -18,6 +18,23 @@ interface EvaluateOptions {
   collection?: Collection | null;
   referenceDate?: string | Date | null;
 }
+
+type LoanLike = MemberWithLoans["loans"][number] & {
+  status?: string;
+  weeklyPaymentAmount?: number;
+  amountPaid?: number;
+  termWeeks?: number;
+  loanCreatedDate?: string | Date;
+  createdAt?: string | Date;
+  dueDate?: string | Date;
+  principalAmount?: number;
+  amount?: number;
+};
+
+type CollectionLike = Collection & {
+  amountReceived?: number;
+  paymentReceived?: number;
+};
 
 const EPSILON = 0.01;
 const MS_IN_WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -44,22 +61,22 @@ const computePaymentInfo = (
   weeksCovered: number;
   expectedTotal: number;
 } => {
-  const loans = Array.isArray(member.loans) ? member.loans : [];
+  const loans = Array.isArray(member.loans) ? (member.loans as LoanLike[]) : [];
   const activeLoans = loans.filter(
-    (loan: any) => (loan?.status || "").toLowerCase() === "active"
+    (loan) => (loan?.status || "").toLowerCase() === "active"
   );
   const relevantLoans =
     activeLoans.length > 0 ? activeLoans : loans.length > 0 ? [loans[0]] : [];
 
   const fallbackWeekly = relevantLoans.reduce(
-    (sum, loan) => sum + Number((loan as any)?.weeklyPaymentAmount || 0),
+    (sum, loan) => sum + Number(loan?.weeklyPaymentAmount || 0),
     0
   );
 
   let expectedTotal = 0;
   let totalPaid = 0;
 
-  relevantLoans.forEach((loan: any) => {
+  relevantLoans.forEach((loan) => {
     const weekly = Number(loan?.weeklyPaymentAmount || 0);
     if (weekly <= 0) return;
 
@@ -68,7 +85,7 @@ const computePaymentInfo = (
 
     const termWeeks = Number(loan?.termWeeks || 0);
     const startRaw =
-      loan?.loanCreatedDate ?? loan?.createdAt ?? (loan as any)?.dueDate;
+      loan?.loanCreatedDate ?? loan?.createdAt ?? loan?.dueDate;
     if (!startRaw) return;
 
     const startDate = new Date(startRaw);
@@ -101,12 +118,10 @@ const computePaymentInfo = (
   };
 };
 
-const deriveReceived = (collection?: Collection | null): number => {
+const deriveReceived = (collection?: CollectionLike | null): number => {
   if (!collection) return 0;
   const value =
-    (collection as any)?.amountReceived ??
-    (collection as any)?.paymentReceived ??
-    0;
+    collection.amountReceived ?? collection.paymentReceived ?? 0;
   return Number(value) || 0;
 };
 
@@ -130,8 +145,8 @@ const mapLabelToColor = (label: StatusLabel): StatusColor => {
 export const hasActiveLoan = (member: MemberWithLoans): boolean => {
   return (
     Array.isArray(member.loans) &&
-    member.loans.some(
-      (loan: any) => (loan?.status || "").toLowerCase() === "active"
+    (member.loans as LoanLike[]).some(
+      (loan) => (loan?.status || "").toLowerCase() === "active"
     )
   );
 };
@@ -145,10 +160,8 @@ export const hasLoanAmount = (member: MemberWithLoans): boolean => {
   }
 
   const loans = Array.isArray(member.loans) ? member.loans : [];
-  return loans.some((loan: any) => {
-    const principal = Number(
-      (loan as any)?.principalAmount ?? (loan as any)?.amount ?? 0
-    );
+  return (loans as LoanLike[]).some((loan) => {
+    const principal = Number(loan?.principalAmount ?? loan?.amount ?? 0);
     return principal > EPSILON;
   });
 };
@@ -160,8 +173,9 @@ export const evaluateMemberStatus = (
   const reference = normalizeReferenceDate(options.referenceDate);
   const paymentInfo = computePaymentInfo(member, reference);
   const hasActive = hasActiveLoan(member);
-  const collection =
-    options.collection ?? ((member as any).collection as Collection | undefined);
+  const collection = (options.collection ?? member.collection) as
+    | CollectionLike
+    | undefined;
   const received = deriveReceived(collection);
   const due = deriveDue(collection, paymentInfo.weeklyDue);
 

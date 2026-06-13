@@ -1,14 +1,58 @@
 import axios from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@features/auth/authStore";
+import type { User } from "../types/auth";
 
-// ⚠️ Use environment variable instead of hardcoding localhost
-// Netlify will let you inject VITE_API_URL in settings
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
+  baseURL: API_BASE_URL,
 });
 
-// Use InternalAxiosRequestConfig instead of AxiosRequestConfig
+const refreshApi = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+type RetriableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
+let refreshPromise: Promise<string | null> | null = null;
+
+const refreshAccessToken = async (): Promise<string | null> => {
+  const authStore = useAuthStore.getState();
+
+  if (!authStore.refreshToken) {
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = refreshApi
+      .post("/auth/refresh", {
+        refreshToken: authStore.refreshToken,
+      })
+      .then((response) => {
+        const { access_token, refresh_token, user } = response.data as {
+          access_token: string;
+          refresh_token: string;
+          user: User;
+        };
+
+        authStore.setSession(access_token, refresh_token, user);
+        return access_token;
+      })
+      .catch(() => {
+        authStore.logout();
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};
+
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = useAuthStore.getState().token;
@@ -22,8 +66,31 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status = error?.response?.status;
+    const originalRequest = error?.config as RetriableRequestConfig | undefined;
+    const requestUrl = originalRequest?.url ?? "";
+    const shouldSkipRefresh =
+      requestUrl.includes("/auth/login") ||
+      requestUrl.includes("/auth/refresh") ||
+      requestUrl.includes("/auth/logout");
+
+    if (
+      status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !shouldSkipRefresh
+    ) {
+      originalRequest._retry = true;
+
+      const refreshedToken = await refreshAccessToken();
+      if (refreshedToken) {
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${refreshedToken}`;
+        return api(originalRequest);
+      }
+    }
+
     if (status === 401) {
       const authStore = useAuthStore.getState();
       authStore.logout();
@@ -31,6 +98,7 @@ api.interceptors.response.use(
         window.location.href = "/login";
       }
     }
+
     return Promise.reject(error);
   }
 );

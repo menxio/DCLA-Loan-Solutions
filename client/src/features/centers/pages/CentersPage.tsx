@@ -7,15 +7,15 @@ import {
   Button, 
   Paper, 
   Pagination,
-  Grid,
   TextField,
   InputAdornment,
   Select,
   MenuItem,
   FormControl,
 } from "@mui/material";
-import { Add, Groups, Search, Refresh, AccountBalance, TrendingUp, Assessment } from "@mui/icons-material";
+import { Add, Groups, Search } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import CenterModal from "../components/CenterModal";
 import CenterTable from "../components/CenterTable";
 import { useCenters } from "../hooks/useCenters";
@@ -69,6 +69,7 @@ export default function CentersPage() {
         showSnackbar("Center created successfully!");
       }
     } catch (err) {
+      console.error("Failed to save center:", err);
       showSnackbar("Failed to save center. Please try again.", "error");
       throw err;
     }
@@ -84,6 +85,7 @@ export default function CentersPage() {
       await deleteCenter(id);
       showSnackbar("Center deleted successfully!");
     } catch (err) {
+      console.error("Failed to delete center:", err);
       showSnackbar("Failed to delete center. Please try again.", "error");
       throw err;
     }
@@ -92,6 +94,18 @@ export default function CentersPage() {
   const handleCloseSnackbar = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
   };
+
+  if (loading && centers.length === 0) {
+    return (
+      <DashboardLayout>
+        <PageLoadingSkeleton
+          showStats={false}
+          filterCount={3}
+          rowCount={limit}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -204,13 +218,7 @@ export default function CentersPage() {
         {/* Error Alert */}
         {error && (
           <Box px={3}>
-            <Alert
-              severity="error"
-              sx={{ mb: 3, borderRadius: 2 }}
-              onClose={() => {
-                // You might want to add error clearing functionality to the hook
-              }}
-            >
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               {error}
             </Alert>
           </Box>

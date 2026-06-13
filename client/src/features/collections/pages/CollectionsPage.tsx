@@ -13,12 +13,17 @@ import {
   CircularProgress,
   TextField,
   InputAdornment,
-  Grid,
-  Card,
-  CardContent,
+  Skeleton,
 } from "@mui/material";
-import { Refresh, Assessment, Search, AccountBalance, TrendingUp, Groups } from "@mui/icons-material";
+import {
+  Refresh,
+  Assessment,
+  Search,
+  AccountBalance,
+  Groups,
+} from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import DailyCollectionsView from "../components/DailyCollectionsView";
 import CollectionDetailsModal from "../components/CollectionDetailsModal";
 import CollectionUpdateModal from "../components/CollectionUpdateModal";
@@ -46,14 +51,78 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+function CollectionsTabSkeleton() {
+  return (
+    <Box>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 2,
+          flexWrap: "wrap",
+          mb: 3,
+        }}
+      >
+        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+          <Skeleton variant="rounded" width={150} height={44} />
+          <Skeleton variant="rounded" width={150} height={44} />
+          <Skeleton variant="rounded" width={150} height={44} />
+        </Box>
+        <Skeleton variant="rounded" width={190} height={44} />
+      </Box>
+      {Array.from({ length: 3 }).map((_, index) => (
+        <Paper
+          key={index}
+          sx={{
+            mb: 4,
+            border: "1px solid #e2e8f0",
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            sx={{
+              p: 3,
+              backgroundColor: "#eff6ff",
+            }}
+          >
+            <Skeleton variant="text" width="35%" height={38} />
+            <Skeleton variant="text" width="25%" height={24} />
+          </Box>
+          <Box sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 2,
+                mb: 3,
+              }}
+            >
+              {Array.from({ length: 4 }).map((__, statIndex) => (
+                <Skeleton
+                  key={statIndex}
+                  variant="rounded"
+                  height={92}
+                />
+              ))}
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+              <Skeleton variant="rounded" width={150} height={42} />
+            </Box>
+          </Box>
+        </Paper>
+      ))}
+    </Box>
+  );
+}
+
 export default function CollectionsPage() {
   const {
     dailyCollections,
     allCollections,
-    totalDailyCenters,
-    totalAllCenters,
-    totalAllCollectionItems,
     loading,
+    loadingDaily,
+    loadingAll,
     error,
     updateCollection,
     refetchDaily,
@@ -64,6 +133,7 @@ export default function CollectionsPage() {
     setAllDate,
   } = useCollections();
   const [tabValue, setTabValue] = useState(0);
+  const [tabSkeleton, setTabSkeleton] = useState<0 | 1 | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [selectedCollectionGroup, setSelectedCollectionGroup] = useState<
@@ -93,8 +163,33 @@ export default function CollectionsPage() {
     });
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = async (
+    event: React.SyntheticEvent,
+    newValue: number
+  ) => {
     setTabValue(newValue);
+
+    if (newValue === 0 && dailyCollections.length === 0) {
+      setTabSkeleton(0);
+      try {
+        await refetchDaily();
+      } catch (err) {
+        console.error("Failed to refresh daily collections", err);
+      } finally {
+        setTabSkeleton((current) => (current === 0 ? null : current));
+      }
+    }
+
+    if (newValue === 1 && allCollections.length === 0) {
+      setTabSkeleton(1);
+      try {
+        await refetchAll();
+      } catch (err) {
+        console.error("Failed to refresh all collections", err);
+      } finally {
+        setTabSkeleton((current) => (current === 1 ? null : current));
+      }
+    }
   };
 
   const handleViewDetails = (group: DailyCollectionGroup) => {
@@ -125,6 +220,7 @@ export default function CollectionsPage() {
       await updateCollection(id, data);
       showSnackbar("Collection updated successfully!");
     } catch (err) {
+      console.error("Failed to update collection", err);
       showSnackbar("Failed to update collection. Please try again.", "error");
       throw err;
     }
@@ -139,6 +235,7 @@ export default function CollectionsPage() {
       }
       showSnackbar("Data refreshed successfully!");
     } catch (err) {
+      console.error("Failed to refresh collections", err);
       showSnackbar("Failed to refresh data. Please try again.", "error");
     }
   };
@@ -155,21 +252,7 @@ export default function CollectionsPage() {
   if (loading && dailyCollections.length === 0 && allCollections.length === 0) {
     return (
       <DashboardLayout>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: "400px",
-            flexDirection: "column",
-            gap: 2,
-          }}
-        >
-          <CircularProgress size={40} />
-          <Typography variant="body1" color="text.secondary">
-            Loading collections...
-          </Typography>
-        </Box>
+        <PageLoadingSkeleton showStats={false} showTabs filterCount={3} rowCount={8} />
       </DashboardLayout>
     );
   }
@@ -261,7 +344,7 @@ export default function CollectionsPage() {
               <Button
                 variant="contained"
                 startIcon={<Refresh />}
-                onClick={refetchDaily}
+                onClick={handleRefresh}
                 sx={{
                   background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   borderRadius: 2,
@@ -285,11 +368,7 @@ export default function CollectionsPage() {
         {/* Error Alert */}
         {error && (
           <Box px={3}>
-            <Alert
-              severity="error"
-              sx={{ mb: 3, borderRadius: 2 }}
-              onClose={() => {}}
-            >
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               {error}
             </Alert>
           </Box>
@@ -382,7 +461,10 @@ export default function CollectionsPage() {
           {/* Daily Collections Tab */}
           <TabPanel value={tabValue} index={0}>
             <Box sx={{ p: 3 }}>
-              {dailyCollections?.length === 0 && search ? (
+              {(tabSkeleton === 0 || loadingDaily) &&
+              dailyCollections.length === 0 ? (
+                <CollectionsTabSkeleton />
+              ) : dailyCollections?.length === 0 && search ? (
                 <Paper
                   sx={{
                     textAlign: "center",
@@ -413,7 +495,10 @@ export default function CollectionsPage() {
           {/* All Collections Tab */}
           <TabPanel value={tabValue} index={1}>
             <Box sx={{ p: 3 }}>
-              {allCollections.length === 0 && search ? (
+              {(tabSkeleton === 1 || loadingAll) &&
+              allCollections.length === 0 ? (
+                <CollectionsTabSkeleton />
+              ) : allCollections.length === 0 && search ? (
                 <Paper
                   sx={{
                     textAlign: "center",
@@ -452,7 +537,9 @@ export default function CollectionsPage() {
             try {
               await refetchDaily();
               await refetchAll();
-            } catch {}
+            } catch (error) {
+              console.warn("Failed to refresh collections", error);
+            }
           }}
           onEditCollection={handleEditCollection}
         />

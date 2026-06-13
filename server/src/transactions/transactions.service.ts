@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Repayment } from '../repayments/repayment.entity';
+import {
+  Repayment,
+  RepaymentOperationType,
+  RepaymentStatus,
+} from '../repayments/repayment.entity';
 import { Savings } from '../savings/savings.entity';
 import { TransactionsQueryDto } from './dto/transactions-query.dto';
 
@@ -30,6 +34,7 @@ export interface TransactionHistoryItem {
   notes?: string | null;
   createdAt: string;
   source: 'repayment' | 'savings';
+  repaymentOperationType?: 'payment' | 'reversal' | null;
 }
 
 @Injectable()
@@ -130,6 +135,10 @@ export class TransactionsService {
       .leftJoinAndSelect('member.center', 'center')
       .leftJoinAndSelect('repayment.loan', 'loan')
       .leftJoinAndSelect('repayment.center', 'repaymentCenter');
+
+    qb.andWhere('repayment.status = :status', {
+      status: RepaymentStatus.APPROVED,
+    });
 
     if (memberId) {
       qb.andWhere('member.id = :memberId', { memberId });
@@ -234,6 +243,10 @@ export class TransactionsService {
 
   private mapRepayment(repayment: Repayment): TransactionHistoryItem {
     const amount = this.toNumber(repayment.amount);
+    const operationType =
+      repayment.operationType === RepaymentOperationType.REVERSAL
+        ? 'reversal'
+        : 'payment';
     const memberName = `${repayment.member?.lastName ?? ''}, ${
       repayment.member?.firstName ?? ''
     }`.trim();
@@ -241,7 +254,7 @@ export class TransactionsService {
       id: repayment.id,
       type: 'repayment',
       amount,
-      direction: 'credit',
+      direction: operationType === 'reversal' ? 'debit' : 'credit',
       member: {
         id: repayment.member?.id ?? null,
         name: memberName || 'Unknown Member',
@@ -259,6 +272,7 @@ export class TransactionsService {
       notes: repayment.notes ?? null,
       createdAt: repayment.createdAt?.toISOString() ?? new Date().toISOString(),
       source: 'repayment',
+      repaymentOperationType: operationType,
     };
   }
 

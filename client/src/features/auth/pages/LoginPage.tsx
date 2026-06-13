@@ -14,8 +14,10 @@ import {
 } from "@mui/material";
 import { Visibility, VisibilityOff, Email, Lock } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import api from "@utils/api";
+import axios from "axios";
+import { authService } from "../api";
 import { useAuthStore } from "../authStore";
+import { getDefaultRouteForRole } from "../access";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -27,7 +29,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login);
+  const setSession = useAuthStore((state) => state.setSession);
+
+  type JwtPayload = {
+    sub?: string;
+    email?: string;
+    role?: string;
+    firstName?: string;
+    lastName?: string;
+  };
 
   const handleInputChange =
     (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,23 +73,36 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await api.post("/auth/login", {
+      const res = await authService.login({
         email: formData.email,
         password: formData.password,
       });
 
-      const { access_token } = res.data;
-      const decoded: any = JSON.parse(atob(access_token.split(".")[1]));
+      const { access_token, refresh_token, user } = res;
+      if (user) {
+        setSession(access_token, refresh_token, {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          mustChangePassword: user.mustChangePassword,
+        });
+      } else {
+        const decoded = JSON.parse(atob(access_token.split(".")[1])) as JwtPayload;
+        setSession(access_token, refresh_token, {
+          id: decoded.sub ?? "",
+          email: decoded.email ?? "",
+          role: decoded.role ?? "user",
+          mustChangePassword: false,
+        });
+      }
 
-      login(access_token, {
-        id: decoded.sub,
-        email: decoded.email,
-        role: decoded.role,
-      });
-
-      navigate("/dashboard");
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "Invalid credentials";
+      navigate(getDefaultRouteForRole(user?.role), { replace: true });
+    } catch (err: unknown) {
+      const errorMessage = axios.isAxiosError<{ message?: string }>(err)
+        ? err.response?.data?.message ?? "Invalid credentials"
+        : "Invalid credentials";
       setError(errorMessage);
     } finally {
       setLoading(false);

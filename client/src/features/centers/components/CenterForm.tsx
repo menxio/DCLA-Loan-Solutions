@@ -109,6 +109,7 @@ export default function CenterForm({
         });
       }
     } catch (err) {
+      console.error("Failed to save center:", err);
       setSubmitError("Failed to save center. Please try again.");
     }
   };

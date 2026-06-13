@@ -1,7 +1,15 @@
 import type { MemberWithLoans } from "../types";
 
-const MS_IN_DAY = 24 * 60 * 60 * 1000;
 const NET_RELEASE_WINDOW_DAYS = 7;
+
+type LoanLike = MemberWithLoans["loans"][number] & {
+  status?: string;
+  loanCreatedDate?: string | Date;
+  createdAt?: string | Date;
+  releaseDate?: string | Date;
+  netCashReleased?: number | null;
+  net_release?: number | null;
+};
 
 const normalizeDate = (value?: string | Date | null): Date | null => {
   if (!value) return null;
@@ -23,9 +31,9 @@ export const computeNetReleaseForDate = (
   const reference = normalizeDate(referenceDate);
   if (!reference) return 0;
 
-  const loans = Array.isArray(member.loans) ? member.loans : [];
+  const loans = Array.isArray(member.loans) ? (member.loans as LoanLike[]) : [];
 
-  return loans.reduce((sum, loan: any) => {
+  return loans.reduce((sum, loan) => {
     const status = `${loan?.status || ""}`.toLowerCase();
     if (status !== "active") {
       return sum;
@@ -50,7 +58,7 @@ export const computeNetReleaseForDate = (
     }
 
     const netValue = Number(
-      loan?.netCashReleased ?? (loan as any)?.net_release ?? 0
+      loan?.netCashReleased ?? loan?.net_release ?? 0
     );
     if (!Number.isFinite(netValue) || netValue <= 0) {
       return sum;

@@ -14,8 +14,6 @@ import {
   Alert,
   CircularProgress,
   Grid,
-  Card,
-  CardContent,
   Tabs,
   Tab,
   TextField,
@@ -24,8 +22,9 @@ import {
   MenuItem,
   FormControl,
 } from "@mui/material"
-import { Download, TrendingUp, AccountBalance, Refresh, Search, BarChart, Assessment } from "@mui/icons-material"
+import { Assessment, Download, TrendingUp, AccountBalance, Refresh, Search, BarChart } from "@mui/icons-material"
 import DashboardLayout from "@components/layout/PrivateLayout"
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton"
 import { usePortfolio } from "../hooks/usePortfolio"
 import { exportPortfolioToExcel } from "../utils/exportUtils"
 import ProjectedIncomeView from "../components/ProjectedIncomeView"
@@ -60,9 +59,7 @@ export default function PortfolioPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress sx={{ color: "#2563eb" }} />
-        </Box>
+        <PageLoadingSkeleton showStats showTabs statCount={3} filterCount={3} rowCount={8} />
       </DashboardLayout>
     )
   }

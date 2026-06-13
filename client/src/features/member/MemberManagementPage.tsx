@@ -12,19 +12,16 @@ import {
   MenuItem, 
   TextField, 
   Pagination,
-  Grid,
-  Card,
-  CardContent,
-  InputAdornment,
 } from "@mui/material";
-import { Add, Group, FilterList, Person } from "@mui/icons-material";
+import { Add, Group } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import MemberCards from "./components/MemberCards";
 import { useMembers } from "./hooks/useMember";
-import type { Member, MemberFormData } from "./types";
+import type { Member, MemberFormData, MembersQuery } from "./types";
 import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
 import FullScreenLoader from "@components/common/FullScreenLoader";
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 
 const MemberModal = lazy(() => import("./components/MemberModal"));
 const LoanModal = lazy(() => import("@features/loans/components/LoanModal"));
@@ -33,7 +30,7 @@ const SavingsDepositDialog = lazy(
 );
 
 export default function MembersPage() {
-  const { members, total, page, limit, setPage, setLimit, loading, error, createMember, updateMember, deleteMember, refetch } = useMembers();
+  const { members, total, page, limit, setPage, loading, error, createMember, updateMember, deleteMember, refetch } = useMembers();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | undefined>(undefined);
@@ -48,7 +45,6 @@ export default function MembersPage() {
   });
   const [centers, setCenters] = useState<Center[]>([]);
   const [selectedCenterId, setSelectedCenterId] = useState<string>("");
-  const [loadingCenters, setLoadingCenters] = useState(false);
   const [loanModalOpen, setLoanModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [savingsDialogOpen, setSavingsDialogOpen] = useState(false);
@@ -62,13 +58,13 @@ export default function MembersPage() {
 
   // Refetch whenever filters, page, or limit change (server-side filtering)
   useEffect(() => {
-    const query = {
+    const query: MembersQuery = {
       page,
       limit,
       search: searchMember.trim() || undefined,
       centerId: selectedCenterId || undefined,
-    } as any;
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    };
+     
     refetch(query);
   }, [page, limit, selectedCenterId, searchMember, refetch]);
 
@@ -96,6 +92,7 @@ export default function MembersPage() {
         showSnackbar("Member created successfully!");
       }
     } catch (err) {
+      console.error("Failed to save member:", err);
       showSnackbar("Failed to save member. Please try again.", "error");
       throw err;
     }
@@ -113,6 +110,7 @@ export default function MembersPage() {
       await deleteMember(id);
       showSnackbar("Member deleted successfully!");
     } catch (err) {
+      console.error("Failed to delete member:", err);
       showSnackbar("Failed to delete member. Please try again.", "error");
       throw err;
     }
@@ -153,12 +151,12 @@ export default function MembersPage() {
     })}`;
 
   const handleSavingsSuccess = async () => {
-    const query = {
+    const query: MembersQuery = {
       page,
       limit,
       search: searchMember.trim() || undefined,
       centerId: selectedCenterId || undefined,
-    } as any;
+    };
     await refetch(query);
     showSnackbar("Savings deposit recorded!");
     handleCloseSavingsDialog();
@@ -168,13 +166,10 @@ export default function MembersPage() {
   useEffect(() => {
     const loadCenters = async () => {
       try {
-        setLoadingCenters(true);
         const centersData = await CentersAPI.getAll({ limit: 1000 });
         setCenters(Array.isArray(centersData) ? centersData : centersData.items ?? []);
       } catch (error) {
         console.error("Failed to load centers:", error);
-      } finally {
-        setLoadingCenters(false);
       }
     };
 
@@ -183,6 +178,18 @@ export default function MembersPage() {
 
   // Use server-side filtered results directly
   const filteredMembers = members;
+
+  if (loading && filteredMembers.length === 0) {
+    return (
+      <DashboardLayout>
+        <PageLoadingSkeleton
+          showStats={false}
+          filterCount={3}
+          rowCount={limit}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -264,7 +271,7 @@ export default function MembersPage() {
               <Button
                 variant="contained"
                 startIcon={<Add />}
-                onClick={() => setModalOpen(true)}
+                onClick={handleOpenModal}
                 sx={{
                   background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   borderRadius: 2,

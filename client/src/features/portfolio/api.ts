@@ -1,4 +1,4 @@
-import axios from 'axios';
+import api from '@utils/api';
 import type {
   ActualRevenueSummary,
   ExpectedRevenueSummary,
@@ -8,25 +8,16 @@ import type {
   RevenueGranularity,
 } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-const portfolioApi = axios.create({
-  baseURL: `${API_BASE_URL}/portfolio`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
 export const portfolioService = {
   // Get portfolio data
   getPortfolioData: async (): Promise<PortfolioSummary> => {
-    const response = await portfolioApi.get('/');
+    const response = await api.get('/portfolio');
     return response.data;
   },
 
   // Get projected income data
   getProjectedIncomeData: async (): Promise<ProjectedIncomeSummary> => {
-    const response = await portfolioApi.get('/projected-income');
+    const response = await api.get('/portfolio/projected-income');
     return response.data;
   },
 
@@ -34,7 +25,7 @@ export const portfolioService = {
     granularity: RevenueGranularity,
     filter?: RevenueDateFilter,
   ): Promise<ExpectedRevenueSummary> => {
-    const response = await portfolioApi.get('/expected-revenue', {
+    const response = await api.get('/portfolio/expected-revenue', {
       params: { granularity, ...filter },
     });
     return response.data;
@@ -44,7 +35,7 @@ export const portfolioService = {
     granularity: RevenueGranularity,
     filter?: RevenueDateFilter,
   ): Promise<ActualRevenueSummary> => {
-    const response = await portfolioApi.get('/actual-revenue', {
+    const response = await api.get('/portfolio/actual-revenue', {
       params: { granularity, ...filter },
     });
     return response.data;

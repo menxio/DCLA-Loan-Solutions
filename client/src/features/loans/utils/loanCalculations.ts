@@ -6,7 +6,7 @@ export const getInterestRate = (termWeeks: number): number => {
 };
 
 // Savings is now manually provided at loan creation; keep function only if needed elsewhere
-export const getSavingsRequired = (_principalAmount: number): number => {
+export const getSavingsRequired = (): number => {
   return 0;
 };
 

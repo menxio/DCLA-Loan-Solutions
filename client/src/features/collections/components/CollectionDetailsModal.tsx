@@ -30,7 +30,7 @@ import {
 } from "@mui/icons-material";
 import { Search } from "@mui/icons-material";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type { DailyCollectionGroup, Collection, Member } from "../types";
+import type { DailyCollectionGroup, Collection, MemberWithLoans } from "../types";
 import collectionsService from "../api";
 import { exportToExcel } from "../utils/exportUtils";
 import { exportCollectorPdf } from "../utils/exportCollectorPdf";
@@ -38,6 +38,8 @@ import { PaymentDialog } from "./PaymentDialog";
 import { ReloanDialog } from "./ReloanDialog";
 import { CollectionSummaryCards } from "./CollectionSummaryCards";
 import { MembersTable } from "./MembersTable";
+import type { Repayment } from "@features/repayments/types";
+import { useAuthStore } from "@features/auth/authStore";
 import {
   evaluateMemberStatus,
   hasActiveLoan,
@@ -46,12 +48,7 @@ import {
 } from "../utils/memberStatus";
 import { withNetReleaseForDate } from "../utils/netRelease";
 
-interface Loan {
-  id: string;
-  amount: number;
-  balance: number;
-  status: string;
-  dueDate: string;
+type MemberLoan = MemberWithLoans["loans"][number] & {
   weeksPaid?: number;
   weeklyPaymentAmount?: number;
   savings?: number;
@@ -60,20 +57,30 @@ interface Loan {
   paymentCountDisplayOffset?: number;
   loanCreatedDate?: string;
   createdAt?: string;
-}
+};
 
-interface MemberWithLoans extends Member {
-  loans: Loan[];
-  totalLoanAmount: number;
-  totalBalance: number;
-  overallAmount: number;
-  weeklyPaymentAmount: number;
-  totalTermWeeks: number;
-  totalSavings: number;
-  netCashReleased?: number;
-  numberOfPayments?: number;
-  collection?: Collection;
-}
+type MemberWithLoansExtended = Omit<MemberWithLoans, "loans"> & {
+  loans: MemberLoan[];
+  netCashReleasedForDate?: number;
+  __computed?: {
+    paymentInfo: {
+      weeklyDue: number;
+      shortfall: number;
+      totalPaid: number;
+      weeksCovered: number;
+    };
+    collectionMetrics: {
+      received: number;
+      due: number;
+      weeklyDue: number;
+      weeksCovered: number;
+    };
+    status: {
+      label: MemberStatusResult["label"];
+      color: MemberStatusResult["color"];
+    };
+  };
+};
 
 interface CollectionDetailsModalProps {
   open: boolean;
@@ -89,8 +96,11 @@ export default function CollectionDetailsModal({
   onClose,
   onDataChanged,
 }: CollectionDetailsModalProps) {
+  const role = useAuthStore((state) => state.user?.role ?? "");
+  const canReloan = role === "loan processor";
+
   // State management
-  const [members, setMembers] = useState<MemberWithLoans[]>([]);
+  const [members, setMembers] = useState<MemberWithLoansExtended[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -100,6 +110,9 @@ export default function CollectionDetailsModal({
   const [latestCollections, setLatestCollections] = useState<Collection[]>(
     collectionGroup?.collections ?? []
   );
+  const [pendingPaymentMemberIds, setPendingPaymentMemberIds] = useState<
+    Set<string>
+  >(new Set());
   const [totalCenterMembers, setTotalCenterMembers] = useState(
     collectionGroup?.totalMembers ?? 0
   );
@@ -107,7 +120,7 @@ export default function CollectionDetailsModal({
   // Dialog states
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [reloanDialogOpen, setReloanDialogOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<MemberWithLoans | null>(
+  const [selectedMember, setSelectedMember] = useState<MemberWithLoansExtended | null>(
     null
   );
   const [toast, setToast] = useState<{
@@ -135,9 +148,9 @@ export default function CollectionDetailsModal({
   }, [collectionGroup, latestCollections]);
 
   const shouldExportMember = useCallback(
-    (member: MemberWithLoans) =>
+    (member: MemberWithLoansExtended) =>
       hasActiveLoan(member) && hasLoanAmount(member),
-    [hasLoanAmount, hasActiveLoan]
+    []
   );
 
   const fetchCenterMembers = useCallback(async () => {
@@ -173,21 +186,44 @@ export default function CollectionDetailsModal({
         advancePaymentAmount: Number(col.advancePaymentAmount ?? 0),
       }));
       setLatestCollections(normalisedCollections);
+
+      let pendingRepayments: Repayment[] = [];
+      try {
+        pendingRepayments =
+          await collectionsService.getPendingRepaymentsForCollection(
+            collectionGroup.centerId,
+            collectionGroup.collectionDate
+          );
+      } catch (innerErr) {
+        console.warn(
+          "Failed to refresh pending repayments, using empty pending state:",
+          innerErr
+        );
+      }
+      setPendingPaymentMemberIds(
+        new Set(
+          pendingRepayments
+            .filter((repayment) => repayment.operationType !== "reversal")
+            .map((repayment) => repayment.member?.id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
       const collectionsMap = new Map(
         normalisedCollections.map((col) => [col.memberId, col])
       );
 
-      const membersWithCollections = centerMembers.map((member: any) => ({
+      const membersWithCollections = centerMembers.map((member) => ({
         ...member,
         collection:
           collectionsMap.get(member.id) ??
           collectionGroup.collections?.find(
             (c) => c.memberId === member.id
           ),
-      }));
+      })) as MemberWithLoansExtended[];
 
       // Alphabetical sort: Last Name, First Name
-      membersWithCollections.sort((a: any, b: any) => {
+      membersWithCollections.sort((a, b) => {
         const al = `${(a.lastName || "").toLowerCase()} ${(
           a.firstName || ""
         ).toLowerCase()}`.trim();
@@ -199,7 +235,7 @@ export default function CollectionDetailsModal({
         return 0;
       });
 
-      const membersWithNetRelease = membersWithCollections.map((member: any) =>
+      const membersWithNetRelease = membersWithCollections.map((member) =>
         withNetReleaseForDate(member, collectionGroup.collectionDate)
       );
 
@@ -235,17 +271,18 @@ export default function CollectionDetailsModal({
     } else if (!open) {
       // Reset state when modal closes
       setMembers([]);
+      setPendingPaymentMemberIds(new Set());
       setError(null);
       setSelectedMember(null);
     }
   }, [open, collectionGroup, fetchCenterMembers]);
 
-  const handleOpenPaymentDialog = useCallback((member: MemberWithLoans) => {
+  const handleOpenPaymentDialog = useCallback((member: MemberWithLoansExtended) => {
     setSelectedMember(member);
     setPaymentDialogOpen(true);
   }, []);
 
-  const handleOpenReloanDialog = useCallback((member: MemberWithLoans) => {
+  const handleOpenReloanDialog = useCallback((member: MemberWithLoansExtended) => {
     setSelectedMember(member);
     setReloanDialogOpen(true);
   }, []);
@@ -260,16 +297,23 @@ export default function CollectionDetailsModal({
     setSelectedMember(null);
   }, []);
 
-  const handlePaymentSuccess = useCallback(async () => {
-    await fetchCenterMembers();
-    onDataChanged?.();
-    setToast({
-      open: true,
-      message: "Payment recorded successfully.",
-      severity: "success",
-    });
-    handleClosePaymentDialog();
-  }, [fetchCenterMembers, handleClosePaymentDialog, onDataChanged]);
+  const handlePaymentSuccess = useCallback(
+    async (repayment: Repayment) => {
+      const status = repayment?.status ?? "approved";
+      await fetchCenterMembers();
+      onDataChanged?.();
+      setToast({
+        open: true,
+        message:
+          status === "pending"
+            ? "Payment submitted for manager approval."
+            : "Payment recorded successfully.",
+        severity: "success",
+      });
+      handleClosePaymentDialog();
+    },
+    [fetchCenterMembers, handleClosePaymentDialog, onDataChanged]
+  );
 
   const handleReloanSuccess = useCallback(async () => {
     await fetchCenterMembers();
@@ -288,16 +332,32 @@ export default function CollectionDetailsModal({
   }, [collectionGroup?.collectionDate]);
 
   const getMemberStatusInfo = useCallback(
-    (member: MemberWithLoans): MemberStatusResult => {
+    (member: MemberWithLoansExtended): MemberStatusResult => {
       const collection =
         collectionByMemberId.get(member.id) ||
         (member.collection as Collection | undefined);
+      if (pendingPaymentMemberIds.has(member.id)) {
+        const statusInfo = evaluateMemberStatus(member, {
+          collection,
+          referenceDate: referenceDate ?? collectionGroup?.collectionDate ?? undefined,
+        });
+        return {
+          ...statusInfo,
+          label: "PENDING",
+          color: "warning",
+        };
+      }
       return evaluateMemberStatus(member, {
         collection,
         referenceDate: referenceDate ?? collectionGroup?.collectionDate ?? undefined,
       });
     },
-    [collectionByMemberId, referenceDate, collectionGroup?.collectionDate]
+    [
+      collectionByMemberId,
+      pendingPaymentMemberIds,
+      referenceDate,
+      collectionGroup?.collectionDate,
+    ]
   );
 
   const buildExportMembers = useCallback(() => {
@@ -336,25 +396,6 @@ export default function CollectionDetailsModal({
             color: statusInfo.color,
           },
         },
-      } as MemberWithLoans & {
-        __computed: {
-          paymentInfo: {
-            weeklyDue: number;
-            shortfall: number;
-            totalPaid: number;
-            weeksCovered: number;
-          };
-          collectionMetrics: {
-            received: number;
-            due: number;
-            weeklyDue: number;
-            weeksCovered: number;
-          };
-          status: {
-            label: MemberStatusResult["label"];
-            color: MemberStatusResult["color"];
-          };
-        };
       };
     });
   }, [collectionGroup, members, shouldExportMember, getMemberStatusInfo]);
@@ -418,7 +459,7 @@ export default function CollectionDetailsModal({
         );
         const paymentsMade = Number(actualPaymentsMade || 0) + paymentOffset;
         const netReleased =
-          (member as any)?.netCashReleasedForDate ??
+          member.netCashReleasedForDate ??
           member.netCashReleased ??
           member.collection?.netRelease ??
           0;
@@ -465,7 +506,7 @@ export default function CollectionDetailsModal({
   }, [collectionGroup, members, buildExportMembers]);
 
   const getCollectionMetrics = useCallback(
-    (member: MemberWithLoans) => {
+    (member: MemberWithLoansExtended) => {
       const statusInfo = getMemberStatusInfo(member);
       return {
         received: statusInfo.received,
@@ -478,7 +519,7 @@ export default function CollectionDetailsModal({
   );
 
   const getMemberPaymentInfo = useCallback(
-    (member: MemberWithLoans) => {
+    (member: MemberWithLoansExtended) => {
       const statusInfo = getMemberStatusInfo(member);
       return {
         weeklyDue: statusInfo.weeklyDue,
@@ -491,14 +532,16 @@ export default function CollectionDetailsModal({
   );
 
   const getStatusColor = useCallback(
-    (member: MemberWithLoans): "default" | "success" | "warning" | "error" => {
+    (
+      member: MemberWithLoansExtended
+    ): "default" | "success" | "warning" | "error" => {
       return getMemberStatusInfo(member).color;
     },
     [getMemberStatusInfo]
   );
 
   const getStatusLabel = useCallback(
-    (member: MemberWithLoans): string => {
+    (member: MemberWithLoansExtended): string => {
       return getMemberStatusInfo(member).label;
     },
     [getMemberStatusInfo]
@@ -521,7 +564,9 @@ export default function CollectionDetailsModal({
           acc.paidCount += 1;
         } else if (statusInfo.label === "PARTIAL") {
           acc.partialCount += 1;
-        } else {
+        } else if (statusInfo.label === "PENDING") {
+          acc.pendingCount += 1;
+        } else if (statusInfo.label === "UNPAID") {
           acc.unpaidCount += 1;
         }
         return acc;
@@ -529,6 +574,7 @@ export default function CollectionDetailsModal({
       {
         paidCount: 0,
         partialCount: 0,
+        pendingCount: 0,
         unpaidCount: 0,
         totalOverallAmount: 0,
         totalRemainingBalance: 0,
@@ -774,7 +820,6 @@ export default function CollectionDetailsModal({
             <>
               <CollectionSummaryCards
                 collectionGroup={collectionGroup}
-                members={members}
                 computedStats={computedStats}
                 formatCurrency={formatCurrency}
                 totalsOverride={totalsOverride}
@@ -798,19 +843,14 @@ export default function CollectionDetailsModal({
 
               <MembersTable
                 members={displayedMembers}
-                getStatusColor={(m: any) => getStatusColor(m as any)}
-                getStatusLabel={(m: any) => getStatusLabel(m as any)}
-                getCollectionMetrics={(m: any) =>
-                  getCollectionMetrics(m as any)
-                }
-                getPaymentInfo={(m: any) => getMemberPaymentInfo(m as any)}
+                getStatusColor={getStatusColor}
+                getStatusLabel={getStatusLabel}
+                getCollectionMetrics={getCollectionMetrics}
+                getPaymentInfo={getMemberPaymentInfo}
                 formatCurrency={formatCurrency}
-                onOpenPaymentDialog={(m: any) =>
-                  handleOpenPaymentDialog(m as any)
-                }
-                onOpenReloanDialog={(m: any) =>
-                  handleOpenReloanDialog(m as any)
-                }
+                onOpenPaymentDialog={handleOpenPaymentDialog}
+                onOpenReloanDialog={handleOpenReloanDialog}
+                canReloan={canReloan}
               />
             </>
           )}
@@ -868,7 +908,7 @@ export default function CollectionDetailsModal({
       />
 
       <ReloanDialog
-        open={reloanDialogOpen}
+        open={canReloan && reloanDialogOpen}
         member={selectedMember}
         onClose={handleCloseReloanDialog}
         onSuccess={handleReloanSuccess}

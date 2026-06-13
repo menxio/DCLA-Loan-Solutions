@@ -1,4 +1,5 @@
 import axios from "axios";
+import { useAuthStore } from "@features/auth/authStore";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3000/api";
@@ -11,10 +12,10 @@ const savingsApi = axios.create({
 });
 
 savingsApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = useAuthStore.getState().token;
   if (token) {
     config.headers = config.headers || {};
-    (config.headers as any).Authorization = `Bearer ${token}`;
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });

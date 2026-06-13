@@ -32,11 +32,62 @@ export interface Loan {
   balance: number;
   savings: number;
   weeksPaid: number;
+  pastDueInterestAccrued?: number;
+  pastDueInterestWaived?: number;
+  penaltyAccrued?: number;
+  penaltyWaived?: number;
   status: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
   netCashReleased?: number | null;
   loanCreatedDate?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface LoanWaiver {
+  id: string;
+  loanId: string;
+  pastDueInterestWaived: number;
+  penaltyWaived: number;
+  totalWaived: number;
+  waivedById?: string | null;
+  reason?: string | null;
+  beforeBalance: number;
+  afterBalance: number;
+  createdAt: string;
+}
+
+export interface LoanWaiverCandidate {
+  id: string;
+  borrower: {
+    id: string;
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+  };
+  status: Loan["status"];
+  balance: number;
+  pastDueInterestAccrued: number;
+  pastDueInterestWaived: number;
+  penaltyAccrued: number;
+  penaltyWaived: number;
+  pastDueInterestOutstanding: number;
+  penaltyOutstanding: number;
+  totalOutstanding: number;
+  updatedAt: string;
+}
+
+export interface ApplyLoanWaiverPayload {
+  pastDueInterestWaiver?: number;
+  penaltyWaiver?: number;
+  reason?: string;
+}
+
+export interface ApplyLoanWaiverResponse {
+  loan: Loan;
+  waiver: LoanWaiver;
+  pastDueInterestOutstanding: number;
+  penaltyOutstanding: number;
+  totalOutstanding: number;
 }
 
 export interface Savings {
@@ -109,6 +160,28 @@ export interface LoanResponse {
 
 export interface LoansResponse {
   loans: Loan[];
+}
+
+export type MemberLoanStatusFilter =
+  | "all"
+  | "active"
+  | "paid"
+  | "defaulted"
+  | "netoff"
+  | "payoff";
+
+export interface MemberLoansQuery {
+  status?: MemberLoanStatusFilter;
+  page?: number;
+  limit?: number;
+}
+
+export interface MemberLoansResponse {
+  items: Loan[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface LoanStatsResponse {

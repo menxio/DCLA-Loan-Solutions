@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
 import { LoansModule } from './loans/loans.module';
 import { SavingsModule } from './savings/savings.module';
 import { CentersModule } from './centers/centers.module';
@@ -12,6 +15,7 @@ import { MembersModule } from './members/members.module';
 import { CollectionsModule } from './collections/collections.module';
 import { RepaymentsModule } from './repayments/repayments.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { RolesModule } from './roles/roles.module';
 import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
@@ -29,6 +33,7 @@ import { TransactionsModule } from './transactions/transactions.module';
       },
     }),
     UsersModule,
+    RolesModule,
     AuthModule,
     LoansModule,
     SavingsModule,
@@ -40,6 +45,16 @@ import { TransactionsModule } from './transactions/transactions.module';
     TransactionsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+  ],
 })
 export class AppModule {}

@@ -13,7 +13,6 @@ import {
   IconButton,
   Box,
   Typography,
-  Chip,
 } from "@mui/material";
 import {
   Edit,
@@ -92,6 +91,7 @@ export default function CollectionUpdateModal({
       await onSubmit(collection.id, formData);
       onClose();
     } catch (err) {
+      console.error("Failed to update collection:", err);
       setError("Failed to update collection. Please try again.");
     }
   };
@@ -99,19 +99,6 @@ export default function CollectionUpdateModal({
   const handleClose = () => {
     if (!loading) {
       onClose();
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "paid":
-        return "success";
-      case "pending":
-        return "warning";
-      case "partial":
-        return "info";
-      default:
-        return "default";
     }
   };
 

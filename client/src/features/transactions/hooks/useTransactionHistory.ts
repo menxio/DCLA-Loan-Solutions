@@ -41,7 +41,7 @@ export function useTransactionHistory(
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>(
     []
   );
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(initialLimit);
@@ -102,7 +102,7 @@ export function useTransactionHistory(
   }, [buildQuery]);
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+     
     fetchData();
   }, [fetchData]);
 
@@ -138,6 +138,7 @@ export function useTransactionHistory(
       totalPages,
       filters,
       fetchData,
+      updateFilters,
     ]
   );
 }

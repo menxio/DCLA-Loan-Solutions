@@ -1,7 +1,13 @@
 import api from "@utils/api";
 import type {
+  ApplyLoanWaiverPayload,
+  ApplyLoanWaiverResponse,
   CreateLoanData,
   Loan,
+  MemberLoansQuery,
+  MemberLoansResponse,
+  LoanWaiver,
+  LoanWaiverCandidate,
   ReloanEligibility,
   LoanRepaymentScheduleRow,
   UpdateLoanTermData,
@@ -13,8 +19,11 @@ export const LoansAPI = {
     return res.data;
   },
 
-  getByMember: async (memberId: string): Promise<Loan[]> => {
-    const res = await api.get(`/loans/member/${memberId}`);
+  getByMember: async (
+    memberId: string,
+    params: MemberLoansQuery = {}
+  ): Promise<MemberLoansResponse> => {
+    const res = await api.get(`/loans/member/${memberId}`, { params });
     return res.data;
   },
 
@@ -51,6 +60,24 @@ export const LoansAPI = {
     loanId: string
   ): Promise<LoanRepaymentScheduleRow[]> => {
     const res = await api.get(`/repayments/loan/${loanId}/schedule`);
+    return res.data;
+  },
+
+  getWaiverCandidates: async (): Promise<LoanWaiverCandidate[]> => {
+    const res = await api.get("/loans/waivers/candidates");
+    return res.data;
+  },
+
+  getLoanWaivers: async (loanId: string): Promise<LoanWaiver[]> => {
+    const res = await api.get(`/loans/${loanId}/waivers`);
+    return res.data;
+  },
+
+  applyWaiver: async (
+    loanId: string,
+    payload: ApplyLoanWaiverPayload
+  ): Promise<ApplyLoanWaiverResponse> => {
+    const res = await api.post(`/loans/${loanId}/waivers`, payload);
     return res.data;
   },
 };

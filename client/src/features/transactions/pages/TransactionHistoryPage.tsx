@@ -1,10 +1,16 @@
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControl,
   Grid,
   InputAdornment,
@@ -12,6 +18,7 @@ import {
   MenuItem,
   Pagination,
   Paper,
+  Snackbar,
   Select,
   Table,
   TableBody,
@@ -24,10 +31,13 @@ import {
 } from "@mui/material";
 import { History, Search } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
+import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import { useTransactionHistory } from "../hooks/useTransactionHistory";
-import type { TransactionHistoryItem } from "../types";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { SelectChangeEvent } from "@mui/material/Select";
+import type { TransactionFilterType } from "../types";
+import { useAuthStore } from "@features/auth/authStore";
+import { repaymentsService } from "@features/repayments/api";
 
 const typeOptions = [
   { value: "all", label: "All Transactions" },
@@ -51,6 +61,7 @@ const directionColors: Record<string, "success" | "error" | "default"> = {
 };
 
 export default function TransactionHistoryPage() {
+  const role = useAuthStore((state) => state.user?.role ?? "");
   const {
     transactions,
     loading,
@@ -63,7 +74,19 @@ export default function TransactionHistoryPage() {
     setPage,
     setLimit,
     updateFilters,
+    refresh,
   } = useTransactionHistory(25);
+  const [reversalDialog, setReversalDialog] = useState<{
+    open: boolean;
+    repaymentId: string | null;
+    reason: string;
+  }>({ open: false, repaymentId: null, reason: "" });
+  const [submittingReversal, setSubmittingReversal] = useState(false);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: "success" | "error";
+  }>({ open: false, message: "", severity: "success" });
 
   const stats = useMemo(() => {
     const totals = transactions.reduce(
@@ -89,11 +112,60 @@ export default function TransactionHistoryPage() {
     return totals;
   }, [transactions]);
 
+  const showSnackbar = (
+    message: string,
+    severity: "success" | "error" = "success"
+  ) => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const canRequestReversal = role === "cashier";
+
   const handleLimitChange = (event: SelectChangeEvent) => {
     const newLimit = Number(event.target.value);
     setLimit(newLimit);
     setPage(1);
   };
+
+  const handleOpenReversalDialog = (repaymentId: string) => {
+    setReversalDialog({ open: true, repaymentId, reason: "" });
+  };
+
+  const handleCloseReversalDialog = () => {
+    if (submittingReversal) return;
+    setReversalDialog({ open: false, repaymentId: null, reason: "" });
+  };
+
+  const handleSubmitReversalRequest = async () => {
+    if (!reversalDialog.repaymentId) return;
+    setSubmittingReversal(true);
+    try {
+      await repaymentsService.requestReversal(
+        reversalDialog.repaymentId,
+        reversalDialog.reason.trim() || undefined
+      );
+      showSnackbar("Reversal request submitted for manager approval.");
+      handleCloseReversalDialog();
+      await refresh();
+    } catch (err) {
+      showSnackbar("Failed to submit reversal request.", "error");
+    } finally {
+      setSubmittingReversal(false);
+    }
+  };
+
+  if (loading && transactions.length === 0) {
+    return (
+      <DashboardLayout>
+        <PageLoadingSkeleton
+          showStats
+          statCount={4}
+          filterCount={4}
+          rowCount={8}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -155,7 +227,9 @@ export default function TransactionHistoryPage() {
                   label="Type"
                   value={filters.type}
                   onChange={(event) =>
-                    updateFilters({ type: event.target.value as any })
+                    updateFilters({
+                      type: event.target.value as TransactionFilterType | "all",
+                    })
                   }
                 >
                   {typeOptions.map((option) => (
@@ -273,6 +347,7 @@ export default function TransactionHistoryPage() {
                   <TableCell>Direction</TableCell>
                   <TableCell align="right">Amount</TableCell>
                   <TableCell>Notes</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -280,6 +355,11 @@ export default function TransactionHistoryPage() {
                   const savingsAppliedToRepayment =
                     transaction.type === "savings_withdrawal" &&
                     (transaction.notes || "").toLowerCase().includes("applied to repayment");
+                  const isRepaymentPayment =
+                    transaction.type === "repayment" &&
+                    transaction.direction === "credit" &&
+                    (transaction.repaymentOperationType ?? "payment") === "payment";
+                  const showReversalAction = canRequestReversal && isRepaymentPayment;
                   return (
                   <TableRow key={transaction.id} hover>
                     <TableCell>{formatDate(transaction.createdAt)}</TableCell>
@@ -316,12 +396,27 @@ export default function TransactionHistoryPage() {
                     <TableCell>
                       {transaction.notes || "—"}
                     </TableCell>
+                    <TableCell align="right">
+                      {showReversalAction ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          onClick={() => handleOpenReversalDialog(transaction.id)}
+                          sx={{ textTransform: "none", fontWeight: 600 }}
+                        >
+                          Request Reversal
+                        </Button>
+                      ) : (
+                        "---"
+                      )}
+                    </TableCell>
                   </TableRow>
                   );
                 })}
                 {!loading && transactions.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
+                    <TableCell colSpan={8} align="center">
                       <Typography variant="body2" color="text.secondary">
                         No transactions found for the selected filters.
                       </Typography>
@@ -370,7 +465,62 @@ export default function TransactionHistoryPage() {
             </FormControl>
           </Box>
         </Paper>
+
+        <Dialog open={reversalDialog.open} onClose={handleCloseReversalDialog}>
+          <DialogTitle>Request repayment reversal</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ mb: 2 }}>
+              This request will stay pending until a manager approves it.
+            </DialogContentText>
+            <TextField
+              fullWidth
+              label="Reason (optional)"
+              value={reversalDialog.reason}
+              onChange={(event) =>
+                setReversalDialog((prev) => ({
+                  ...prev,
+                  reason: event.target.value,
+                }))
+              }
+              multiline
+              minRows={2}
+            />
+          </DialogContent>
+          <DialogActions sx={{ p: 3, gap: 1 }}>
+            <Button
+              onClick={handleCloseReversalDialog}
+              disabled={submittingReversal}
+              sx={{ color: "#64748b" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={handleSubmitReversalRequest}
+              disabled={submittingReversal}
+            >
+              {submittingReversal ? "Submitting..." : "Submit Request"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        >
+          <Alert
+            onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+            severity={snackbar.severity}
+            sx={{ width: "100%" }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
     </DashboardLayout>
   );
 }
+

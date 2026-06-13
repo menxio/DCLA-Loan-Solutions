@@ -92,7 +92,7 @@ export default function MemberForm({
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [centerQuery]);
+  }, [centerQuery, selectedCenter]);
 
   useEffect(() => {
     if (member) {
@@ -142,13 +142,15 @@ export default function MemberForm({
 //     return Object.keys(newErrors).length === 0;
 //   };
 
+  type MemberTextField = Exclude<keyof MemberFormData, "birthDate">;
+
   const handleInputChange =
-    (field: keyof MemberFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = field === "birthDate" ? new Date(e.target.value) : e.target.value;
+    (field: MemberTextField) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
 
       setFormData((prev) => ({
         ...prev,
-        [field]: value as any,
+        [field]: value,
       }));
 
       if (errors[field]) {
@@ -230,6 +232,7 @@ export default function MemberForm({
         });
       }
     } catch (err) {
+      console.error("Failed to save member:", err);
       setSubmitError("Failed to save member. Please try again.");
     }
   };
