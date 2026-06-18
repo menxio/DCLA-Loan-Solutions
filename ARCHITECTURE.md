@@ -120,6 +120,23 @@ Purpose:
 - Allocation records exactly how each approved repayment was distributed across schedule lines.
 - Reversal logic uses allocation records to roll back exactly what was applied.
 
+### 3.5 `loan_ledger_entry` (additive accounting ledger)
+
+Entity:
+- `server/src/loan-accounting/entities/loan-ledger-entry.entity.ts`
+
+Purpose:
+- Immutable accounting-style ledger for posted loan-side financial entries.
+- Introduced additively so new accounting reads can be built without changing existing repayment approval flow.
+
+Current usage:
+- Waiver posting now dual-writes to `loan_ledger_entry`.
+- Existing `loan`, `loan_waiver`, `repayment`, and `collection` behavior remains intact for compatibility.
+
+Important:
+- This table is not yet the sole source of truth for all loan financial events.
+- Current rollout keeps legacy behavior while adding normalized posted waiver entries for safer future migration.
+
 ## 4. Financial Safety Rules (Do Not Break)
 
 These are the current invariants enforced by service logic:
@@ -143,6 +160,9 @@ These are the current invariants enforced by service logic:
 
 6. Transactions history only shows approved repayments.
 - Pending/rejected are not treated as posted money movement.
+7. Additive accounting writes must not change existing posting outputs during rollout.
+- New ledger rows may be written alongside current tables.
+- Legacy loan balance, repayment approval, reversal, and collection behavior must remain behaviorally identical until reconciliation proves parity.
 
 ## 5. End-to-End Money Flow
 

@@ -452,6 +452,8 @@ export default function LoanModal({
     switch (type) {
       case "repayment":
         return "Repayment";
+      case "waiver":
+        return "Waiver";
       case "savings_deposit":
         return "Savings Deposit";
       case "savings_withdrawal":

@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Loan } from './loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Collection } from '../collections/entities/collection.entity';
@@ -19,6 +19,7 @@ import {
 } from '../repayments/entities/loan-repayment-schedule.entity';
 import { Savings } from '../savings/savings.entity';
 import { LoanWaiver } from './entities/loan-waiver.entity';
+import { LoanAccountingService } from '../loan-accounting/loan-accounting.service';
 
 @Injectable()
 export class LoansService {
@@ -35,6 +36,8 @@ export class LoansService {
     private readonly scheduleRepository: Repository<LoanRepaymentSchedule>,
     @InjectRepository(LoanWaiver)
     private readonly loanWaiverRepository: Repository<LoanWaiver>,
+    private readonly loanAccountingService: LoanAccountingService,
+    private readonly dataSource: DataSource,
   ) {}
 
   // Business logic for interest rates
@@ -361,73 +364,101 @@ export class LoansService {
     dto: ApplyLoanWaiverDto,
     actorId?: string,
   ) {
-    const loan = await this.findOne(loanId);
-    if (loan.status !== 'active') {
-      throw new BadRequestException('Waiver can only be applied to active loans');
-    }
+    return this.dataSource.transaction(async (manager) => {
+      const loanRepository = manager.getRepository(Loan);
+      const loanWaiverRepository = manager.getRepository(LoanWaiver);
+      const loan = await loanRepository
+        .createQueryBuilder('loan')
+        .leftJoinAndSelect('loan.borrower', 'borrower')
+        .where('loan.id = :loanId', { loanId })
+        .setLock('pessimistic_write')
+        .getOne();
 
-    const requestedPastDueInterestWaiver = Number(dto.pastDueInterestWaiver || 0);
-    const requestedPenaltyWaiver = Number(dto.penaltyWaiver || 0);
+      if (!loan) {
+        throw new NotFoundException(`Loan #${loanId} not found`);
+      }
+      if (loan.status !== 'active') {
+        throw new BadRequestException('Waiver can only be applied to active loans');
+      }
 
-    if (
-      requestedPastDueInterestWaiver <= 0 &&
-      requestedPenaltyWaiver <= 0
-    ) {
-      throw new BadRequestException('At least one waiver amount must be greater than 0');
-    }
+      const requestedPastDueInterestWaiver = Number(dto.pastDueInterestWaiver || 0);
+      const requestedPenaltyWaiver = Number(dto.penaltyWaiver || 0);
 
-    const { pastDueInterestOutstanding, penaltyOutstanding } =
-      this.getOutstandingWaiverBuckets(loan);
+      if (
+        requestedPastDueInterestWaiver <= 0 &&
+        requestedPenaltyWaiver <= 0
+      ) {
+        throw new BadRequestException('At least one waiver amount must be greater than 0');
+      }
 
-    if (requestedPastDueInterestWaiver > pastDueInterestOutstanding) {
-      throw new BadRequestException(
-        `Past due interest waiver exceeds outstanding amount (${pastDueInterestOutstanding.toFixed(
-          2,
-        )})`,
+      const { pastDueInterestOutstanding, penaltyOutstanding } =
+        this.getOutstandingWaiverBuckets(loan);
+
+      if (requestedPastDueInterestWaiver > pastDueInterestOutstanding) {
+        throw new BadRequestException(
+          `Past due interest waiver exceeds outstanding amount (${pastDueInterestOutstanding.toFixed(
+            2,
+          )})`,
+        );
+      }
+
+      if (requestedPenaltyWaiver > penaltyOutstanding) {
+        throw new BadRequestException(
+          `Penalty waiver exceeds outstanding amount (${penaltyOutstanding.toFixed(2)})`,
+        );
+      }
+
+      const beforeBalance = Number(loan.balance || 0);
+      const totalWaived = this.roundCurrency(
+        requestedPastDueInterestWaiver + requestedPenaltyWaiver,
       );
-    }
 
-    if (requestedPenaltyWaiver > penaltyOutstanding) {
-      throw new BadRequestException(
-        `Penalty waiver exceeds outstanding amount (${penaltyOutstanding.toFixed(2)})`,
+      loan.pastDueInterestWaived = this.roundCurrency(
+        Number(loan.pastDueInterestWaived || 0) + requestedPastDueInterestWaiver,
       );
-    }
+      loan.penaltyWaived = this.roundCurrency(
+        Number(loan.penaltyWaived || 0) + requestedPenaltyWaiver,
+      );
+      loan.balance = this.roundCurrency(Math.max(0, beforeBalance - totalWaived));
 
-    const beforeBalance = Number(loan.balance || 0);
-    const totalWaived = this.roundCurrency(
-      requestedPastDueInterestWaiver + requestedPenaltyWaiver,
-    );
+      if (loan.balance === 0) {
+        loan.status = 'paid';
+      }
 
-    loan.pastDueInterestWaived = this.roundCurrency(
-      Number(loan.pastDueInterestWaived || 0) + requestedPastDueInterestWaiver,
-    );
-    loan.penaltyWaived = this.roundCurrency(
-      Number(loan.penaltyWaived || 0) + requestedPenaltyWaiver,
-    );
-    loan.balance = this.roundCurrency(Math.max(0, beforeBalance - totalWaived));
+      const savedLoan = await loanRepository.save(loan);
+      const waiver = loanWaiverRepository.create({
+        loanId: savedLoan.id,
+        pastDueInterestWaived: this.roundCurrency(requestedPastDueInterestWaiver),
+        penaltyWaived: this.roundCurrency(requestedPenaltyWaiver),
+        totalWaived,
+        waivedById: actorId ?? null,
+        reason: dto.reason?.trim() || null,
+        beforeBalance: this.roundCurrency(beforeBalance),
+        afterBalance: this.roundCurrency(savedLoan.balance || 0),
+      });
+      const savedWaiver = await loanWaiverRepository.save(waiver);
 
-    if (loan.balance === 0) {
-      loan.status = 'paid';
-    }
+      await this.loanAccountingService.recordWaiverEntry(
+        {
+          loanId: savedLoan.id,
+          afterBalance: Number(savedLoan.balance || 0),
+          pastDueInterestWaived: requestedPastDueInterestWaiver,
+          penaltyWaived: requestedPenaltyWaiver,
+          totalWaived,
+          reason: dto.reason?.trim() || null,
+          createdById: actorId ?? null,
+          referenceId: savedWaiver.id,
+          postedAt: savedWaiver.createdAt ?? new Date(),
+        },
+        manager,
+      );
 
-    const savedLoan = await this.loanRepository.save(loan);
-    const waiver = this.loanWaiverRepository.create({
-      loanId: savedLoan.id,
-      pastDueInterestWaived: this.roundCurrency(requestedPastDueInterestWaiver),
-      penaltyWaived: this.roundCurrency(requestedPenaltyWaiver),
-      totalWaived,
-      waivedById: actorId ?? null,
-      reason: dto.reason?.trim() || null,
-      beforeBalance: this.roundCurrency(beforeBalance),
-      afterBalance: this.roundCurrency(savedLoan.balance || 0),
+      return {
+        loan: savedLoan,
+        waiver: savedWaiver,
+        ...this.getOutstandingWaiverBuckets(savedLoan),
+      };
     });
-    const savedWaiver = await this.loanWaiverRepository.save(waiver);
-
-    return {
-      loan: savedLoan,
-      waiver: savedWaiver,
-      ...this.getOutstandingWaiverBuckets(savedLoan),
-    };
   }
 
   /**

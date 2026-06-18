@@ -8,9 +8,11 @@ import {
 } from '../repayments/repayment.entity';
 import { Savings } from '../savings/savings.entity';
 import { TransactionsQueryDto } from './dto/transactions-query.dto';
+import { LoanAccountingService } from '../loan-accounting/loan-accounting.service';
 
 export type TransactionType =
   | 'repayment'
+  | 'waiver'
   | 'savings_deposit'
   | 'savings_withdrawal';
 
@@ -33,7 +35,7 @@ export interface TransactionHistoryItem {
   };
   notes?: string | null;
   createdAt: string;
-  source: 'repayment' | 'savings';
+  source: 'repayment' | 'savings' | 'loan_accounting';
   repaymentOperationType?: 'payment' | 'reversal' | null;
 }
 
@@ -44,6 +46,7 @@ export class TransactionsService {
     private readonly repaymentRepo: Repository<Repayment>,
     @InjectRepository(Savings)
     private readonly savingsRepo: Repository<Savings>,
+    private readonly loanAccountingService: LoanAccountingService,
   ) {}
 
   async getHistory(query: TransactionsQueryDto) {
@@ -59,7 +62,7 @@ export class TransactionsService {
       limit = 25,
     } = query;
 
-    const [repayments, savingsEntries] = await Promise.all([
+    const [repayments, waivers, savingsEntries] = await Promise.all([
       this.fetchRepayments({
         memberId,
         centerId,
@@ -67,6 +70,14 @@ export class TransactionsService {
         startDate,
         endDate,
         include: type === 'all' || type === 'repayment',
+      }),
+      this.loanAccountingService.getWaiverHistory({
+        memberId,
+        centerId,
+        loanId,
+        startDate,
+        endDate,
+        include: type === 'all' || type === 'waiver',
       }),
       this.fetchSavings({
         memberId,
@@ -83,7 +94,7 @@ export class TransactionsService {
       }),
     ]);
 
-    const combined = [...repayments, ...savingsEntries];
+    const combined = [...repayments, ...waivers, ...savingsEntries];
 
     const normalizedSearch = search?.trim().toLowerCase();
     const filtered = combined.filter((entry) => {

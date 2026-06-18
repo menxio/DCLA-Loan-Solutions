@@ -8,6 +8,7 @@ import { Collection } from '../collections/entities/collection.entity';
 import { LoanRepaymentSchedule } from '../repayments/entities/loan-repayment-schedule.entity';
 import { Savings } from '../savings/savings.entity';
 import { LoanWaiver } from './entities/loan-waiver.entity';
+import { LoanAccountingModule } from '../loan-accounting/loan-accounting.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { LoanWaiver } from './entities/loan-waiver.entity';
       Savings,
       LoanWaiver,
     ]),
+    LoanAccountingModule,
   ],
   controllers: [LoansController],
   providers: [LoansService],

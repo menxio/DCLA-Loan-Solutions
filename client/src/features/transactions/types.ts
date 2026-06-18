@@ -1,5 +1,6 @@
 export type TransactionType =
   | "repayment"
+  | "waiver"
   | "savings_deposit"
   | "savings_withdrawal";
 
@@ -22,7 +23,7 @@ export interface TransactionHistoryItem {
   };
   notes?: string | null;
   createdAt: string;
-  source: "repayment" | "savings";
+  source: "repayment" | "savings" | "loan_accounting";
   repaymentOperationType?: "payment" | "reversal" | null;
 }
 
@@ -37,6 +38,7 @@ export interface TransactionHistoryResponse {
 export type TransactionFilterType =
   | "all"
   | "repayment"
+  | "waiver"
   | "savings"
   | "savings_deposit"
   | "savings_withdrawal";

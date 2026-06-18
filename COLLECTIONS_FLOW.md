@@ -29,6 +29,7 @@ In short:
 - No manager approval = no real posting.
 - Approved payment = balance goes down.
 - Approved reversal = previously posted payment is undone.
+- Posted waiver = loan-side relief is recorded without changing repayment approval flow.
 
 ## 2. Data Object Responsibilities
 
@@ -76,6 +77,18 @@ Constraint:
 Important:
 - This is not the authoritative event ledger.
 - It is a projection/snapshot updated from approved repayment actions.
+
+### 2.4 `loan_ledger_entry` table
+
+Role:
+- Additive loan accounting ledger for posted non-repayment loan events.
+
+Current use:
+- Posted waivers are dual-written here.
+
+Important:
+- This does not replace `repayment` or `collection_batch`.
+- It is being introduced incrementally so future client-ledger/accounting reads can move to a more normalized source without breaking current production posting logic.
 
 ## 3. Step-by-Step Flows
 
