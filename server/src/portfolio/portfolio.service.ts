@@ -9,7 +9,11 @@ import {
   LoanRepaymentStatus,
 } from '../repayments/entities/loan-repayment-schedule.entity';
 import { buildLoanRepaymentBreakdown } from '../repayments/loan-repayment-schedule.utils';
-import { Repayment } from '../repayments/repayment.entity';
+import {
+  Repayment,
+  RepaymentOperationType,
+  RepaymentStatus,
+} from '../repayments/repayment.entity';
 
 export interface PortfolioData {
   no: number;
@@ -451,16 +455,30 @@ export class PortfolioService {
         ? this.getSelectedMonthRange(filter)
         : null;
 
-    const [loans, allocations] = await Promise.all([
+    const [loans, allocations, approvedReversals] = await Promise.all([
       this.loanRepo.find(),
       this.allocationRepo.find({
         relations: ['schedule'],
         order: { createdAt: 'ASC' },
       }),
+      this.repaymentRepo.find({
+        where: {
+          operationType: RepaymentOperationType.REVERSAL,
+          status: RepaymentStatus.APPROVED,
+        },
+      }),
     ]);
+    const reversedRepaymentIds = new Set(
+      approvedReversals
+        .map((repayment) => repayment.relatedRepaymentId)
+        .filter((repaymentId): repaymentId is string => Boolean(repaymentId)),
+    );
+    const activeAllocations = allocations.filter(
+      (allocation) => !reversedRepaymentIds.has(allocation.repaymentId),
+    );
     const availableMonths = this.buildAvailableMonths([
       ...loans.map((loan) => this.getLoanReferenceDate(loan)),
-      ...allocations
+      ...activeAllocations
         .filter((allocation) => allocation.schedule)
         .map(
           (allocation) =>
@@ -509,7 +527,7 @@ export class PortfolioService {
       );
     }
 
-    for (const allocation of allocations) {
+    for (const allocation of activeAllocations) {
       if (!allocation.schedule) {
         continue;
       }

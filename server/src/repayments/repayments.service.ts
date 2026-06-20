@@ -1240,6 +1240,8 @@ export class RepaymentsService implements OnModuleInit {
       if (targetSchedules.length > 0) {
         await this.scheduleRepo.save(targetSchedules);
       }
+
+      await this.allocationRepo.delete({ repaymentId: original.id });
     }
 
     const previousAmountPaid = Number(loan.amountPaid || 0);
@@ -1304,6 +1306,9 @@ export class RepaymentsService implements OnModuleInit {
     repayment.rejectedReason = null;
     if (!repayment.collectionDate) {
       repayment.collectionDate = this.normalizeCollectionDate();
+    }
+    if (!repayment.paymentDate) {
+      repayment.paymentDate = repayment.collectionDate;
     }
     return this.repaymentRepo.save(repayment);
   }
