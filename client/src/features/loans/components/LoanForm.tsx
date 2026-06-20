@@ -55,12 +55,16 @@ export default function LoanForm({
   // Calculate loan details when form data changes
   useEffect(() => {
     if (formData.principalAmount > 0) {
-      const calc = calculateLoanDetails(formData.principalAmount, formData.termWeeks);
+      const calc = calculateLoanDetails(
+        formData.principalAmount,
+        formData.termWeeks,
+        formData.monthlyInterestRate,
+      );
       setCalculation(calc);
     } else {
       setCalculation(null);
     }
-  }, [formData.principalAmount, formData.termWeeks]);
+  }, [formData.principalAmount, formData.termWeeks, formData.monthlyInterestRate]);
 
   const handleInputChange =
     (field: "principalAmount" | "savings") =>
@@ -113,6 +117,15 @@ export default function LoanForm({
     if (isFirstLoan && savingsForValidation <= 0) {
       (newErrors as any).savings =
         "Savings contribution must be greater than 0 for first loan";
+    }
+    if (
+      formData.termWeeks === 24 &&
+      (!formData.monthlyInterestRate ||
+        formData.monthlyInterestRate < 3.33 ||
+        formData.monthlyInterestRate > 10)
+    ) {
+      (newErrors as any).monthlyInterestRate =
+        "Monthly interest rate must be between 3.33% and 10%";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -265,7 +278,11 @@ export default function LoanForm({
                 onChange={(e) => {
                   setFormData((prev) => ({
                     ...prev,
-                    termWeeks: e.target.value as 4 | 8 | 12,
+                    termWeeks: e.target.value as 4 | 8 | 12 | 24,
+                    monthlyInterestRate:
+                      Number(e.target.value) === 24
+                        ? prev.monthlyInterestRate
+                        : undefined,
                   }));
                 }}
                 label="Term"
@@ -273,9 +290,33 @@ export default function LoanForm({
                 <MenuItem value={4}>4 weeks (10% interest)</MenuItem>
                 <MenuItem value={8}>8 weeks (20% interest)</MenuItem>
                 <MenuItem value={12}>12 weeks (30% interest)</MenuItem>
+                <MenuItem value={24}>24 weeks (monthly interest)</MenuItem>
               </Select>
             </FormControl>
           </Grid>
+
+          {formData.termWeeks === 24 && (
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                required
+                label="Monthly Interest Rate (%)"
+                type="number"
+                value={formData.monthlyInterestRate ?? ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormData((prev) => ({
+                    ...prev,
+                    monthlyInterestRate: value === "" ? undefined : Number(value),
+                  }));
+                }}
+                inputProps={{ min: 3.33, max: 10, step: 0.01 }}
+                error={Boolean((errors as any).monthlyInterestRate)}
+                helperText={(errors as any).monthlyInterestRate || "Enter 3.33% to 10% per month"}
+                disabled={loading}
+              />
+            </Grid>
+          )}
 
           {/* Loan Creation Date */}
           <Grid item xs={12} md={6}>

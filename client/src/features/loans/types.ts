@@ -52,7 +52,8 @@ export interface Savings {
 export interface CreateLoanData {
   borrowerId: string;
   principalAmount: number;
-  termWeeks: 4 | 8 | 12;
+  termWeeks: 4 | 8 | 12 | 24;
+  monthlyInterestRate?: number;
   savings?: number;
   serviceCharge?: number;
   notarialFee?: number;
@@ -61,7 +62,8 @@ export interface CreateLoanData {
 
 export interface LoanFormData {
   principalAmount: number;
-  termWeeks: 4 | 8 | 12;
+  termWeeks: 4 | 8 | 12 | 24;
+  monthlyInterestRate?: number;
   savings?: number;
   serviceCharge?: number;
   notarialFee?: number;
@@ -69,12 +71,13 @@ export interface LoanFormData {
 }
 
 export interface UpdateLoanTermData {
-  termWeeks: 4 | 8 | 12;
+  termWeeks: 4 | 8 | 12 | 24;
+  monthlyInterestRate?: number;
 }
 
 export interface LoanCalculation {
   principalAmount: number;
-  termWeeks: 4 | 8 | 12;
+  termWeeks: 4 | 8 | 12 | 24;
   interestRate: number;
   totalInterest: number;
   totalAmount: number;

@@ -8,6 +8,7 @@ export interface LoanScheduleBreakdownInput {
 
 export interface LoanScheduleBreakdownRow {
   weekNumber: number;
+  amountDue: number;
   principalDue: number;
   interestDue: number;
 }
@@ -42,7 +43,10 @@ export const buildLoanRepaymentBreakdown = (
 ): LoanScheduleBreakdownRow[] => {
   const termWeeks = Math.max(0, Math.trunc(toNumber(loan.termWeeks)));
   const principalTotal = roundCurrency(Math.max(0, toNumber(loan.principalAmount)));
-  const amountDue = roundCurrency(Math.max(0, toNumber(loan.weeklyPaymentAmount)));
+  const weeklyPaymentAmount = roundCurrency(
+    Math.max(0, toNumber(loan.weeklyPaymentAmount)),
+  );
+  const totalAmount = roundCurrency(Math.max(0, toNumber(loan.totalAmount)));
 
   if (termWeeks <= 0) {
     return [];
@@ -53,6 +57,12 @@ export const buildLoanRepaymentBreakdown = (
   const rows: LoanScheduleBreakdownRow[] = [];
 
   for (let i = 0; i < termWeeks; i += 1) {
+    const amountDue =
+      i === termWeeks - 1
+        ? roundCurrency(
+            Math.max(0, totalAmount - weeklyPaymentAmount * (termWeeks - 1)),
+          )
+        : weeklyPaymentAmount;
     const remainingWeeks = termWeeks - i;
     let principalDue =
       remainingWeeks === 1
@@ -68,6 +78,7 @@ export const buildLoanRepaymentBreakdown = (
 
     rows.push({
       weekNumber: i + 1,
+      amountDue,
       principalDue,
       interestDue,
     });

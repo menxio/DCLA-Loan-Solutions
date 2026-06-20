@@ -61,7 +61,11 @@ export class LoansController {
     @Param('id') id: string,
     @Body() body: UpdateLoanTermDto,
   ) {
-    return this.loansService.updateTermWeeks(id, body.termWeeks);
+    return this.loansService.updateTermWeeks(
+      id,
+      body.termWeeks,
+      body.monthlyInterestRate,
+    );
   }
 
   @Delete(':id')

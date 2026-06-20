@@ -47,7 +47,8 @@ interface ReloanDialogProps {
 
 export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency }: ReloanDialogProps) {
   const [reloanPrincipal, setReloanPrincipal] = useState("")
-  const [reloanTerm, setReloanTerm] = useState<4 | 8 | 12>(12)
+  const [reloanTerm, setReloanTerm] = useState<4 | 8 | 12 | 24>(12)
+  const [monthlyInterestRate, setMonthlyInterestRate] = useState("")
   const [reloanMode, setReloanMode] = useState<"payoff" | "netoff">("netoff")
   const [serviceCharge, setServiceCharge] = useState("")
   const [notarialFee, setNotarialFee] = useState("")
@@ -63,6 +64,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
       const activeLoan = member.loans?.find((l) => l.status === "active")
       setReloanPrincipal("")
       setReloanTerm(12)
+      setMonthlyInterestRate("")
       setReloanMode("netoff")
       setServiceCharge("")
       setNotarialFee("")
@@ -118,6 +120,10 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
       if (principal <= 0) {
         throw new Error("Principal amount must be greater than 0")
       }
+      const monthlyRate = Number(monthlyInterestRate)
+      if (reloanTerm === 24 && (!Number.isFinite(monthlyRate) || monthlyRate < 3.33 || monthlyRate > 10)) {
+        throw new Error("Monthly interest rate must be between 3.33% and 10%")
+      }
 
       const activeLoan = member.loans?.find((l) => l.status === "active")
       if (!activeLoan) {
@@ -127,6 +133,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
       await loansClient.reloan(activeLoan.id, {
         newPrincipalAmount: principal,
         newTermWeeks: reloanTerm,
+        ...(reloanTerm === 24 ? { monthlyInterestRate: monthlyRate } : {}),
         mode: reloanMode,
         serviceCharge: Number(serviceCharge) || 0,
         notarialFee: Number(notarialFee) || 0,
@@ -301,13 +308,33 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
           <Grid item xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>Term (Weeks)</InputLabel>
-              <Select value={reloanTerm} label="Term (Weeks)" onChange={(e) => setReloanTerm(e.target.value as 4 | 8 | 12)}>
+              <Select value={reloanTerm} label="Term (Weeks)" onChange={(e) => {
+                const nextTerm = e.target.value as 4 | 8 | 12 | 24
+                setReloanTerm(nextTerm)
+                if (nextTerm !== 24) setMonthlyInterestRate("")
+              }}>
                 <MenuItem value={4}>4 weeks</MenuItem>
                 <MenuItem value={8}>8 weeks</MenuItem>
                 <MenuItem value={12}>12 weeks</MenuItem>
+                <MenuItem value={24}>24 weeks (monthly interest)</MenuItem>
               </Select>
             </FormControl>
           </Grid>
+
+          {reloanTerm === 24 && (
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                required
+                label="Monthly Interest Rate (%)"
+                type="number"
+                value={monthlyInterestRate}
+                onChange={(e) => setMonthlyInterestRate(e.target.value)}
+                inputProps={{ min: 3.33, max: 10, step: 0.01 }}
+                helperText="Enter 3.33% to 10% per month"
+              />
+            </Grid>
+          )}
 
           <Grid item xs={12} md={6}>
             <FormControl fullWidth>
