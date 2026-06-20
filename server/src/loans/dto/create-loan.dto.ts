@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsUUID,
   IsIn,
+  Max,
   Min,
   IsDateString,
 } from 'class-validator';
@@ -14,8 +15,14 @@ export class CreateLoanDto {
   @IsNumber()
   principalAmount: number;
 
-  @IsIn([4, 8, 12])
+  @IsIn([4, 8, 12, 24])
   termWeeks: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(3.33)
+  @Max(10)
+  monthlyInterestRate?: number;
 
   // Manual savings amount; required only for a member's first loan (validated in service)
   @IsOptional()

@@ -258,7 +258,8 @@ export const loansClient = {
     loanId: string,
     body: {
       newPrincipalAmount: number;
-      newTermWeeks: 4 | 8 | 12;
+      newTermWeeks: 4 | 8 | 12 | 24;
+      monthlyInterestRate?: number;
       mode: "payoff" | "netoff";
       serviceCharge?: number;
       notarialFee?: number;

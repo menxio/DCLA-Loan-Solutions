@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
 export class ReloanDto {
   @IsNumber()
@@ -6,8 +6,14 @@ export class ReloanDto {
   newPrincipalAmount: number;
 
   @IsInt()
-  @IsIn([4, 8, 12])
-  newTermWeeks: 4 | 8 | 12;
+  @IsIn([4, 8, 12, 24])
+  newTermWeeks: 4 | 8 | 12 | 24;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(3.33)
+  @Max(10)
+  monthlyInterestRate?: number;
 
   @IsIn(['payoff', 'netoff'])
   mode: 'payoff' | 'netoff';

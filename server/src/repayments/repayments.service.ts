@@ -574,7 +574,7 @@ export class RepaymentsService implements OnModuleInit {
         centerId: centerId ?? null,
         weekNumber: i + 1,
         dueDate,
-        amountDue: weeklyDue,
+        amountDue: scheduleBreakdown?.amountDue ?? weeklyDue,
         principalDue: scheduleBreakdown?.principalDue ?? 0,
         interestDue:
           scheduleBreakdown?.interestDue ?? Math.max(0, Number(weeklyDue || 0)),

@@ -30,4 +30,39 @@ describe('LoansService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  describe('24-week monthly interest validation', () => {
+    it('converts the supplied monthly rate into the six-month interest rate', () => {
+      const result = (service as any).calculateLoanDetails(10_000, 24, 3.33);
+
+      expect(result.interestRate).toBeCloseTo(0.1998);
+      expect(result.totalAmount).toBeCloseTo(11_998);
+    });
+
+    it.each([undefined, 3.32, 10.01])(
+      'rejects an invalid 24-week monthly interest rate of %p',
+      (monthlyInterestRate) => {
+        expect(() =>
+          (service as any).calculateLoanDetails(
+            10_000,
+            24,
+            monthlyInterestRate,
+          ),
+        ).toThrow();
+      },
+    );
+
+    it('rejects a monthly rate on fixed-rate terms', () => {
+      expect(() =>
+        (service as any).calculateLoanDetails(10_000, 12, 35),
+      ).toThrow();
+    });
+
+    it('uses the regular weekly amount while leaving the exact remainder for the final schedule row', () => {
+      const result = (service as any).calculateLoanDetails(10_000, 24, 10);
+
+      expect(result.totalAmount).toBe(16_000);
+      expect(result.weeklyPaymentAmount).toBe(670);
+    });
+  });
 });

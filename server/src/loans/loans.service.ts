@@ -39,21 +39,49 @@ export class LoansService {
   ) {}
 
   // Business logic for interest rates
-  private getInterestRate(termWeeks: number): number {
+  private getInterestRate(
+    termWeeks: number,
+    monthlyInterestRate?: number,
+  ): number {
     if (termWeeks === 4) return 0.1;
     if (termWeeks === 8) return 0.2;
-    return 0.3;
+    if (termWeeks === 12) return 0.3;
+
+    if (termWeeks !== 24) {
+      throw new BadRequestException('termWeeks must be 4, 8, 12, or 24');
+    }
+
+    const rate = Number(monthlyInterestRate);
+    if (!Number.isFinite(rate) || rate < 3.33 || rate > 10) {
+      throw new BadRequestException(
+        'monthlyInterestRate is required for 24-week loans and must be between 3.33 and 10',
+      );
+    }
+
+    return (rate * 6) / 100;
   }
 
   // Calculate loan details
-  private calculateLoanDetails(principalAmount: number, termWeeks: number) {
-    const interestRate = this.getInterestRate(termWeeks);
+  private calculateLoanDetails(
+    principalAmount: number,
+    termWeeks: number,
+    monthlyInterestRate?: number,
+  ) {
+    if (termWeeks !== 24 && monthlyInterestRate !== undefined) {
+      throw new BadRequestException(
+        'monthlyInterestRate is only allowed for 24-week loans',
+      );
+    }
+
+    const interestRate = this.getInterestRate(termWeeks, monthlyInterestRate);
     const totalInterest = principalAmount * interestRate;
     const totalAmount = principalAmount + totalInterest;
     const baseWeeklyPayment = totalAmount / termWeeks;
     const roundedWeeklyPayment = Math.floor(baseWeeklyPayment / 10) * 10;
     const weeklyPaymentAmount =
-      termWeeks === 12 ? roundedWeeklyPayment + 10 : roundedWeeklyPayment;
+      termWeeks === 12 || termWeeks === 24
+        ? roundedWeeklyPayment + 10
+        : roundedWeeklyPayment;
 
     return {
       interestRate,
@@ -81,6 +109,7 @@ export class LoansService {
       serviceCharge,
       notarialFee,
       loanCreatedDate,
+      monthlyInterestRate,
     } =
       createLoanDto as any;
 
@@ -143,7 +172,7 @@ export class LoansService {
 
     // Calculate loan details (no auto-10% savings)
     const { interestRate, totalAmount, weeklyPaymentAmount } =
-      this.calculateLoanDetails(principalAmount, termWeeks);
+      this.calculateLoanDetails(principalAmount, termWeeks, monthlyInterestRate);
 
     // Create loan
     const loan = this.loanRepository.create({
@@ -213,6 +242,7 @@ export class LoansService {
     }
 
     const weekly = Number(loan.weeklyPaymentAmount);
+    const expectedPayment = Math.min(weekly, Number(loan.balance));
     const currentBuffer = Number(loan.advancePaymentBuffer || 0);
     const availableSavings = Number(loan.savings || 0);
 
@@ -220,8 +250,8 @@ export class LoansService {
     let totalPayment = cashAmount;
     let savingsUsed = 0;
 
-    if (useSavings && cashAmount < weekly) {
-      const shortfall = weekly - cashAmount;
+    if (useSavings && cashAmount < expectedPayment) {
+      const shortfall = expectedPayment - cashAmount;
       if (availableSavings <= 0) {
         throw new BadRequestException(
           'No savings available to cover the payment shortfall',
@@ -231,7 +261,7 @@ export class LoansService {
       const required = Math.min(shortfall, availableSavings);
       savingsUsed = required;
       totalPayment = cashAmount + required;
-      totalPayment = Math.min(totalPayment, weekly);
+      totalPayment = Math.min(totalPayment, expectedPayment);
     }
 
     const newBuffer = currentBuffer + totalPayment;
@@ -248,6 +278,8 @@ export class LoansService {
 
     if (loan.balance === 0) {
       loan.status = 'paid';
+      loan.weeksPaid = Number(loan.termWeeks);
+      loan.advancePaymentBuffer = 0;
     }
 
     const savedLoan = await this.loanRepository.save(loan);
@@ -486,13 +518,21 @@ export class LoansService {
       serviceCharge,
       notarialFee,
       savings,
+      monthlyInterestRate,
     } = dto;
     if (newPrincipalAmount <= 0)
       throw new BadRequestException('newPrincipalAmount must be > 0');
-    if (![4, 8, 12].includes(newTermWeeks))
-      throw new BadRequestException('newTermWeeks must be 4, 8, or 12');
+    if (![4, 8, 12, 24].includes(newTermWeeks))
+      throw new BadRequestException('newTermWeeks must be 4, 8, 12, or 24');
     if (!['payoff', 'netoff'].includes(mode))
       throw new BadRequestException('mode must be payoff or netoff');
+
+    // Validate the term/rate before changing the existing loan state.
+    this.calculateLoanDetails(
+      Number(newPrincipalAmount),
+      newTermWeeks,
+      monthlyInterestRate,
+    );
 
     const loan = await this.findOne(loanId);
     if (loan.status !== 'active')
@@ -548,6 +588,7 @@ export class LoansService {
       savings: savingsAmount,
       serviceCharge: fee,
       notarialFee: legalFee,
+      monthlyInterestRate,
     } as any;
     const newLoan = await this.create(tempCreate);
 
@@ -608,7 +649,11 @@ export class LoansService {
     return this.loanRepository.save(loan);
   }
 
-  async updateTermWeeks(id: string, newTermWeeks: number): Promise<Loan> {
+  async updateTermWeeks(
+    id: string,
+    newTermWeeks: number,
+    monthlyInterestRate?: number,
+  ): Promise<Loan> {
     const loan = await this.findOne(id);
 
     if (loan.status !== 'active') {
@@ -624,7 +669,11 @@ export class LoansService {
     }
 
     const { interestRate, totalAmount, weeklyPaymentAmount } =
-      this.calculateLoanDetails(Number(loan.principalAmount), newTermWeeks);
+      this.calculateLoanDetails(
+        Number(loan.principalAmount),
+        newTermWeeks,
+        monthlyInterestRate,
+      );
 
     loan.termWeeks = newTermWeeks;
     loan.interestRate = interestRate;
@@ -816,7 +865,7 @@ export class LoansService {
           centerId: center?.id ?? null,
           weekNumber: i + 1,
           dueDate: this.formatDate(dueDate),
-          amountDue: weeklyDue,
+          amountDue: scheduleBreakdown?.amountDue ?? weeklyDue,
           principalDue: scheduleBreakdown?.principalDue ?? 0,
           interestDue:
             scheduleBreakdown?.interestDue ?? Math.max(0, weeklyDue),

@@ -24,6 +24,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
 } from "@mui/material";
 import {
   Close,
@@ -75,7 +76,8 @@ export default function LoanModal({
   const [loanListTotal, setLoanListTotal] = useState(0);
   const [memberLoanCount, setMemberLoanCount] = useState(0);
   const [termDialogOpen, setTermDialogOpen] = useState(false);
-  const [termValue, setTermValue] = useState<4 | 8 | 12>(4);
+  const [termValue, setTermValue] = useState<4 | 8 | 12 | 24>(4);
+  const [monthlyInterestRate, setMonthlyInterestRate] = useState<number | undefined>();
   const [termUpdating, setTermUpdating] = useState(false);
   const [termMessage, setTermMessage] = useState<string | null>(null);
   const [termError, setTermError] = useState<string | null>(null);
@@ -197,12 +199,15 @@ export default function LoanModal({
     if (!activeLoan) return null;
     const calc = calculateLoanDetails(
       Number(activeLoan.principalAmount),
-      termValue
+      termValue,
+      monthlyInterestRate,
     );
     return calc.weeklyPaymentAmount;
-  }, [activeLoan, termValue]);
+  }, [activeLoan?.principalAmount, termValue, monthlyInterestRate]);
   const isSameTerm = activeLoan
-    ? termValue === (activeLoan.termWeeks as 4 | 8 | 12)
+    ? termValue === (activeLoan.termWeeks as 4 | 8 | 12 | 24) &&
+      (termValue !== 24 ||
+        Number(monthlyInterestRate) * 6 === Number(activeLoan.interestRate) * 100)
     : true;
 
   // Load member's loans when modal opens
@@ -228,13 +233,23 @@ export default function LoanModal({
 
   useEffect(() => {
     if (activeLoan) {
-      setTermValue(activeLoan.termWeeks as 4 | 8 | 12);
+      setTermValue(activeLoan.termWeeks as 4 | 8 | 12 | 24);
+      setMonthlyInterestRate(
+        activeLoan.termWeeks === 24
+          ? Number(((Number(activeLoan.interestRate) * 100) / 6).toFixed(2))
+          : undefined,
+      );
     }
   }, [activeLoan]);
 
   const handleOpenTermDialog = () => {
     if (!activeLoan) return;
-    setTermValue(activeLoan.termWeeks as 4 | 8 | 12);
+    setTermValue(activeLoan.termWeeks as 4 | 8 | 12 | 24);
+    setMonthlyInterestRate(
+      activeLoan.termWeeks === 24
+        ? Number(((Number(activeLoan.interestRate) * 100) / 6).toFixed(2))
+        : undefined,
+    );
     setTermError(null);
     setTermDialogOpen(true);
   };
@@ -280,7 +295,10 @@ export default function LoanModal({
     setTermUpdating(true);
     setTermError(null);
     try {
-      await LoansAPI.updateTerm(activeLoan.id, { termWeeks: termValue });
+      await LoansAPI.updateTerm(activeLoan.id, {
+        termWeeks: termValue,
+        ...(termValue === 24 ? { monthlyInterestRate } : {}),
+      });
       setTermDialogOpen(false);
       setTermMessage("Term weeks updated successfully.");
       loanListCacheRef.current.clear();
@@ -1096,15 +1114,35 @@ export default function LoanModal({
           color="primary"
           value={termValue}
           exclusive
-          onChange={(_, value) => value && setTermValue(value)}
+          onChange={(_, value) => {
+            if (!value) return;
+            setTermValue(value);
+            if (value !== 24) setMonthlyInterestRate(undefined);
+          }}
           sx={{ mb: 2, display: "flex", justifyContent: "center" }}
         >
-          {[4, 8, 12].map((term) => (
+          {[4, 8, 12, 24].map((term) => (
             <ToggleButton key={term} value={term}>
               {term} Weeks
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
+        {termValue === 24 && (
+          <TextField
+            fullWidth
+            required
+            label="Monthly Interest Rate (%)"
+            type="number"
+            value={monthlyInterestRate ?? ""}
+            onChange={(event) => {
+              const value = event.target.value;
+              setMonthlyInterestRate(value === "" ? undefined : Number(value));
+            }}
+            inputProps={{ min: 3.33, max: 10, step: 0.01 }}
+            helperText="Enter 3.33% to 10% per month"
+            sx={{ mb: 2 }}
+          />
+        )}
         {termPreview !== null && (
           <Box sx={{ textAlign: "center" }}>
             <Typography variant="body2" color="text.secondary">
@@ -1121,7 +1159,14 @@ export default function LoanModal({
         <Button
           variant="contained"
           onClick={handleUpdateTerm}
-          disabled={termUpdating || isSameTerm}
+          disabled={
+            termUpdating ||
+            isSameTerm ||
+            (termValue === 24 &&
+              (!monthlyInterestRate ||
+                monthlyInterestRate < 3.33 ||
+                monthlyInterestRate > 10))
+          }
         >
           {termUpdating ? "Updating..." : "Save"}
         </Button>
