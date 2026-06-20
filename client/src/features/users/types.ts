@@ -1,6 +1,7 @@
-export type UserRole = "loan processor" | "cashier" | "manager";
+export type UserRole = "admin" | "loan processor" | "cashier" | "manager";
 
 export const USER_ROLE_OPTIONS: Array<{ label: string; value: UserRole }> = [
+  { label: "Admin", value: "admin" },
   { label: "Loan Processor", value: "loan processor" },
   { label: "Cashier", value: "cashier" },
   { label: "Manager", value: "manager" },

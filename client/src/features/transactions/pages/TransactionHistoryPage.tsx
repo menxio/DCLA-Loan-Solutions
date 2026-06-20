@@ -119,7 +119,8 @@ export default function TransactionHistoryPage() {
     setSnackbar({ open: true, message, severity });
   };
 
-  const canRequestReversal = role === "cashier";
+  const isOperationalAdmin = role === "admin";
+  const canRequestReversal = role === "cashier" || isOperationalAdmin;
 
   const handleLimitChange = (event: SelectChangeEvent) => {
     const newLimit = Number(event.target.value);
@@ -144,11 +145,20 @@ export default function TransactionHistoryPage() {
         reversalDialog.repaymentId,
         reversalDialog.reason.trim() || undefined
       );
-      showSnackbar("Reversal request submitted for manager approval.");
+      showSnackbar(
+        isOperationalAdmin
+          ? "Payment reversed successfully."
+          : "Reversal request submitted for manager approval."
+      );
       handleCloseReversalDialog();
       await refresh();
     } catch (err) {
-      showSnackbar("Failed to submit reversal request.", "error");
+      showSnackbar(
+        isOperationalAdmin
+          ? "Failed to reverse payment."
+          : "Failed to submit reversal request.",
+        "error"
+      );
     } finally {
       setSubmittingReversal(false);
     }
@@ -405,7 +415,7 @@ export default function TransactionHistoryPage() {
                           onClick={() => handleOpenReversalDialog(transaction.id)}
                           sx={{ textTransform: "none", fontWeight: 600 }}
                         >
-                          Request Reversal
+                          {isOperationalAdmin ? "Reverse Payment" : "Request Reversal"}
                         </Button>
                       ) : (
                         "---"
@@ -467,10 +477,14 @@ export default function TransactionHistoryPage() {
         </Paper>
 
         <Dialog open={reversalDialog.open} onClose={handleCloseReversalDialog}>
-          <DialogTitle>Request repayment reversal</DialogTitle>
+          <DialogTitle>
+            {isOperationalAdmin ? "Reverse repayment" : "Request repayment reversal"}
+          </DialogTitle>
           <DialogContent>
             <DialogContentText sx={{ mb: 2 }}>
-              This request will stay pending until a manager approves it.
+              {isOperationalAdmin
+                ? "This payment will be reversed immediately."
+                : "This request will stay pending until a manager approves it."}
             </DialogContentText>
             <TextField
               fullWidth
@@ -500,7 +514,13 @@ export default function TransactionHistoryPage() {
               onClick={handleSubmitReversalRequest}
               disabled={submittingReversal}
             >
-              {submittingReversal ? "Submitting..." : "Submit Request"}
+              {submittingReversal
+                ? isOperationalAdmin
+                  ? "Reversing..."
+                  : "Submitting..."
+                : isOperationalAdmin
+                  ? "Reverse Payment"
+                  : "Submit Request"}
             </Button>
           </DialogActions>
         </Dialog>

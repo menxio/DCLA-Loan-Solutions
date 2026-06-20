@@ -18,6 +18,7 @@ type SafeUser = Omit<User, 'password' | 'hashedRefreshToken' | 'role'> & {
 };
 
 const ASSIGNABLE_ROLES: RoleName[] = [
+  ROLE.Admin,
   ROLE.LoanProcessor,
   ROLE.Cashier,
   ROLE.Manager,
@@ -100,8 +101,11 @@ export class UsersService {
     if (payload.lastName !== undefined) user.lastName = payload.lastName;
 
     if (payload.role) {
-      if (user.role?.name === ROLE.Admin && payload.role !== ROLE.Admin) {
-        throw new BadRequestException('Cannot change the admin role');
+      if (
+        user.role?.name === ROLE.SuperAdmin &&
+        payload.role !== ROLE.SuperAdmin
+      ) {
+        throw new BadRequestException('Cannot change the superadmin role');
       }
       user.role = await this.resolveRole(payload.role);
     }
@@ -116,8 +120,8 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    if (user.role?.name === ROLE.Admin && !isActive) {
-      throw new BadRequestException('Cannot deactivate the admin account');
+    if (user.role?.name === ROLE.SuperAdmin && !isActive) {
+      throw new BadRequestException('Cannot deactivate the superadmin account');
     }
 
     user.isActive = isActive;

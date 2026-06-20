@@ -97,7 +97,7 @@ export default function CollectionDetailsModal({
   onDataChanged,
 }: CollectionDetailsModalProps) {
   const role = useAuthStore((state) => state.user?.role ?? "");
-  const canReloan = role === "loan processor";
+  const canReloan = role === "loan processor" || role === "admin";
 
   // State management
   const [members, setMembers] = useState<MemberWithLoansExtended[]>([]);

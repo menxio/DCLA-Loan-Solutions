@@ -58,7 +58,7 @@ export default function Header({
   const [navAnchorEl, setNavAnchorEl] = useState<null | HTMLElement>(null);
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const isAdmin = user?.role === "admin";
+  const isSuperAdmin = user?.role === "superadmin";
   const role = user?.role ?? "";
   const defaultRoute = getDefaultRouteForRole(role);
   const visibleNavItems = navItems.filter((item) => canAccessPath(role, item.path));
@@ -126,7 +126,7 @@ export default function Header({
         </Typography>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          {!isAdmin && (
+          {!isSuperAdmin && (
             <Button
               variant="outlined"
               color="inherit"
@@ -192,7 +192,7 @@ export default function Header({
               </ListItemIcon>
               {userName || user?.email || "User"}
             </MenuItem>
-            {isAdmin && (
+            {isSuperAdmin && (
               <>
                 <Divider />
                 <MenuItem
@@ -215,7 +215,7 @@ export default function Header({
             </MenuItem>
           </Menu>
 
-          {!isAdmin && (
+          {!isSuperAdmin && (
             <Menu
               id="menu-nav"
               anchorEl={navAnchorEl}

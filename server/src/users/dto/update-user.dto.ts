@@ -2,6 +2,7 @@ import { IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
 import { ROLE, type RoleName } from '../../auth/roles.constants';
 
 const ASSIGNABLE_ROLES: RoleName[] = [
+  ROLE.Admin,
   ROLE.LoanProcessor,
   ROLE.Cashier,
   ROLE.Manager,

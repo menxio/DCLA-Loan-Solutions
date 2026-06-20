@@ -1,22 +1,28 @@
-export type AppRole = "admin" | "manager" | "cashier" | "loan processor";
+export type AppRole =
+  | "superadmin"
+  | "admin"
+  | "manager"
+  | "cashier"
+  | "loan processor";
 
 const DEFAULT_ROUTE_BY_ROLE: Record<AppRole, string> = {
-  admin: "/admin/users",
+  superadmin: "/admin/users",
+  admin: "/dashboard",
   manager: "/dashboard",
   cashier: "/collections",
   "loan processor": "/member-management",
 };
 
 const ROUTE_ACCESS: Record<string, AppRole[]> = {
-  "/dashboard": ["manager"],
-  "/member-management": ["loan processor"],
-  "/centers": ["loan processor"],
-  "/collections": ["cashier"],
-  "/portfolio": ["manager"],
-  "/transactions": ["manager", "cashier", "loan processor"],
-  "/approvals": ["manager"],
-  "/waivers": ["manager"],
-  "/admin/users": ["admin"],
+  "/dashboard": ["admin", "manager"],
+  "/member-management": ["admin", "loan processor"],
+  "/centers": ["admin", "loan processor"],
+  "/collections": ["admin", "cashier"],
+  "/portfolio": ["admin", "manager"],
+  "/transactions": ["admin", "manager", "cashier", "loan processor"],
+  "/approvals": ["admin", "manager"],
+  "/waivers": ["admin", "manager"],
+  "/admin/users": ["superadmin"],
 };
 
 export function getDefaultRouteForRole(role?: string | null): string {

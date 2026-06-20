@@ -149,10 +149,10 @@ export default function UserTable({
           <TableBody>
             {users.map((user, index) => {
               const isSelf = currentUserId === user.id;
-              const isAdmin = user.role === "admin";
-              const disableStatus = isAdmin || isSelf;
-              const disableEdit = isAdmin;
-              const disableReset = isAdmin;
+              const isSuperAdmin = user.role === "superadmin";
+              const disableStatus = isSuperAdmin || isSelf;
+              const disableEdit = isSuperAdmin;
+              const disableReset = isSuperAdmin;
               return (
                 <TableRow
                   key={user.id}
@@ -202,7 +202,7 @@ export default function UserTable({
                       <Tooltip
                         title={
                           disableEdit
-                            ? "Admin account cannot be edited here"
+                            ? "Superadmin account cannot be edited here"
                             : "Edit user"
                         }
                       >
@@ -223,7 +223,7 @@ export default function UserTable({
                       <Tooltip
                         title={
                           disableReset
-                            ? "Admin password cannot be reset here"
+                            ? "Superadmin password cannot be reset here"
                             : "Reset password"
                         }
                       >
