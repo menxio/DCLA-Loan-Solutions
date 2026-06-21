@@ -1035,8 +1035,19 @@ export default function LoanModal({
                                 {getTransactionTypeLabel(transaction.type)}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {new Date(transaction.createdAt).toLocaleString()}
+                                Recorded: {new Date(transaction.createdAt).toLocaleString()}
                               </Typography>
+                              {transaction.collectionDate && (
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  display="block"
+                                >
+                                  Collection date: {new Date(
+                                    `${transaction.collectionDate}T00:00:00`
+                                  ).toLocaleDateString()}
+                                </Typography>
+                              )}
                               <Typography variant="body2" color="text.secondary">
                                 {transaction.notes || "No notes"}
                               </Typography>
