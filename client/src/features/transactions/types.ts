@@ -22,6 +22,7 @@ export interface TransactionHistoryItem {
   };
   notes?: string | null;
   createdAt: string;
+  collectionDate?: string | null;
   source: "repayment" | "savings";
   repaymentOperationType?: "payment" | "reversal" | null;
 }

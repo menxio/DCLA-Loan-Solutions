@@ -89,6 +89,9 @@ const getActiveLoans = (member: MemberWithLoansRow): MemberLoan[] =>
 const summaryGridColumns =
   "minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) auto";
 
+const summaryHeaderGridColumns =
+  "minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) 228px 40px";
+
 export function MembersTable({
   members,
   getStatusColor,
@@ -144,7 +147,7 @@ export function MembersTable({
         <Box
           sx={{
             display: { xs: "none", md: "grid" },
-            gridTemplateColumns: `${summaryGridColumns} 40px`,
+            gridTemplateColumns: summaryHeaderGridColumns,
             columnGap: 2,
             alignItems: "center",
             px: 3,

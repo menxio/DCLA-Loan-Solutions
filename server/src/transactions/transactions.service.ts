@@ -33,6 +33,7 @@ export interface TransactionHistoryItem {
   };
   notes?: string | null;
   createdAt: string;
+  collectionDate?: string | null;
   source: 'repayment' | 'savings';
   repaymentOperationType?: 'payment' | 'reversal' | null;
 }
@@ -243,6 +244,11 @@ export class TransactionsService {
 
   private mapRepayment(repayment: Repayment): TransactionHistoryItem {
     const amount = this.toNumber(repayment.amount);
+    const collectionDate =
+      repayment.collectionDate ??
+      repayment.paymentDate ??
+      repayment.createdAt?.toISOString().slice(0, 10) ??
+      null;
     const operationType =
       repayment.operationType === RepaymentOperationType.REVERSAL
         ? 'reversal'
@@ -271,6 +277,7 @@ export class TransactionsService {
       },
       notes: repayment.notes ?? null,
       createdAt: repayment.createdAt?.toISOString() ?? new Date().toISOString(),
+      collectionDate,
       source: 'repayment',
       repaymentOperationType: operationType,
     };
