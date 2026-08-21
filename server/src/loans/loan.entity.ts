@@ -10,6 +10,7 @@ import {
 import { Member } from '../members/entities/member.entity';
 import { LoanRepaymentSchedule } from '../repayments/entities/loan-repayment-schedule.entity';
 import { LoanWaiver } from './entities/loan-waiver.entity';
+import { LoanChargeLedger } from './entities/loan-charge-ledger.entity';
 
 @Entity()
 export class Loan {
@@ -71,10 +72,16 @@ export class Loan {
   pastDueInterestAccrued: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  pastDueInterestPaid: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
   pastDueInterestWaived: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
   penaltyAccrued: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  penaltyPaid: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
   penaltyWaived: number;
@@ -88,12 +95,12 @@ export class Loan {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @OneToMany(
-    () => LoanRepaymentSchedule,
-    (schedule) => schedule.loan,
-  )
+  @OneToMany(() => LoanRepaymentSchedule, (schedule) => schedule.loan)
   repaymentSchedule!: LoanRepaymentSchedule[];
 
   @OneToMany(() => LoanWaiver, (waiver) => waiver.loan)
   waivers!: LoanWaiver[];
+
+  @OneToMany(() => LoanChargeLedger, (ledger) => ledger.loan)
+  chargeLedgerEntries!: LoanChargeLedger[];
 }

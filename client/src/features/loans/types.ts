@@ -33,10 +33,12 @@ export interface Loan {
   savings: number;
   weeksPaid: number;
   pastDueInterestAccrued?: number;
+  pastDueInterestPaid?: number;
   pastDueInterestWaived?: number;
   penaltyAccrued?: number;
+  penaltyPaid?: number;
   penaltyWaived?: number;
-  status: 'active' | 'paid' | 'defaulted' | 'netoff' | 'payoff';
+  status: "active" | "paid" | "defaulted" | "netoff" | "payoff";
   netCashReleased?: number | null;
   loanCreatedDate?: Date;
   createdAt: Date;
@@ -67,8 +69,10 @@ export interface LoanWaiverCandidate {
   status: Loan["status"];
   balance: number;
   pastDueInterestAccrued: number;
+  pastDueInterestPaid: number;
   pastDueInterestWaived: number;
   penaltyAccrued: number;
+  penaltyPaid: number;
   penaltyWaived: number;
   pastDueInterestOutstanding: number;
   penaltyOutstanding: number;
@@ -88,6 +92,54 @@ export interface ApplyLoanWaiverResponse {
   pastDueInterestOutstanding: number;
   penaltyOutstanding: number;
   totalOutstanding: number;
+}
+
+export type LoanChargeType = "past_due_interest" | "penalty";
+
+export type LoanChargeLedgerEventType =
+  | "accrual"
+  | "payment"
+  | "payment_reversal";
+
+export interface LoanChargeLedgerEntry {
+  id: string;
+  chargeType: LoanChargeType;
+  eventType: LoanChargeLedgerEventType;
+  amount: number;
+  cashPortion: number;
+  savingsPortion: number;
+  baseAmount: number;
+  rate: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  sourceRepaymentId: string | null;
+  reversedLedgerEntryId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface LoanChargeBreakdown {
+  loanId: string;
+  balance: number;
+  regularOutstanding: number;
+  pastDueInterestAccrued: number;
+  pastDueInterestPaid: number;
+  pastDueInterestWaived: number;
+  penaltyAccrued: number;
+  penaltyPaid: number;
+  penaltyWaived: number;
+  pastDueInterestOutstanding: number;
+  penaltyOutstanding: number;
+  totalOutstanding: number;
+  entries: LoanChargeLedgerEntry[];
+}
+
+export interface LoanChargeSweepResult {
+  asOfDate: string;
+  scannedCount: number;
+  processedCount: number;
+  failedCount: number;
+  failures: Array<{ loanId: string; message: string }>;
 }
 
 export interface Savings {
@@ -191,7 +243,7 @@ export interface LoanStatsResponse {
   stats: LoanStats;
 }
 
-export type LoanRepaymentStatus = 'unpaid' | 'partial' | 'paid' | 'advance';
+export type LoanRepaymentStatus = "unpaid" | "partial" | "paid" | "advance";
 
 export interface LoanRepaymentScheduleRow {
   id: string;

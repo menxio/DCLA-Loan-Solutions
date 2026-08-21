@@ -141,7 +141,9 @@ export class RepaymentsService implements OnModuleInit {
 
       const deletedAllocations = schedulesBefore.length
         ? await this.allocationRepo.count({
-            where: { scheduleId: In(schedulesBefore.map((schedule) => schedule.id)) },
+            where: {
+              scheduleId: In(schedulesBefore.map((schedule) => schedule.id)),
+            },
           })
         : 0;
 
@@ -166,7 +168,10 @@ export class RepaymentsService implements OnModuleInit {
       );
 
       summary.loansRepaired += 1;
-      summary.schedulesCreated += Math.max(0, scheduleCountAfter - scheduleCountBefore);
+      summary.schedulesCreated += Math.max(
+        0,
+        scheduleCountAfter - scheduleCountBefore,
+      );
       summary.allocationsDeleted += deletedAllocations;
       summary.approvedRepaymentsReplayed += approvedEntries.filter(
         (entry) =>
@@ -246,15 +251,18 @@ export class RepaymentsService implements OnModuleInit {
     }
   }
 
-  async create(body: {
-    loanId: string;
-    memberId: string;
-    centerId: string;
-    amount: number;
-    collectionDate?: string;
-    notes?: string;
-    useSavings?: boolean;
-  }, actor?: { userId?: string; role?: string }) {
+  async create(
+    body: {
+      loanId: string;
+      memberId: string;
+      centerId: string;
+      amount: number;
+      collectionDate?: string;
+      notes?: string;
+      useSavings?: boolean;
+    },
+    actor?: { userId?: string; role?: string },
+  ) {
     const {
       loanId,
       memberId,
@@ -265,7 +273,11 @@ export class RepaymentsService implements OnModuleInit {
       useSavings = false,
     } = body;
 
-    if (amount === undefined || amount === null || Number.isNaN(Number(amount))) {
+    if (
+      amount === undefined ||
+      amount === null ||
+      Number.isNaN(Number(amount))
+    ) {
       throw new BadRequestException('Amount must be provided as a number');
     }
 
@@ -297,7 +309,9 @@ export class RepaymentsService implements OnModuleInit {
     if (!center) throw new NotFoundException('Center not found');
 
     if (loan.status !== 'active') {
-      throw new BadRequestException('Cannot post payment for a non-active loan');
+      throw new BadRequestException(
+        'Cannot post payment for a non-active loan',
+      );
     }
 
     if (loan.borrower?.id !== member.id) {
@@ -378,9 +392,7 @@ export class RepaymentsService implements OnModuleInit {
     }
 
     if (sourceRepayment.status !== RepaymentStatus.APPROVED) {
-      throw new BadRequestException(
-        'Only approved repayments can be reversed',
-      );
+      throw new BadRequestException('Only approved repayments can be reversed');
     }
 
     const existingReversal = await this.repaymentRepo.findOne({
@@ -698,12 +710,14 @@ export class RepaymentsService implements OnModuleInit {
       const existingAllocation = allocations.get(last.id);
       if (existingAllocation) {
         existingAllocation.amountApplied = Number(
-          (
-            Number(existingAllocation.amountApplied || 0) + remaining
-          ).toFixed(2),
+          (Number(existingAllocation.amountApplied || 0) + remaining).toFixed(
+            2,
+          ),
         );
         existingAllocation.cashPortion = Number(
-          (Number(existingAllocation.cashPortion || 0) + cashApplied).toFixed(2),
+          (Number(existingAllocation.cashPortion || 0) + cashApplied).toFixed(
+            2,
+          ),
         );
         existingAllocation.savingsPortion = Number(
           (
@@ -852,7 +866,10 @@ export class RepaymentsService implements OnModuleInit {
         continue;
       }
 
-      if (entry.batchId && entry.batch?.status !== CollectionBatchStatus.PENDING) {
+      if (
+        entry.batchId &&
+        entry.batch?.status !== CollectionBatchStatus.PENDING
+      ) {
         continue;
       }
 
@@ -1094,38 +1111,35 @@ export class RepaymentsService implements OnModuleInit {
       throw new NotFoundException('Member not found');
     }
 
-    const previousAmountPaid = Number(loan.amountPaid ?? 0);
-    await this.loansService.applyRepayment(
+    const paymentDate =
+      repayment.collectionDate ??
+      this.normalizeCollectionDate(repayment.createdAt.toISOString());
+
+    await this.ensureLoanSchedule(loan, member, center);
+    await this.loansService.postOverdueChargesForLoan(
       loan.id,
-      Number(repayment.amount),
-      Boolean(repayment.useSavings),
+      paymentDate,
+      repayment.id,
     );
+    const repaymentApplication =
+      await this.loansService.applyRepaymentWithChargeAllocation(
+        loan.id,
+        Number(repayment.amount),
+        Boolean(repayment.useSavings),
+        repayment.id,
+      );
+    const targetLoan = repaymentApplication.loan;
 
-    const updatedLoan = await this.loanRepo.findOne({
-      where: { id: loan.id },
-      relations: ['borrower', 'borrower.center'],
-    });
-    const targetLoan = updatedLoan ?? loan;
-
-    await this.ensureLoanSchedule(targetLoan, member, center);
-
-    const cumulativeAmountPaid = Number(targetLoan.amountPaid) || 0;
-    const newlyAppliedAmount = cumulativeAmountPaid - previousAmountPaid;
-
-    if (newlyAppliedAmount > 0) {
-      const cashPortion = Number(repayment.amount);
-      const savingsPortion = Math.max(0, newlyAppliedAmount - cashPortion);
+    if (repaymentApplication.regularApplied > 0) {
       await this.applyRepaymentToSchedule({
         loan: targetLoan,
         member,
         center,
         repayment,
-        allocationAmount: newlyAppliedAmount,
-        cashPortion,
-        savingsPortion,
-        paymentDate:
-          repayment.collectionDate ??
-          this.normalizeCollectionDate(repayment.createdAt.toISOString()),
+        allocationAmount: repaymentApplication.regularApplied,
+        cashPortion: repaymentApplication.regularCashPortion,
+        savingsPortion: repaymentApplication.regularSavingsPortion,
+        paymentDate,
       });
     }
 
@@ -1143,7 +1157,7 @@ export class RepaymentsService implements OnModuleInit {
         Number(targetLoan.weeklyPaymentAmount) ||
         Number(loan.weeklyPaymentAmount) ||
         0,
-      amountApplied: newlyAppliedAmount,
+      amountApplied: repaymentApplication.totalApplied,
       totalWeeksPaid: Number(targetLoan.weeksPaid) || 0,
       notes: repayment.notes ?? undefined,
     });
@@ -1199,17 +1213,22 @@ export class RepaymentsService implements OnModuleInit {
     const originalAllocations = await this.allocationRepo.find({
       where: { repaymentId: original.id },
     });
+    const chargeReversal =
+      await this.loansService.createChargePaymentReversalsForRepayment(
+        original.id,
+      );
 
     const totalApplied = originalAllocations.length
       ? originalAllocations.reduce(
           (sum, allocation) => sum + Number(allocation.amountApplied || 0),
           0,
         )
-      : Number(original.amount || 0);
-    const savingsUsed = originalAllocations.reduce(
-      (sum, allocation) => sum + Number(allocation.savingsPortion || 0),
-      0,
-    );
+      : Math.max(0, Number(original.amount || 0) - chargeReversal.totalAmount);
+    const savingsUsed =
+      originalAllocations.reduce(
+        (sum, allocation) => sum + Number(allocation.savingsPortion || 0),
+        0,
+      ) + chargeReversal.savingsPortion;
 
     const paymentDate = this.parseDate(
       reversal.collectionDate ??
@@ -1251,15 +1270,28 @@ export class RepaymentsService implements OnModuleInit {
       weeklyAmount > 0 ? Math.floor(updatedAmountPaid / weeklyAmount) : 0;
     const recomputedBuffer =
       weeklyAmount > 0
-        ? Number((updatedAmountPaid - recomputedWeeksPaid * weeklyAmount).toFixed(2))
+        ? Number(
+            (updatedAmountPaid - recomputedWeeksPaid * weeklyAmount).toFixed(2),
+          )
         : 0;
 
     loan.amountPaid = updatedAmountPaid;
+    loan.pastDueInterestPaid = Number(
+      Math.max(
+        0,
+        Number(loan.pastDueInterestPaid || 0) -
+          chargeReversal.pastDueInterestAmount,
+      ).toFixed(2),
+    );
+    loan.penaltyPaid = Number(
+      Math.max(
+        0,
+        Number(loan.penaltyPaid || 0) - chargeReversal.penaltyAmount,
+      ).toFixed(2),
+    );
     loan.weeksPaid = recomputedWeeksPaid;
     loan.advancePaymentBuffer = recomputedBuffer;
-    loan.balance = Number(
-      Math.max(0, Number(loan.totalAmount || 0) - updatedAmountPaid).toFixed(2),
-    );
+    loan.balance = this.loansService.calculateLoanBalance(loan);
     loan.savings = Number(
       (Number(loan.savings || 0) + Number(savingsUsed || 0)).toFixed(2),
     );
@@ -1286,7 +1318,7 @@ export class RepaymentsService implements OnModuleInit {
       collectionDate:
         original.collectionDate ??
         this.normalizeCollectionDate(original.createdAt.toISOString()),
-      amountToReverse: totalApplied,
+      amountToReverse: totalApplied + chargeReversal.totalAmount,
       totalWeeksPaid: Number(loan.weeksPaid) || 0,
       notes: reversal.notes ?? undefined,
     });
@@ -1376,8 +1408,14 @@ export class RepaymentsService implements OnModuleInit {
     totalWeeksPaid: number;
     notes?: string;
   }) {
-    const { memberId, centerId, collectionDate, amountToReverse, totalWeeksPaid, notes } =
-      params;
+    const {
+      memberId,
+      centerId,
+      collectionDate,
+      amountToReverse,
+      totalWeeksPaid,
+      notes,
+    } = params;
     const existing = await this.collectionRepo.findOne({
       where: { memberId, centerId, collectionDate },
     });

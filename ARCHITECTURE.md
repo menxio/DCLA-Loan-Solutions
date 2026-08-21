@@ -12,6 +12,7 @@ If you are working on payments, collections, approvals, reversals, waivers, or r
 - API base path: `/api`.
 
 Core backend bootstrap files:
+
 - `server/src/main.ts`
 - `server/src/app.module.ts`
 - `server/src/data-source.ts`
@@ -19,6 +20,7 @@ Core backend bootstrap files:
 ## 2. Role and Access Model
 
 Server role constants:
+
 - `admin`
 - `manager`
 - `cashier`
@@ -27,14 +29,17 @@ Server role constants:
 Defined in `server/src/auth/roles.constants.ts`.
 
 Enforcement:
+
 - JWT guard + roles guard are global (`APP_GUARD`) in `AppModule`.
 - Route-level `@Roles(...)` controls module actions.
 
 Frontend route gating:
+
 - Route map in `client/src/features/auth/access.ts`.
 - Unauthorized pages render `ForbiddenPage`.
 
 Current role intent:
+
 - `admin`: user management only (`/admin/users`).
 - `manager`: portfolio/dashboard/approvals/waivers.
 - `cashier`: collections entry and repayment posting/reversal request.
@@ -49,10 +54,12 @@ The financial pipeline uses three related data sets with different responsibilit
 Entity: `server/src/repayments/repayment.entity.ts`
 
 Purpose:
+
 - Immutable-ish event log of payment and reversal requests.
 - Approval lifecycle is at row level (`pending`, `approved`, `rejected`).
 
 Key columns:
+
 - `id`
 - `loanId`, `memberId`, `centerId`
 - `amount`
@@ -70,10 +77,12 @@ Entity: `server/src/repayments/entities/collection-batch.entity.ts`
 Migration: `server/src/migrations/1762500000000-CreateCollectionBatch.ts`
 
 Purpose:
+
 - Represents one manager decision unit for one center and one business date.
 - Groups many pending repayments for approval/rejection as one collection action.
 
 Key columns:
+
 - `id`
 - `centerId`
 - `collectionDate`
@@ -84,6 +93,7 @@ Key columns:
 - `createdAt`, `updatedAt`
 
 Critical index/constraint:
+
 - Partial unique index on pending rows:
   - unique (`centerId`, `collectionDate`) where status = `pending`
 - This prevents duplicate pending batches for the same center/date.
@@ -94,10 +104,12 @@ Entity: `server/src/collections/entities/collection.entity.ts`
 Constraint migration: `server/src/migrations/1762300000000-AddUniqueCollectionPerMemberCenterDate.ts`
 
 Purpose:
+
 - Daily per-member view used by collections screens, exports, and summary operations.
 - Updated when approved repayments are applied or reversed.
 
 Key columns:
+
 - `memberId`, `centerId`, `collectionDate`
 - `amount` (expected weekly amount snapshot)
 - `paymentReceived` (received amount for that member/date)
@@ -107,54 +119,98 @@ Key columns:
 - `notes`
 
 Critical constraint:
+
 - Unique (`memberId`, `centerId`, `collectionDate`).
 
 ### 3.4 `loan_repayment_schedule` and `loan_repayment_allocation`
 
 Entities:
+
 - `server/src/repayments/entities/loan-repayment-schedule.entity.ts`
 - `server/src/repayments/entities/loan-repayment-allocation.entity.ts`
 
 Purpose:
+
 - Schedule defines expected installments.
 - Allocation records exactly how each approved repayment was distributed across schedule lines.
 - Reversal logic uses allocation records to roll back exactly what was applied.
+
+### 3.5 `loan_charge_ledger`
+
+Entity: `server/src/loans/entities/loan-charge-ledger.entity.ts`
+Migration: `server/src/migrations/1763300000000-AddLoanChargeLedger.ts`
+
+Purpose:
+
+- Auditable ledger for weekly penalties, maturity penalties, past-due interest, charge payments, and charge payment reversals.
+- Unique `idempotencyKey` values prevent the same charge event from being posted twice.
+
+Charge rules:
+
+- Before maturity, an installment that remains partially or fully unpaid at Friday 12:00 AM receives one weekly penalty: below 1,000 = 50; 1,000 to below 2,000 = 100; 2,000 and above = 200.
+- After maturity, weekly penalties stop. A one-time 30% penalty and daily-prorated 10% monthly past-due interest use the remaining principal as their basis.
+- Manager waivers reduce outstanding charges but preserve accrued, paid, and ledger history.
 
 ## 4. Financial Safety Rules (Do Not Break)
 
 These are the current invariants enforced by service logic:
 
 1. Only `approved` repayment rows can affect real balances.
+
 - Pending/rejected rows must not change loan balance, weeks paid, or schedule totals.
 
 2. Reversal can only target an approved payment.
+
 - Cannot reverse a reversal.
 - Cannot create duplicate pending/approved reversal for same source payment.
 
 3. Manager collection approval is grouped by center + collection date.
+
 - Either by explicit `batchId` (new path) or center/date fallback (legacy compatibility).
 
 4. Collection summary row is unique per member/center/date.
+
 - Upsert behavior in `recordCollectionEntry` and rollback behavior in `reverseCollectionEntry` depend on this.
 
 5. Schedule/loan updates must remain consistent.
+
 - Applying payment updates loan totals and allocations.
 - Approving reversal rolls back schedule allocations and loan totals.
 
 6. Transactions history only shows approved repayments.
+
 - Pending/rejected are not treated as posted money movement.
+
+7. Charge posting is idempotent.
+
+- Scheduled and manual sweeps may be repeated safely because every accrual has a stable unique key.
+
+8. Approved payments allocate in this order:
+
+- Penalty, then past-due interest, then regular loan balance.
+
+9. Reversals preserve charge audit history.
+
+- Charge payment entries are not deleted; compensating `payment_reversal` entries are created.
+
+10. Weekly and maturity penalties never overlap after maturity.
+
+- The daily scheduler checks Friday cutoff for weekly penalties and maturity state for maturity charges.
 
 ## 5. End-to-End Money Flow
 
 ### 5.1 Cashier posts payment
 
 Entry point:
+
 - `POST /api/repayments` (`RepaymentsController.create`)
 
 Service path:
+
 - `RepaymentsService.create(...)`
 
 Steps:
+
 1. Validate numeric amount.
 2. Resolve loan/member/center.
 3. Normalize business date (`collectionDate`).
@@ -163,6 +219,7 @@ Steps:
 6. Return pending row.
 
 Effect:
+
 - No loan balance is changed yet.
 - No schedule allocation yet.
 - No collection summary row is changed yet.
@@ -170,57 +227,72 @@ Effect:
 ### 5.2 Manager approves a pending collection
 
 Entry point:
+
 - `POST /api/repayments/pending/collections/approve`
 
 Service path:
+
 - `approvePendingCollection(centerId, collectionDate, actorId)`
 
 Steps:
+
 1. Find pending batch for center/date.
 2. Fetch pending repayments by `batchId` (or fallback by center/date for legacy).
 3. For each pending row, call `approveRepayment(...)`.
 4. Mark batch `approved` with approver metadata.
 
 Per repayment approval path (`approvePaymentRepayment`):
-1. Call `LoansService.applyRepayment(...)`.
-2. Rebuild/ensure schedule and apply allocation records.
-3. Upsert corresponding `collection` summary row via `recordCollectionEntry(...)`.
-4. Mark repayment row `approved` with metadata.
+
+1. Rebuild/ensure the repayment schedule.
+2. Post any charges due as of the payment business date.
+3. Allocate payment to penalty, past-due interest, then regular balance.
+4. Apply the regular portion to schedule allocation records.
+5. Upsert corresponding `collection` summary row via `recordCollectionEntry(...)`.
+6. Mark repayment row `approved` with metadata.
 
 Effect:
+
 - This is the point where money is officially posted.
 
 ### 5.3 Manager rejects a pending collection
 
 Entry point:
+
 - `POST /api/repayments/pending/collections/reject`
 
 Service path:
+
 - `rejectPendingCollection(...)`
 
 Steps:
+
 1. Find pending rows for center/date (batch-aware first).
 2. Mark each row as `rejected` with reason/metadata.
 3. Mark batch `rejected` with reason/metadata.
 
 Effect:
+
 - No loan or schedule or collection summary mutation.
 
 ### 5.4 Cashier requests reversal
 
 Entry point:
+
 - `POST /api/repayments/:id/reversal-request`
 
 Service path:
+
 - `requestReversal(repaymentId, body, actor)`
 
 Guards:
+
 - Source repayment must exist.
 - Source must be `approved`.
 - Source must be `operationType = payment`.
 - Duplicate pending/approved reversal for same source is blocked.
 
 Result:
+
 - Creates pending reversal row:
   - `operationType = reversal`
   - `relatedRepaymentId = source payment id`
@@ -229,18 +301,22 @@ Result:
 ### 5.5 Manager approves reversal
 
 Service path:
+
 - `approveRepayment(...)` -> `approveReversalRepayment(...)`
 
 Steps:
+
 1. Resolve original approved repayment using `relatedRepaymentId`.
 2. Load allocation rows of original repayment.
 3. Roll back schedule `amountPaid` per allocation.
-4. Recompute and save loan totals (`amountPaid`, `weeksPaid`, buffer, balance, status).
-5. If savings were consumed in original payment, credit savings back and create savings ledger entry.
-6. Reverse daily member collection summary row (`reverseCollectionEntry`).
-7. Mark reversal row `approved`.
+4. Create compensating charge payment reversal ledger entries.
+5. Recompute and save loan totals (`amountPaid`, charge paid totals, weeks paid, buffer, balance, status).
+6. If savings were consumed in original payment, credit savings back and create savings ledger entry.
+7. Reverse daily member collection summary row (`reverseCollectionEntry`).
+8. Mark reversal row `approved`.
 
 Effect:
+
 - Safely undoes previous posted payment impact.
 
 ## 6. Module Responsibilities
@@ -248,33 +324,40 @@ Effect:
 ### 6.1 Auth and users
 
 Backend:
+
 - `server/src/auth/*`
 - `server/src/users/*`
 - `server/src/roles/*`
 
 Highlights:
+
 - Refresh token hash stored per user.
 - `mustChangePassword` supported.
 - Admin-only user management endpoints under `/api/users`.
 
 Frontend:
+
 - `client/src/features/auth/*`
 - `client/src/features/users/*`
 
 Highlights:
+
 - `AuthBootstrap` enforces temporary password change dialog when `mustChangePassword = true`.
 
 ### 6.2 Collections module (read/ops view)
 
 Backend:
+
 - `server/src/collections/*`
 
 Responsibilities:
+
 - Query/filter/group collection summaries.
 - Auto-generate collection placeholders by center day.
 - Collection statistics.
 
 Important note:
+
 - `getTodayCollections` computes center totals using approved repayments filtered by `repayment.createdAt` date window.
 - Repayment approval logic uses `collectionDate` as business date.
 - This difference is intentional in code right now but should be kept in mind during reporting discussions.
@@ -282,9 +365,11 @@ Important note:
 ### 6.3 Repayments module (posting + approval engine)
 
 Backend:
+
 - `server/src/repayments/*`
 
 Responsibilities:
+
 - Create payment requests.
 - Create reversal requests.
 - Manager approve/reject (single or grouped collection).
@@ -293,22 +378,29 @@ Responsibilities:
 ### 6.4 Loans module
 
 Backend:
+
 - `server/src/loans/*`
 
 Responsibilities:
+
 - Loan lifecycle.
-- Repayment application primitive (`applyRepayment`).
+- Charge-aware repayment allocation.
+- Daily overdue charge sweep with Friday weekly-penalty cutoff.
+- Charge ledger and charge breakdown queries.
 - Waiver operations (`past due interest`, `penalty`).
 
 ### 6.5 Portfolio and manager dashboard
 
 Backend:
+
 - `server/src/portfolio/*`
 
 Frontend:
+
 - `client/src/features/dashboard/*`
 
 Current dashboard numbers are dynamic and derived from:
+
 - portfolio aggregates
 - daily collection groups
 - center/member counts
@@ -316,6 +408,7 @@ Current dashboard numbers are dynamic and derived from:
 ## 7. API Surface (Finance-Critical)
 
 Repayments:
+
 - `POST /api/repayments` cashier creates pending payment
 - `POST /api/repayments/:id/reversal-request` cashier creates pending reversal
 - `GET /api/repayments/pending/collections` manager review queue
@@ -323,16 +416,26 @@ Repayments:
 - `POST /api/repayments/pending/collections/reject` manager rejects grouped collection
 
 Collections:
+
 - `GET /api/collection/daily`
 - `GET /api/collection/grouped`
 - `GET /api/collection/stats` manager only
 
 Transactions:
+
 - `GET /api/transactions` cross-module history (approved repayments + savings entries)
+
+Loan charges:
+
+- `GET /api/loans/:id/charges` charge balances and ledger history
+- `POST /api/loans/charges/sweep` manager-only manual/idempotent charge sweep
+- `GET /api/loans/waivers/candidates` manager waiver queue
+- `POST /api/loans/:id/waivers` manager applies a charge waiver
 
 ## 8. Frontend Feature Mapping
 
 Route map:
+
 - `/admin/users` -> user management (admin)
 - `/dashboard` -> manager dashboard
 - `/approvals` -> collection approval queue (manager)
@@ -341,6 +444,7 @@ Route map:
 - `/member-management` and `/centers` -> loan processor core setup
 
 Main files:
+
 - Routing: `client/src/routes/index.tsx`
 - Role access map: `client/src/features/auth/access.ts`
 - Header navigation: `client/src/components/header/Header.tsx`
@@ -350,19 +454,28 @@ Main files:
 When pulling finance-related changes:
 
 1. Run server build:
+
 - `cd server`
 - `npm run build`
 
 2. Run migrations:
+
 - `npm run migration:run`
 
+Keep `LOAN_CHARGE_SCHEDULER_ENABLED=false` during the first production migration. Confirm the agreed effective-date/backfill policy with the client and validate a manager-only manual sweep in staging before enabling automatic posting.
+
 3. Start backend and frontend:
+
 - `npm run start:dev` (server)
 - `cd ../client && npm run dev`
 
 4. Verify critical scenarios manually:
+
 - Cashier posts payment -> appears pending approvals.
 - Manager approves collection -> loan/schedule/collection summary updated.
+- Partial installment remains unpaid at Friday cutoff -> one tiered weekly penalty is posted.
+- Loan passes final due date -> weekly penalties stop and maturity charges use remaining principal.
+- Repeat the same charge sweep date -> no duplicate charge entries or accrued totals.
 - Cashier requests reversal on approved payment -> pending reversal appears.
 - Manager approves reversal -> original effects are rolled back.
 - Manager rejects pending collection -> no balance mutation.
@@ -370,16 +483,20 @@ When pulling finance-related changes:
 ## 10. Known Edge Cases and Design Notes
 
 1. Legacy pending repayments may have null `batchId`.
+
 - Approval logic still supports fallback grouping by center/date.
 
 2. Date source consistency:
+
 - Approval grouping is business-date aware (`collectionDate` with fallback).
 - Some collection summary queries still use `repayment.createdAt` windows.
 
 3. `collection` is a summary model, not the immutable transaction ledger.
+
 - Do not treat it as the source of truth for approval history.
 
 4. Export files are outputs, not audit source.
+
 - Audit source remains database ledger rows and metadata columns.
 
 ## 11. Recommended Change Strategy for Finance Features
@@ -387,6 +504,7 @@ When pulling finance-related changes:
 When implementing new real-money behavior:
 
 1. Decide the source of truth table first.
+
 - Usually `repayment` for events and `collection_batch` for approval decisions.
 
 2. Keep summary projections (`collection`, dashboard aggregates) derived.

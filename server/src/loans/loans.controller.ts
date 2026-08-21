@@ -18,6 +18,7 @@ import { ReloanDto } from './dto/reloan.dto';
 import { UpdateLoanTermDto } from './dto/update-loan-term.dto';
 import { ApplyLoanWaiverDto } from './dto/apply-loan-waiver.dto';
 import { FindMemberLoansQueryDto } from './dto/find-member-loans-query.dto';
+import { PostLoanChargeSweepDto } from './dto/post-loan-charge-sweep.dto';
 import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 
@@ -47,6 +48,14 @@ export class LoansController {
   }
 
   @Roles(ROLE.Manager)
+  @Post('charges/sweep')
+  postChargeSweep(@Body() body: PostLoanChargeSweepDto = {}) {
+    return this.loansService.postOverdueChargesForActiveLoans(
+      body.asOfDate ?? new Date(),
+    );
+  }
+
+  @Roles(ROLE.Manager)
   @Get('waivers/candidates')
   getWaiverCandidates() {
     return this.loansService.getWaiverCandidates();
@@ -66,6 +75,12 @@ export class LoansController {
     @Req() req: { user?: { userId?: string } },
   ) {
     return this.loansService.applyWaiver(id, body, req.user?.userId);
+  }
+
+  @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
+  @Get(':id/charges')
+  getChargeBreakdown(@Param('id') id: string) {
+    return this.loansService.getChargeBreakdown(id);
   }
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
@@ -96,10 +111,7 @@ export class LoansController {
 
   @Roles(ROLE.LoanProcessor)
   @Patch(':id/term')
-  updateTerm(
-    @Param('id') id: string,
-    @Body() body: UpdateLoanTermDto,
-  ) {
+  updateTerm(@Param('id') id: string, @Body() body: UpdateLoanTermDto) {
     return this.loansService.updateTermWeeks(
       id,
       body.termWeeks,

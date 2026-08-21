@@ -4,6 +4,8 @@ import type {
   ApplyLoanWaiverResponse,
   CreateLoanData,
   Loan,
+  LoanChargeBreakdown,
+  LoanChargeSweepResult,
   MemberLoansQuery,
   MemberLoansResponse,
   LoanWaiver,
@@ -21,7 +23,7 @@ export const LoansAPI = {
 
   getByMember: async (
     memberId: string,
-    params: MemberLoansQuery = {}
+    params: MemberLoansQuery = {},
   ): Promise<MemberLoansResponse> => {
     const res = await api.get(`/loans/member/${memberId}`, { params });
     return res.data;
@@ -57,9 +59,21 @@ export const LoansAPI = {
   },
 
   getRepaymentSchedule: async (
-    loanId: string
+    loanId: string,
   ): Promise<LoanRepaymentScheduleRow[]> => {
     const res = await api.get(`/repayments/loan/${loanId}/schedule`);
+    return res.data;
+  },
+
+  getChargeBreakdown: async (loanId: string): Promise<LoanChargeBreakdown> => {
+    const res = await api.get(`/loans/${loanId}/charges`);
+    return res.data;
+  },
+
+  postChargeSweep: async (
+    asOfDate?: string,
+  ): Promise<LoanChargeSweepResult> => {
+    const res = await api.post("/loans/charges/sweep", { asOfDate });
     return res.data;
   },
 
@@ -75,7 +89,7 @@ export const LoansAPI = {
 
   applyWaiver: async (
     loanId: string,
-    payload: ApplyLoanWaiverPayload
+    payload: ApplyLoanWaiverPayload,
   ): Promise<ApplyLoanWaiverResponse> => {
     const res = await api.post(`/loans/${loanId}/waivers`, payload);
     return res.data;
