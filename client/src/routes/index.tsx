@@ -1,36 +1,35 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, type ReactElement } from "react";
 import { useAuthStore } from "@features/auth/authStore";
 import FullScreenLoader from "@components/common/FullScreenLoader";
 import ForbiddenPage from "@components/common/ForbiddenPage";
-import {
-  canAccessPath,
-  getDefaultRouteForRole,
-} from "@features/auth/access";
+import { canAccessPath, getDefaultRouteForRole } from "@features/auth/access";
 
 const LoginPage = lazy(() => import("@features/auth/pages/LoginPage"));
-const DashboardPage = lazy(() => import("@features/dashboard/pages/DashboardPage"));
+const DashboardPage = lazy(
+  () => import("@features/dashboard/pages/DashboardPage"),
+);
 const MemberManagementPage = lazy(
-  () => import("@features/member/MemberManagementPage")
+  () => import("@features/member/MemberManagementPage"),
 );
 const CentersPage = lazy(() => import("@features/centers/pages/CentersPage"));
 const CollectionsPage = lazy(
-  () => import("@features/collections/pages/CollectionsPage")
+  () => import("@features/collections/pages/CollectionsPage"),
 );
 const PortfolioPage = lazy(
-  () => import("@features/portfolio/pages/PortfolioPage")
+  () => import("@features/portfolio/pages/PortfolioPage"),
 );
 const TransactionHistoryPage = lazy(
-  () => import("@features/transactions/pages/TransactionHistoryPage")
+  () => import("@features/transactions/pages/TransactionHistoryPage"),
 );
 const UserManagementPage = lazy(
-  () => import("@features/users/pages/UserManagementPage")
+  () => import("@features/users/pages/UserManagementPage"),
 );
 const RepaymentApprovalsPage = lazy(
-  () => import("@features/repayments/pages/RepaymentApprovalsPage")
+  () => import("@features/repayments/pages/RepaymentApprovalsPage"),
 );
 const LoanWaiversPage = lazy(
-  () => import("@features/loans/pages/LoanWaiversPage")
+  () => import("@features/loans/pages/LoanWaiversPage"),
 );
 
 export default function AppRouter() {
@@ -38,7 +37,7 @@ export default function AppRouter() {
   const role = useAuthStore((state) => state.user?.role);
   const isInitialized = useAuthStore((state) => state.isInitialized);
   const defaultAuthenticatedRoute = getDefaultRouteForRole(role);
-  const renderProtectedRoute = (path: string, element: JSX.Element) => {
+  const renderProtectedRoute = (path: string, element: ReactElement) => {
     if (!token) {
       return <Navigate to="/login" />;
     }
@@ -54,12 +53,18 @@ export default function AppRouter() {
       <Routes>
         <Route
           path="/"
-          element={<Navigate to={token ? defaultAuthenticatedRoute : "/login"} />}
+          element={
+            <Navigate to={token ? defaultAuthenticatedRoute : "/login"} />
+          }
         />
         <Route
           path="/login"
           element={
-            token ? <Navigate to={defaultAuthenticatedRoute} replace /> : <LoginPage />
+            token ? (
+              <Navigate to={defaultAuthenticatedRoute} replace />
+            ) : (
+              <LoginPage />
+            )
           }
         />
         <Route
@@ -70,7 +75,7 @@ export default function AppRouter() {
           path="/member-management"
           element={renderProtectedRoute(
             "/member-management",
-            <MemberManagementPage />
+            <MemberManagementPage />,
           )}
         />
         <Route
@@ -89,7 +94,7 @@ export default function AppRouter() {
           path="/transactions"
           element={renderProtectedRoute(
             "/transactions",
-            <TransactionHistoryPage />
+            <TransactionHistoryPage />,
           )}
         />
         <Route
@@ -98,7 +103,10 @@ export default function AppRouter() {
         />
         <Route
           path="/approvals"
-          element={renderProtectedRoute("/approvals", <RepaymentApprovalsPage />)}
+          element={renderProtectedRoute(
+            "/approvals",
+            <RepaymentApprovalsPage />,
+          )}
         />
         <Route
           path="/waivers"

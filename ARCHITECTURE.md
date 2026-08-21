@@ -439,7 +439,7 @@ Route map:
 - `/admin/users` -> user management (admin)
 - `/dashboard` -> manager dashboard
 - `/approvals` -> collection approval queue (manager)
-- `/waivers` -> loan waivers (manager)
+- `/waivers` -> charge monitoring, charge ledger history, manual sweep, and loan waivers (manager)
 - `/collections` -> cashier collection operations
 - `/member-management` and `/centers` -> loan processor core setup
 

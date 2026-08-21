@@ -20,12 +20,20 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { History, Percent, Refresh } from "@mui/icons-material";
+import {
+  History,
+  Percent,
+  PlayArrow,
+  ReceiptLong,
+  Refresh,
+} from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
+import LoanChargeLedgerDialog from "../components/LoanChargeLedgerDialog";
 import { LoansAPI } from "../api";
 import type {
   ApplyLoanWaiverPayload,
+  LoanChargeBreakdown,
   LoanWaiver,
   LoanWaiverCandidate,
 } from "../types";
@@ -71,6 +79,19 @@ export default function LoanWaiversPage() {
     target: null,
     rows: [],
   });
+  const [chargeState, setChargeState] = useState<{
+    open: boolean;
+    loading: boolean;
+    target: LoanWaiverCandidate | null;
+    breakdown: LoanChargeBreakdown | null;
+  }>({
+    open: false,
+    loading: false,
+    target: null,
+    breakdown: null,
+  });
+  const [sweepConfirmOpen, setSweepConfirmOpen] = useState(false);
+  const [sweepRunning, setSweepRunning] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -81,7 +102,7 @@ export default function LoanWaiversPage() {
     (message: string, severity: "success" | "error" = "success") => {
       setSnackbar({ open: true, message, severity });
     },
-    []
+    [],
   );
 
   const fetchCandidates = useCallback(async () => {
@@ -90,7 +111,7 @@ export default function LoanWaiversPage() {
     try {
       const data = await LoansAPI.getWaiverCandidates();
       setCandidates(data);
-    } catch (err) {
+    } catch {
       setError("Failed to load waiver candidates.");
     } finally {
       setLoading(false);
@@ -113,6 +134,20 @@ export default function LoanWaiversPage() {
       );
     });
   }, [candidates, search]);
+
+  const totals = useMemo(
+    () =>
+      candidates.reduce(
+        (summary, entry) => ({
+          pastDueInterest:
+            summary.pastDueInterest + entry.pastDueInterestOutstanding,
+          penalty: summary.penalty + entry.penaltyOutstanding,
+          outstanding: summary.outstanding + entry.totalOutstanding,
+        }),
+        { pastDueInterest: 0, penalty: 0, outstanding: 0 },
+      ),
+    [candidates],
+  );
 
   const closeWaiverDialog = () => {
     setSelected(null);
@@ -140,7 +175,10 @@ export default function LoanWaiversPage() {
     }
 
     if (pastDueInterestWaiver > selected.pastDueInterestOutstanding) {
-      showSnackbar("Past due interest waiver exceeds outstanding amount.", "error");
+      showSnackbar(
+        "Past due interest waiver exceeds outstanding amount.",
+        "error",
+      );
       return;
     }
 
@@ -161,7 +199,7 @@ export default function LoanWaiversPage() {
       showSnackbar("Waiver applied successfully.");
       closeWaiverDialog();
       await fetchCandidates();
-    } catch (err) {
+    } catch {
       showSnackbar("Failed to apply waiver.", "error");
     } finally {
       setSubmitting(false);
@@ -178,9 +216,58 @@ export default function LoanWaiversPage() {
     try {
       const rows = await LoansAPI.getLoanWaivers(entry.id);
       setHistoryState((prev) => ({ ...prev, loading: false, rows }));
-    } catch (err) {
+    } catch {
       setHistoryState((prev) => ({ ...prev, loading: false, rows: [] }));
       showSnackbar("Failed to load waiver history.", "error");
+    }
+  };
+
+  const handleOpenChargeLedger = async (entry: LoanWaiverCandidate) => {
+    setChargeState({
+      open: true,
+      loading: true,
+      target: entry,
+      breakdown: null,
+    });
+    try {
+      const breakdown = await LoansAPI.getChargeBreakdown(entry.id);
+      setChargeState((previous) => ({
+        ...previous,
+        loading: false,
+        breakdown,
+      }));
+    } catch {
+      setChargeState((previous) => ({
+        ...previous,
+        loading: false,
+        breakdown: null,
+      }));
+      showSnackbar("Failed to load charge ledger.", "error");
+    }
+  };
+
+  const handleRunChargeSweep = async () => {
+    setSweepRunning(true);
+    try {
+      const result = await LoansAPI.postChargeSweep();
+      setSweepConfirmOpen(false);
+      await fetchCandidates();
+
+      if (result.failedCount > 0) {
+        showSnackbar(
+          `Charge sweep processed ${result.processedCount} of ${result.scannedCount} loans; ${result.failedCount} failed.`,
+          "error",
+        );
+        return;
+      }
+
+      showSnackbar(
+        `Charge sweep completed for ${result.processedCount} active loans as of ${result.asOfDate}.`,
+      );
+    } catch {
+      showSnackbar("Failed to run charge sweep.", "error");
+    } finally {
+      setSweepRunning(false);
     }
   };
 
@@ -259,6 +346,22 @@ export default function LoanWaiversPage() {
                 }}
               />
               <Button
+                variant="outlined"
+                color="warning"
+                startIcon={<PlayArrow />}
+                disabled={sweepRunning}
+                onClick={() => setSweepConfirmOpen(true)}
+                sx={{
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  textTransform: "none",
+                  fontWeight: 600,
+                }}
+              >
+                Run Charge Sweep
+              </Button>
+              <Button
                 variant="contained"
                 startIcon={<Refresh />}
                 onClick={() => void fetchCandidates()}
@@ -291,6 +394,38 @@ export default function LoanWaiversPage() {
             </Alert>
           </Box>
         )}
+
+        <Box
+          px={3}
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(3, 1fr)",
+            },
+            gap: 2,
+            mb: 3,
+          }}
+        >
+          {[
+            ["Past Due Interest Outstanding", totals.pastDueInterest],
+            ["Penalty Outstanding", totals.penalty],
+            ["Total Charges Outstanding", totals.outstanding],
+          ].map(([label, value]) => (
+            <Paper
+              key={String(label)}
+              variant="outlined"
+              sx={{ p: 2.5, borderRadius: 2 }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                {label}
+              </Typography>
+              <Typography variant="h5" fontWeight={700} color="#1e293b">
+                {formatCurrency(Number(value))}
+              </Typography>
+            </Paper>
+          ))}
+        </Box>
 
         <Box px={3}>
           <Paper
@@ -346,11 +481,20 @@ export default function LoanWaiversPage() {
                           <Button
                             size="small"
                             variant="outlined"
+                            startIcon={<ReceiptLong />}
+                            onClick={() => void handleOpenChargeLedger(entry)}
+                            sx={{ textTransform: "none", fontWeight: 600 }}
+                          >
+                            Ledger
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
                             startIcon={<History />}
                             onClick={() => void handleOpenHistory(entry)}
                             sx={{ textTransform: "none", fontWeight: 600 }}
                           >
-                            History
+                            Waivers
                           </Button>
                           <Button
                             size="small"
@@ -377,8 +521,8 @@ export default function LoanWaiversPage() {
                     <TableRow>
                       <TableCell colSpan={8} align="center">
                         <Typography variant="body2" color="text.secondary">
-                          No loans currently have outstanding penalties or past due
-                          interest to waive.
+                          No loans currently have outstanding penalties or past
+                          due interest to waive.
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -389,7 +533,12 @@ export default function LoanWaiversPage() {
           </Paper>
         </Box>
 
-        <Dialog open={Boolean(selected)} onClose={closeWaiverDialog} maxWidth="sm" fullWidth>
+        <Dialog
+          open={Boolean(selected)}
+          onClose={closeWaiverDialog}
+          maxWidth="sm"
+          fullWidth
+        >
           <DialogTitle>Apply Waiver</DialogTitle>
           <DialogContent>
             <DialogContentText sx={{ mb: 2 }}>
@@ -417,7 +566,8 @@ export default function LoanWaiversPage() {
                   {formatCurrency(selected.pastDueInterestOutstanding)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Available Penalty: {formatCurrency(selected.penaltyOutstanding)}
+                  Available Penalty:{" "}
+                  {formatCurrency(selected.penaltyOutstanding)}
                 </Typography>
               </Box>
             )}
@@ -472,7 +622,8 @@ export default function LoanWaiversPage() {
               sx={{
                 background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                 "&:hover": {
-                  background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                  background:
+                    "linear-gradient(135deg, #059669 0%, #047857 100%)",
                 },
               }}
             >
@@ -484,7 +635,12 @@ export default function LoanWaiversPage() {
         <Dialog
           open={historyState.open}
           onClose={() =>
-            setHistoryState({ open: false, loading: false, target: null, rows: [] })
+            setHistoryState({
+              open: false,
+              loading: false,
+              target: null,
+              rows: [],
+            })
           }
           maxWidth="md"
           fullWidth
@@ -528,15 +684,16 @@ export default function LoanWaiversPage() {
                         <TableCell>{row.reason || "N/A"}</TableCell>
                       </TableRow>
                     ))}
-                    {!historyState.loading && historyState.rows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={5} align="center">
-                          <Typography variant="body2" color="text.secondary">
-                            No waiver history found for this loan.
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    )}
+                    {!historyState.loading &&
+                      historyState.rows.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center">
+                            <Typography variant="body2" color="text.secondary">
+                              No waiver history found for this loan.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -559,6 +716,60 @@ export default function LoanWaiversPage() {
           </DialogActions>
         </Dialog>
 
+        <LoanChargeLedgerDialog
+          open={chargeState.open}
+          loading={chargeState.loading}
+          borrowerName={
+            chargeState.target ? getBorrowerName(chargeState.target) : ""
+          }
+          breakdown={chargeState.breakdown}
+          onClose={() =>
+            setChargeState({
+              open: false,
+              loading: false,
+              target: null,
+              breakdown: null,
+            })
+          }
+        />
+
+        <Dialog
+          open={sweepConfirmOpen}
+          onClose={() => !sweepRunning && setSweepConfirmOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Run Charge Sweep</DialogTitle>
+          <DialogContent>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              This posts all weekly and maturity charges due through today.
+              Ledger entries are auditable and cannot be deleted from this
+              screen.
+            </Alert>
+            <DialogContentText>
+              The operation is idempotent, so repeating today&apos;s sweep will
+              not duplicate existing charges. Continue only after confirming the
+              production effective-date policy.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, gap: 1 }}>
+            <Button
+              disabled={sweepRunning}
+              onClick={() => setSweepConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="warning"
+              disabled={sweepRunning}
+              onClick={() => void handleRunChargeSweep()}
+            >
+              {sweepRunning ? "Processing..." : "Run Sweep"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         <Snackbar
           open={snackbar.open}
           autoHideDuration={4000}
@@ -577,4 +788,3 @@ export default function LoanWaiversPage() {
     </DashboardLayout>
   );
 }
-
