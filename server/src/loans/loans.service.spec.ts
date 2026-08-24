@@ -12,6 +12,9 @@ import {
   LoanChargeLedgerEventType,
   LoanChargeType,
 } from './entities/loan-charge-ledger.entity';
+import { Repayment } from '../repayments/repayment.entity';
+import { BusinessTimeService } from '../common/business-time/business-time.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('LoansService', () => {
   let service: LoansService;
@@ -29,9 +32,16 @@ describe('LoansService', () => {
     save: jest.Mock;
   };
   let ledgerEntries: LoanChargeLedger[];
+  let pendingRepayments: Repayment[];
+  let waiverRepository: { create: jest.Mock; save: jest.Mock };
 
   beforeEach(async () => {
     ledgerEntries = [];
+    pendingRepayments = [];
+    waiverRepository = {
+      create: jest.fn((waiver) => waiver),
+      save: jest.fn(async (waiver) => ({ id: 'waiver-1', ...waiver })),
+    };
     loanRepository = {
       findOne: jest.fn(),
       save: jest.fn(async (loan) => loan),
@@ -99,10 +109,22 @@ describe('LoansService', () => {
           provide: getRepositoryToken(LoanRepaymentSchedule),
           useValue: scheduleRepository,
         },
-        { provide: getRepositoryToken(LoanWaiver), useValue: {} },
+        {
+          provide: getRepositoryToken(LoanWaiver),
+          useValue: waiverRepository,
+        },
         {
           provide: getRepositoryToken(LoanChargeLedger),
           useValue: chargeLedgerRepository,
+        },
+        {
+          provide: getRepositoryToken(Repayment),
+          useValue: { find: jest.fn(async () => pendingRepayments) },
+        },
+        BusinessTimeService,
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'Asia/Manila') },
         },
       ],
     }).compile();
@@ -187,14 +209,14 @@ describe('LoansService', () => {
       },
     );
 
-    it('posts one penalty for a partially paid installment at Friday cutoff', async () => {
+    it('posts one penalty at Saturday cutoff, not during Friday', async () => {
       const loan = createLoan();
       const schedules = [
         {
           id: 'schedule-1',
           loanId: loan.id,
           weekNumber: 1,
-          dueDate: '2026-08-02',
+          dueDate: '2026-08-23',
           amountDue: 900,
           amountPaid: 500,
           principalDue: 800,
@@ -204,7 +226,7 @@ describe('LoansService', () => {
           id: 'schedule-2',
           loanId: loan.id,
           weekNumber: 2,
-          dueDate: '2026-08-09',
+          dueDate: '2026-08-30',
           amountDue: 900,
           amountPaid: 0,
           principalDue: 800,
@@ -214,7 +236,7 @@ describe('LoansService', () => {
           id: 'schedule-3',
           loanId: loan.id,
           weekNumber: 3,
-          dueDate: '2026-08-16',
+          dueDate: '2026-09-06',
           amountDue: 1_500,
           amountPaid: 0,
           principalDue: 1_400,
@@ -224,11 +246,24 @@ describe('LoansService', () => {
       loanRepository.findOne.mockResolvedValue(loan);
       scheduleRepository.find.mockResolvedValue(schedules);
 
-      await service.postOverdueChargesForLoan(loan.id, '2026-08-06');
+      await service.postOverdueChargesForLoan(
+        loan.id,
+        '2026-08-28T15:59:59Z',
+      );
       expect(ledgerEntries).toHaveLength(0);
 
-      await service.postOverdueChargesForLoan(loan.id, '2026-08-07');
-      await service.postOverdueChargesForLoan(loan.id, '2026-08-07');
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-28');
+      expect(ledgerEntries).toHaveLength(0);
+
+      await service.postOverdueChargesForLoan(
+        loan.id,
+        '2026-08-28T16:00:00Z',
+      );
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-29');
+      await service.postOverdueChargesForLoan(
+        loan.id,
+        '2026-08-28T16:00:01Z',
+      );
 
       expect(ledgerEntries).toHaveLength(1);
       expect(ledgerEntries[0]).toMatchObject({
@@ -236,10 +271,152 @@ describe('LoansService', () => {
         chargeType: LoanChargeType.PENALTY,
         eventType: LoanChargeLedgerEventType.ACCRUAL,
         amount: 50,
-        periodStart: '2026-08-07',
-        periodEnd: '2026-08-07',
+        periodStart: '2026-08-29',
+        periodEnd: '2026-08-29',
       });
       expect(loan.penaltyAccrued).toBe(50);
+    });
+
+    it('does not penalize an installment fully paid before cutoff', async () => {
+      const loan = createLoan();
+      loanRepository.findOne.mockResolvedValue(loan);
+      scheduleRepository.find.mockResolvedValue([
+        {
+          id: 'schedule-1',
+          dueDate: '2026-08-23',
+          amountDue: 1_000,
+          amountPaid: 1_000,
+        },
+        {
+          id: 'schedule-2',
+          dueDate: '2026-08-30',
+          amountDue: 1_000,
+          amountPaid: 0,
+        },
+      ] as LoanRepaymentSchedule[]);
+
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-29');
+
+      expect(ledgerEntries).toHaveLength(0);
+    });
+
+    it('penalizes an installment that remains partially paid at cutoff', async () => {
+      const loan = createLoan();
+      loanRepository.findOne.mockResolvedValue(loan);
+      scheduleRepository.find.mockResolvedValue([
+        {
+          id: 'schedule-1',
+          dueDate: '2026-08-23',
+          amountDue: 1_000,
+          amountPaid: 700,
+        },
+        {
+          id: 'schedule-2',
+          dueDate: '2026-08-30',
+          amountDue: 1_000,
+          amountPaid: 0,
+        },
+      ] as LoanRepaymentSchedule[]);
+
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-29');
+
+      expect(ledgerEntries).toHaveLength(1);
+    });
+
+    it('projects multiple pending Friday payments toward the cutoff', async () => {
+      const loan = createLoan();
+      loanRepository.findOne.mockResolvedValue(loan);
+      scheduleRepository.find.mockResolvedValue([
+        {
+          id: 'schedule-1',
+          dueDate: '2026-08-23',
+          amountDue: 1_000,
+          amountPaid: 0,
+        },
+        {
+          id: 'schedule-2',
+          dueDate: '2026-08-30',
+          amountDue: 1_000,
+          amountPaid: 0,
+        },
+      ] as LoanRepaymentSchedule[]);
+      pendingRepayments = [400, 600].map(
+        (amount, index) =>
+          ({
+            id: `repayment-${index}`,
+            amount,
+            collectionDate: '2026-08-28',
+            createdAt: new Date(`2026-08-28T1${index}:00:00Z`),
+          }) as Repayment,
+      );
+
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-29');
+
+      expect(ledgerEntries).toHaveLength(0);
+    });
+
+    it('penalizes when multiple pending Friday payments remain insufficient', async () => {
+      const loan = createLoan();
+      loanRepository.findOne.mockResolvedValue(loan);
+      scheduleRepository.find.mockResolvedValue([
+        {
+          id: 'schedule-1',
+          dueDate: '2026-08-23',
+          amountDue: 1_000,
+          amountPaid: 0,
+        },
+        {
+          id: 'schedule-2',
+          dueDate: '2026-08-30',
+          amountDue: 1_000,
+          amountPaid: 0,
+        },
+      ] as LoanRepaymentSchedule[]);
+      pendingRepayments = [400, 500].map(
+        (amount, index) =>
+          ({
+            id: `repayment-${index}`,
+            amount,
+            collectionDate: '2026-08-28',
+            createdAt: new Date(`2026-08-28T1${index}:00:00Z`),
+          }) as Repayment,
+      );
+
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-29');
+
+      expect(ledgerEntries).toHaveLength(1);
+    });
+
+    it('projects an existing savings-backed Friday payment before cutoff', async () => {
+      const loan = createLoan({ weeklyPaymentAmount: 1_000, savings: 300 });
+      loanRepository.findOne.mockResolvedValue(loan);
+      scheduleRepository.find.mockResolvedValue([
+        {
+          id: 'schedule-1',
+          dueDate: '2026-08-23',
+          amountDue: 1_000,
+          amountPaid: 0,
+        },
+        {
+          id: 'schedule-2',
+          dueDate: '2026-08-30',
+          amountDue: 1_000,
+          amountPaid: 0,
+        },
+      ] as LoanRepaymentSchedule[]);
+      pendingRepayments = [
+        {
+          id: 'repayment-1',
+          amount: 700,
+          useSavings: true,
+          collectionDate: '2026-08-28',
+          createdAt: new Date('2026-08-28T15:00:00Z'),
+        } as Repayment,
+      ];
+
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-29');
+
+      expect(ledgerEntries).toHaveLength(0);
     });
 
     it('replaces weekly penalties with maturity charges based on remaining principal', async () => {
@@ -320,6 +497,45 @@ describe('LoansService', () => {
       expect(loan.pastDueInterestAccrued).toBe(10);
     });
 
+    it('starts maturity on the following Manila business date for every instant path', async () => {
+      const loan = createLoan({ termWeeks: 1 });
+      loanRepository.findOne.mockResolvedValue(loan);
+      scheduleRepository.find.mockResolvedValue([
+        {
+          id: 'schedule-1',
+          loanId: loan.id,
+          weekNumber: 1,
+          dueDate: '2026-08-30',
+          amountDue: 3_300,
+          amountPaid: 0,
+          principalDue: 3_000,
+          interestDue: 300,
+        },
+      ] as LoanRepaymentSchedule[]);
+
+      await service.postOverdueChargesForLoan(
+        loan.id,
+        '2026-08-30T15:59:59Z',
+      );
+      expect(ledgerEntries).toHaveLength(0);
+
+      await service.postOverdueChargesForLoan(
+        loan.id,
+        '2026-08-30T16:00:00Z',
+      );
+
+      expect(
+        ledgerEntries.filter(
+          (entry) => entry.chargeType === LoanChargeType.PENALTY,
+        ),
+      ).toHaveLength(1);
+      expect(
+        ledgerEntries.filter(
+          (entry) => entry.chargeType === LoanChargeType.PAST_DUE_INTEREST,
+        ),
+      ).toHaveLength(1);
+    });
+
     it('allocates penalty then past-due interest before principal and records reversible ledger entries', async () => {
       const loan = createLoan({
         principalAmount: 500,
@@ -367,6 +583,27 @@ describe('LoansService', () => {
             entry.eventType === LoanChargeLedgerEventType.PAYMENT_REVERSAL,
         ),
       ).toHaveLength(2);
+    });
+
+    it('preserves penalty and past-due-interest waiver accounting', async () => {
+      const loan = createLoan({
+        balance: 3_450,
+        penaltyAccrued: 100,
+        pastDueInterestAccrued: 50,
+      });
+      loanRepository.findOne.mockResolvedValue(loan);
+
+      const result = await service.applyWaiver(
+        loan.id,
+        { penaltyWaiver: 40, pastDueInterestWaiver: 20 },
+        'manager-1',
+      );
+
+      expect(loan.penaltyWaived).toBe(40);
+      expect(loan.pastDueInterestWaived).toBe(20);
+      expect(result.penaltyOutstanding).toBe(60);
+      expect(result.pastDueInterestOutstanding).toBe(30);
+      expect(waiverRepository.save).toHaveBeenCalledTimes(1);
     });
   });
 });

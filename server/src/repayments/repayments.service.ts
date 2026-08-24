@@ -31,6 +31,7 @@ import {
   CollectionBatch,
   CollectionBatchStatus,
 } from './entities/collection-batch.entity';
+import { BusinessTimeService } from '../common/business-time/business-time.service';
 
 export interface PendingRepaymentCollectionGroup {
   batchId: string | null;
@@ -84,6 +85,7 @@ export class RepaymentsService implements OnModuleInit {
     @InjectRepository(CollectionBatch)
     private readonly collectionBatchRepo: Repository<CollectionBatch>,
     private readonly loansService: LoansService,
+    private readonly businessTime: BusinessTimeService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -184,14 +186,7 @@ export class RepaymentsService implements OnModuleInit {
   }
 
   private normalizeCollectionDate(collectionDate?: string): string {
-    if (collectionDate) {
-      const parsed = new Date(collectionDate);
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed.toISOString().split('T')[0];
-      }
-    }
-    const today = new Date();
-    return today.toISOString().split('T')[0];
+    return this.businessTime.toBusinessDate(collectionDate);
   }
 
   private isUniqueConstraintError(error: unknown): boolean {
@@ -460,18 +455,17 @@ export class RepaymentsService implements OnModuleInit {
   }
 
   private parseDate(date: string): Date {
-    const [year, month, day] = date.split('-').map((value) => Number(value));
-    return new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1));
+    return this.businessTime.calendarDateToDate(date);
   }
 
   private addDays(date: Date, days: number): Date {
-    const clone = new Date(date.getTime());
-    clone.setUTCDate(clone.getUTCDate() + days);
-    return clone;
+    return this.businessTime.calendarDateToDate(
+      this.businessTime.addCalendarDays(this.formatDate(date), days),
+    );
   }
 
   private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+    return this.businessTime.dateToCalendarDate(date);
   }
 
   private getWeekdayIndex(day: string | null | undefined): number {
@@ -489,14 +483,8 @@ export class RepaymentsService implements OnModuleInit {
   }
 
   private normalizeDate(input: Date | string | null | undefined): Date {
-    const raw =
-      typeof input === 'string'
-        ? new Date(input)
-        : input instanceof Date
-          ? new Date(input.getTime())
-          : new Date();
-    return new Date(
-      Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate()),
+    return this.businessTime.calendarDateToDate(
+      this.businessTime.toBusinessDate(input),
     );
   }
 
@@ -514,7 +502,9 @@ export class RepaymentsService implements OnModuleInit {
     if (targetIndex < 0) {
       return baseDate;
     }
-    const currentIndex = baseDate.getUTCDay();
+    const currentIndex = this.businessTime.calendarDayOfWeek(
+      this.formatDate(baseDate),
+    );
     let delta = (targetIndex - currentIndex + 7) % 7;
     // If the loan is created on the collection day, push first due date to the next week
     if (delta === 0) {
@@ -607,7 +597,7 @@ export class RepaymentsService implements OnModuleInit {
     const dueAmount = Number(schedule.amountDue || 0);
     const paidAmount = Number(schedule.amountPaid || 0);
     if (paidAmount >= dueAmount - epsilon) {
-      const dueDate = new Date(`${schedule.dueDate}T00:00:00Z`);
+      const dueDate = this.businessTime.calendarDateToDate(schedule.dueDate);
       if (dueDate.getTime() > paymentDate.getTime()) {
         return LoanRepaymentStatus.ADVANCE;
       }
@@ -678,7 +668,7 @@ export class RepaymentsService implements OnModuleInit {
       );
       schedule.amountPaid = Number((paid + applied).toFixed(2));
       const statusDate = paymentDate ?? schedule.dueDate;
-      const paymentDateObj = new Date(`${statusDate}T00:00:00Z`);
+      const paymentDateObj = this.businessTime.calendarDateToDate(statusDate);
       schedule.status = this.resolveScheduleStatus(schedule, paymentDateObj);
       touched.set(schedule.id, schedule);
       allocations.set(

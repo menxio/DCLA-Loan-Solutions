@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { LoansService } from './loans.service';
+import { BusinessTimeService } from '../common/business-time/business-time.service';
 
 @Injectable()
 export class LoanChargeSchedulerService implements OnModuleInit {
@@ -14,6 +15,7 @@ export class LoanChargeSchedulerService implements OnModuleInit {
     private readonly loansService: LoansService,
     private readonly configService: ConfigService,
     private readonly schedulerRegistry: SchedulerRegistry,
+    private readonly businessTime: BusinessTimeService,
   ) {}
 
   onModuleInit(): void {
@@ -26,8 +28,7 @@ export class LoanChargeSchedulerService implements OnModuleInit {
 
     const cronTime =
       this.configService.get<string>('LOAN_CHARGE_CRON') ?? '0 0 * * *';
-    const timeZone =
-      this.configService.get<string>('APP_TIME_ZONE') ?? 'Asia/Manila';
+    const timeZone = this.businessTime.timeZone;
     const job = CronJob.from({
       cronTime,
       onTick: () => this.postDueCharges(),
@@ -52,10 +53,7 @@ export class LoanChargeSchedulerService implements OnModuleInit {
     }
 
     this.running = true;
-    const asOfDate = this.getDateInTimeZone(
-      new Date(),
-      this.configService.get<string>('APP_TIME_ZONE') ?? 'Asia/Manila',
-    );
+    const asOfDate = this.businessTime.currentBusinessDate();
 
     try {
       const result =
@@ -77,17 +75,5 @@ export class LoanChargeSchedulerService implements OnModuleInit {
     } finally {
       this.running = false;
     }
-  }
-
-  private getDateInTimeZone(date: Date, timeZone: string): string {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(date);
-    const values = new Map(parts.map((part) => [part.type, part.value]));
-
-    return `${values.get('year')}-${values.get('month')}-${values.get('day')}`;
   }
 }

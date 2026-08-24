@@ -1,4 +1,5 @@
 import type { MemberWithLoans } from "../types";
+import { businessDateToUtcDate } from "@utils/businessDate";
 
 const NET_RELEASE_WINDOW_DAYS = 7;
 
@@ -13,14 +14,10 @@ type LoanLike = MemberWithLoans["loans"][number] & {
 
 const normalizeDate = (value?: string | Date | null): Date | null => {
   if (!value) return null;
-  const date =
-    value instanceof Date
-      ? new Date(value.getTime())
-      : new Date(`${value}`.replace(/Z?$/, "Z"));
+  const date = businessDateToUtcDate(value);
   if (Number.isNaN(date.getTime())) {
     return null;
   }
-  date.setHours(0, 0, 0, 0);
   return date;
 };
 
@@ -52,7 +49,9 @@ export const computeNetReleaseForDate = (
     }
 
     const windowEnd = new Date(releaseDate.getTime());
-    windowEnd.setDate(windowEnd.getDate() + (NET_RELEASE_WINDOW_DAYS - 1));
+    windowEnd.setUTCDate(
+      windowEnd.getUTCDate() + (NET_RELEASE_WINDOW_DAYS - 1)
+    );
     if (reference.getTime() > windowEnd.getTime()) {
       return sum;
     }

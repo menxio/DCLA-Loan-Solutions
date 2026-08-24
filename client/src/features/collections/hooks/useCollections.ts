@@ -4,11 +4,9 @@ import type {
   DailyCollectionGroup,
   CollectionFormData,
 } from "../types.ts";
+import { getBusinessDate } from "@utils/businessDate";
 
 type LoadingKey = "daily" | "all" | "update";
-
-const getLocalISODate = (date: Date) =>
-  date.toLocaleDateString("en-CA");
 
 export function useCollections() {
   const [dailyCollections, setDailyCollections] = useState<
@@ -26,10 +24,8 @@ export function useCollections() {
 
   const [error, setError] = useState<string | null>(null);
 
-  const [dailyDate] = useState<string>(() => getLocalISODate(new Date()));
-  const [allDate, setAllDate] = useState<string>(() =>
-    getLocalISODate(new Date())
-  );
+  const [dailyDate] = useState<string>(() => getBusinessDate());
+  const [allDate, setAllDate] = useState<string>(() => getBusinessDate());
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 

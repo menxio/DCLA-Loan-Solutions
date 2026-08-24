@@ -47,6 +47,7 @@ import {
   type MemberStatusResult,
 } from "../utils/memberStatus";
 import { withNetReleaseForDate } from "../utils/netRelease";
+import { businessDateToUtcDate } from "@utils/businessDate";
 
 type MemberLoan = MemberWithLoans["loans"][number] & {
   weeksPaid?: number;
@@ -328,7 +329,7 @@ export default function CollectionDetailsModal({
 
   const referenceDate = useMemo(() => {
     if (!collectionGroup?.collectionDate) return null;
-    return new Date(`${collectionGroup.collectionDate}T00:00:00Z`);
+    return businessDateToUtcDate(collectionGroup.collectionDate);
   }, [collectionGroup?.collectionDate]);
 
   const getMemberStatusInfo = useCallback(

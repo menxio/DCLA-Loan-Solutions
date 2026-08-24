@@ -14,6 +14,7 @@ import type {
   LoanRepaymentScheduleRow,
   UpdateLoanTermData,
 } from "./types";
+import { localDateSelectionToBusinessDate } from "@utils/businessDate";
 
 export const LoansAPI = {
   getAll: async (): Promise<Loan[]> => {
@@ -35,12 +36,24 @@ export const LoansAPI = {
   },
 
   create: async (data: CreateLoanData): Promise<Loan> => {
-    const res = await api.post("/loans", data);
+    const res = await api.post("/loans", {
+      ...data,
+      loanCreatedDate:
+        data.loanCreatedDate instanceof Date
+          ? localDateSelectionToBusinessDate(data.loanCreatedDate)
+          : data.loanCreatedDate,
+    });
     return res.data;
   },
 
   update: async (id: string, data: Partial<CreateLoanData>): Promise<Loan> => {
-    const res = await api.patch(`/loans/${id}`, data);
+    const res = await api.patch(`/loans/${id}`, {
+      ...data,
+      loanCreatedDate:
+        data.loanCreatedDate instanceof Date
+          ? localDateSelectionToBusinessDate(data.loanCreatedDate)
+          : data.loanCreatedDate,
+    });
     return res.data;
   },
 

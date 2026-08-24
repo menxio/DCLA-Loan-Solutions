@@ -30,6 +30,12 @@ import {
   calculatePastDueInterest,
   calculatePenalty,
 } from './loan-charge-calculations.utils';
+import { BusinessTimeService } from '../common/business-time/business-time.service';
+import {
+  Repayment,
+  RepaymentOperationType,
+  RepaymentStatus,
+} from '../repayments/repayment.entity';
 
 export interface ApplyRepaymentWithChargesResult {
   loan: Loan;
@@ -76,6 +82,9 @@ export class LoansService {
     private readonly loanWaiverRepository: Repository<LoanWaiver>,
     @InjectRepository(LoanChargeLedger)
     private readonly loanChargeLedgerRepository: Repository<LoanChargeLedger>,
+    @InjectRepository(Repayment)
+    private readonly repaymentRepository: Repository<Repayment>,
+    private readonly businessTime: BusinessTimeService,
   ) {}
 
   // Business logic for interest rates
@@ -236,7 +245,9 @@ export class LoansService {
       amountPaid: 0,
       advancePaymentBuffer: 0,
       status: 'active',
-      loanCreatedDate: loanCreatedDate ? new Date(loanCreatedDate) : new Date(),
+      loanCreatedDate: this.businessTime.calendarDateToDate(
+        this.businessTime.toBusinessDate(loanCreatedDate),
+      ),
     });
 
     // Compute net cash released for all loans: principal - fee - savings (never below 0)
@@ -633,11 +644,95 @@ export class LoansService {
     );
   }
 
-  private getFridayCutoffDate(dueDate: Date): Date {
+  private getWeeklyPenaltyCutoffDate(dueDate: Date): Date {
     const fridayIndex = 5;
-    const currentIndex = dueDate.getUTCDay();
+    const currentIndex = this.businessTime.calendarDayOfWeek(
+      this.formatDate(dueDate),
+    );
     const delta = (fridayIndex - currentIndex + 7) % 7;
-    return this.addDays(dueDate, delta);
+    return this.addDays(dueDate, delta + 1);
+  }
+
+  private async getProjectedPaidAtCutoffBySchedule(
+    loan: Loan,
+    schedules: LoanRepaymentSchedule[],
+  ): Promise<Map<string, number>> {
+    const paidAtCutoff = new Map(
+      schedules.map((schedule) => [
+        schedule.id,
+        Number(schedule.amountPaid || 0),
+      ]),
+    );
+    const projectedPaid = new Map(paidAtCutoff);
+    const pendingRepayments = await this.repaymentRepository.find({
+      where: {
+        loan: { id: loan.id },
+        status: RepaymentStatus.PENDING,
+        operationType: RepaymentOperationType.PAYMENT,
+      },
+      order: { collectionDate: 'ASC', createdAt: 'ASC' },
+    });
+
+    let pendingChargeAllocation =
+      this.getChargeOutstandingBuckets(loan).totalOutstanding;
+    let projectedRegularOutstanding = this.getRegularOutstanding(loan);
+    let projectedSavings = Number(loan.savings || 0);
+    const weeklyPaymentAmount = Number(loan.weeklyPaymentAmount || 0);
+    for (const repayment of pendingRepayments) {
+      const effectiveDate = this.businessTime.toBusinessDate(
+        repayment.collectionDate ?? repayment.createdAt,
+      );
+      const cashAmount = Math.max(0, Number(repayment.amount || 0));
+      const expectedRegularPayment =
+        weeklyPaymentAmount > 0
+          ? Math.min(weeklyPaymentAmount, projectedRegularOutstanding)
+          : projectedRegularOutstanding;
+      const savingsUsed = repayment.useSavings
+        ? Math.min(
+            Math.max(0, expectedRegularPayment - cashAmount),
+            projectedSavings,
+          )
+        : 0;
+      projectedSavings -= savingsUsed;
+      let remaining = cashAmount + savingsUsed;
+      const chargeApplied = Math.min(pendingChargeAllocation, remaining);
+      pendingChargeAllocation -= chargeApplied;
+      remaining -= chargeApplied;
+
+      let regularApplied = 0;
+      for (const schedule of schedules) {
+        if (remaining <= 0) break;
+        const currentProjected = projectedPaid.get(schedule.id) ?? 0;
+        const shortfall = Math.max(
+          0,
+          Number(schedule.amountDue || 0) - currentProjected,
+        );
+        const applied = Math.min(shortfall, remaining);
+        projectedPaid.set(schedule.id, currentProjected + applied);
+        remaining -= applied;
+        regularApplied += applied;
+
+        const dueDate = this.normalizeDate(`${schedule.dueDate}T00:00:00Z`);
+        const cutoffDate = this.getWeeklyPenaltyCutoffDate(dueDate);
+        if (
+          this.businessTime.compareCalendarDates(
+            effectiveDate,
+            this.formatDate(cutoffDate),
+          ) < 0
+        ) {
+          paidAtCutoff.set(
+            schedule.id,
+            (paidAtCutoff.get(schedule.id) ?? 0) + applied,
+          );
+        }
+      }
+      projectedRegularOutstanding = Math.max(
+        0,
+        projectedRegularOutstanding - regularApplied,
+      );
+    }
+
+    return paidAtCutoff;
   }
 
   private getWeeklyPenaltyAmount(weeklyPaymentAmount: number): number {
@@ -767,7 +862,7 @@ export class LoansService {
 
   async postOverdueChargesForLoan(
     loanId: string,
-    asOfDateInput: Date | string,
+    asOfDateInput?: Date | string,
     sourceRepaymentId?: string,
   ): Promise<Loan> {
     const loan = await this.findOne(loanId);
@@ -802,11 +897,13 @@ export class LoansService {
       const weeklyPenaltyAmount = this.getWeeklyPenaltyAmount(
         Number(loan.weeklyPaymentAmount || 0),
       );
+      const projectedPaidAtCutoff =
+        await this.getProjectedPaidAtCutoffBySchedule(loan, schedules);
       const weeklyPenaltySchedules = schedules.filter((schedule) => {
         const dueDate = this.normalizeDate(`${schedule.dueDate}T00:00:00Z`);
-        const cutoffDate = this.getFridayCutoffDate(dueDate);
+        const cutoffDate = this.getWeeklyPenaltyCutoffDate(dueDate);
         const amountDue = Number(schedule.amountDue || 0);
-        const amountPaid = Number(schedule.amountPaid || 0);
+        const amountPaid = projectedPaidAtCutoff.get(schedule.id) ?? 0;
 
         return (
           schedule.id !== lastSchedule.id &&
@@ -817,7 +914,7 @@ export class LoansService {
 
       for (const schedule of weeklyPenaltySchedules) {
         const dueDate = this.normalizeDate(`${schedule.dueDate}T00:00:00Z`);
-        const cutoffDate = this.getFridayCutoffDate(dueDate);
+        const cutoffDate = this.getWeeklyPenaltyCutoffDate(dueDate);
         const cutoffDateString = this.formatDate(cutoffDate);
         const entry = await this.createLedgerEntry({
           loanId: loan.id,
@@ -954,7 +1051,7 @@ export class LoansService {
   }
 
   async postOverdueChargesForActiveLoans(
-    asOfDateInput: Date | string,
+    asOfDateInput?: Date | string,
   ): Promise<LoanChargeSweepResult> {
     const asOfDate = this.formatDate(this.normalizeDate(asOfDateInput));
     const activeLoans = await this.loanRepository.find({
@@ -1400,25 +1497,19 @@ export class LoansService {
   }
 
   private normalizeDate(input: Date | string | null | undefined): Date {
-    const raw =
-      typeof input === 'string'
-        ? new Date(input)
-        : input instanceof Date
-          ? new Date(input.getTime())
-          : new Date();
-    return new Date(
-      Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate()),
+    return this.businessTime.calendarDateToDate(
+      this.businessTime.toBusinessDate(input),
     );
   }
 
   private addDays(date: Date, days: number): Date {
-    const clone = new Date(date.getTime());
-    clone.setUTCDate(clone.getUTCDate() + days);
-    return clone;
+    return this.businessTime.calendarDateToDate(
+      this.businessTime.addCalendarDays(this.formatDate(date), days),
+    );
   }
 
   private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+    return this.businessTime.dateToCalendarDate(date);
   }
 
   private getWeekdayIndex(day: string | null | undefined): number {
@@ -1443,7 +1534,9 @@ export class LoansService {
     const base = this.normalizeDate(fromDate);
     const targetIndex = this.getWeekdayIndex(collectionDay);
     if (targetIndex < 0) return base;
-    const currentIndex = base.getUTCDay();
+    const currentIndex = this.businessTime.calendarDayOfWeek(
+      this.formatDate(base),
+    );
     let delta = (targetIndex - currentIndex + 7) % 7;
     if (delta === 0 && skipIfSameWeek) {
       delta = 7;
@@ -1465,7 +1558,9 @@ export class LoansService {
     if (targetIndex < 0) {
       return baseDate;
     }
-    const currentIndex = baseDate.getUTCDay();
+    const currentIndex = this.businessTime.calendarDayOfWeek(
+      this.formatDate(baseDate),
+    );
     let delta = (targetIndex - currentIndex + 7) % 7;
     // If loan is created on the collection day, first due is the following week
     if (delta === 0) {
@@ -1483,7 +1578,7 @@ export class LoansService {
     const paidAmount = Number(schedule.amountPaid || 0);
 
     if (paidAmount >= dueAmount - epsilon) {
-      const dueDate = new Date(`${schedule.dueDate}T00:00:00Z`);
+      const dueDate = this.businessTime.calendarDateToDate(schedule.dueDate);
       if (dueDate.getTime() > paymentDate.getTime()) {
         return LoanRepaymentStatus.ADVANCE;
       }

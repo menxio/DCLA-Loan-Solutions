@@ -17,6 +17,7 @@ import {
   Button,
 } from "@mui/material";
 import type { LoanChargeBreakdown, LoanChargeLedgerEntry } from "../types";
+import { formatManilaDateTime } from "@utils/businessDate";
 
 interface LoanChargeLedgerDialogProps {
   open: boolean;
@@ -32,12 +33,7 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   })}`;
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) return "N/A";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-};
+const formatDateTime = formatManilaDateTime;
 
 const getChargeLabel = (entry: LoanChargeLedgerEntry) =>
   entry.chargeType === "past_due_interest"

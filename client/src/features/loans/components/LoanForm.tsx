@@ -21,6 +21,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { Add, Calculate } from "@mui/icons-material";
 import type { LoanFormData, LoanCalculation } from "../types";
 import { calculateLoanDetails, formatCurrency, formatPercentage } from "../utils/loanCalculations";
+import { businessDateToLocalDate } from "@utils/businessDate";
 
 interface LoanFormProps {
   memberId: string;
@@ -42,7 +43,7 @@ export default function LoanForm({
     principalAmount: 0,
     termWeeks: 8,
     savings: undefined,
-    loanCreatedDate: new Date(),
+    loanCreatedDate: businessDateToLocalDate(new Date()),
   });
 
   const [calculation, setCalculation] = useState<LoanCalculation | null>(null);
@@ -330,7 +331,10 @@ export default function LoanForm({
                   onChange={(e) => {
                     setUseCustomDate(e.target.checked);
                     if (!e.target.checked) {
-                      setFormData(prev => ({ ...prev, loanCreatedDate: new Date() }));
+                      setFormData(prev => ({
+                        ...prev,
+                        loanCreatedDate: businessDateToLocalDate(new Date()),
+                      }));
                     }
                   }}
                   disabled={loading}

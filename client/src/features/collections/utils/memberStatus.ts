@@ -1,4 +1,5 @@
 import type { Collection, MemberWithLoans } from "../types";
+import { businessDateToUtcDate } from "@utils/businessDate";
 
 type StatusLabel = "PAID" | "PARTIAL" | "UNPAID" | "PENDING";
 type StatusColor = "success" | "warning" | "error";
@@ -40,15 +41,7 @@ const EPSILON = 0.01;
 const MS_IN_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 const normalizeReferenceDate = (reference?: string | Date | null): Date => {
-  if (!reference) return new Date();
-  if (reference instanceof Date) {
-    return new Date(reference.getTime());
-  }
-  const fromString = new Date(reference);
-  if (Number.isNaN(fromString.getTime())) {
-    return new Date();
-  }
-  return fromString;
+  return businessDateToUtcDate(reference ?? new Date());
 };
 
 const computePaymentInfo = (
@@ -88,7 +81,7 @@ const computePaymentInfo = (
       loan?.loanCreatedDate ?? loan?.createdAt ?? loan?.dueDate;
     if (!startRaw) return;
 
-    const startDate = new Date(startRaw);
+    const startDate = businessDateToUtcDate(startRaw);
     const diffMs = reference.getTime() - startDate.getTime();
     if (diffMs < 0) return;
 

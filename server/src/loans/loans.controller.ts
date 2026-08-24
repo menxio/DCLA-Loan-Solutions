@@ -51,7 +51,7 @@ export class LoansController {
   @Post('charges/sweep')
   postChargeSweep(@Body() body: PostLoanChargeSweepDto = {}) {
     return this.loansService.postOverdueChargesForActiveLoans(
-      body.asOfDate ?? new Date(),
+      body.asOfDate,
     );
   }
 

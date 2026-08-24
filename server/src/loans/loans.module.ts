@@ -10,6 +10,7 @@ import { Savings } from '../savings/savings.entity';
 import { LoanWaiver } from './entities/loan-waiver.entity';
 import { LoanChargeLedger } from './entities/loan-charge-ledger.entity';
 import { LoanChargeSchedulerService } from './loan-charge-scheduler.service';
+import { Repayment } from '../repayments/repayment.entity';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { LoanChargeSchedulerService } from './loan-charge-scheduler.service';
       Savings,
       LoanWaiver,
       LoanChargeLedger,
+      Repayment,
     ]),
   ],
   controllers: [LoansController],

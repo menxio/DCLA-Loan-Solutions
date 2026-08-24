@@ -29,6 +29,7 @@ import {
 } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
+import { formatManilaDateTime } from "@utils/businessDate";
 import LoanChargeLedgerDialog from "../components/LoanChargeLedgerDialog";
 import { LoansAPI } from "../api";
 import type {
@@ -44,12 +45,7 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   })}`;
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) return "N/A";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-};
+const formatDateTime = formatManilaDateTime;
 
 const getBorrowerName = (entry: LoanWaiverCandidate) =>
   [entry.borrower?.lastName, entry.borrower?.firstName]

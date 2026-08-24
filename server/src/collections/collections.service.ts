@@ -18,6 +18,7 @@ import {
   RepaymentOperationType,
   RepaymentStatus,
 } from '../repayments/repayment.entity';
+import { BusinessTimeService } from '../common/business-time/business-time.service';
 
 @Injectable()
 export class CollectionsService {
@@ -33,6 +34,7 @@ export class CollectionsService {
     @InjectRepository(Repayment)
     private readonly repaymentRepo: Repository<Repayment>,
     private readonly collectionsRepository: CollectionsRepository,
+    private readonly businessTime: BusinessTimeService,
   ) {}
 
   private weekdayToIndex(weekday: string): number | null {
@@ -51,47 +53,23 @@ export class CollectionsService {
     return index === -1 ? null : index;
   }
 
-  private formatDateString(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
   private getNextCollectionDate(collectionDay: string) {
     const targetIndex = this.weekdayToIndex(collectionDay);
+    const today = this.businessTime.currentBusinessDate();
     if (targetIndex === null) {
-      return this.formatDateString(new Date());
+      return today;
     }
 
-    const today = new Date();
-    const diff = (targetIndex + 7 - today.getDay()) % 7;
-    const nextDate = new Date(today);
-    nextDate.setDate(today.getDate() + diff);
-    return this.formatDateString(nextDate);
+    const diff =
+      (targetIndex + 7 - this.businessTime.calendarDayOfWeek(today)) % 7;
+    return this.businessTime.addCalendarDays(today, diff);
   }
 
-  private resolveTargetDate(dateInput?: string) {
-    if (dateInput) {
-      const parsed = new Date(dateInput);
-      if (!Number.isNaN(parsed.getTime())) {
-        const normalized = new Date(
-          parsed.getFullYear(),
-          parsed.getMonth(),
-          parsed.getDate(),
-        );
-        return normalized;
-      }
-    }
-    const today = new Date();
-    return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  private resolveTargetDate(dateInput?: string): string {
+    return this.businessTime.toBusinessDate(dateInput);
   }
 
   private async calculateTotalReceivedForDate(centerId: string, date: string) {
-    const start = new Date(date);
-    const end = new Date(date);
-    end.setDate(end.getDate() + 1);
-
     const raw = await this.repaymentRepo
       .createQueryBuilder('repayment')
       .select(
@@ -108,11 +86,8 @@ export class CollectionsService {
       })
       .setParameter('reversalType', RepaymentOperationType.REVERSAL)
       .andWhere(
-        'repayment.createdAt >= :start AND repayment.createdAt < :end',
-        {
-          start: start.toISOString(),
-          end: end.toISOString(),
-        },
+        'COALESCE(repayment.collectionDate, repayment.paymentDate) = :collectionDate',
+        { collectionDate: date },
       )
       .getRawOne<{ total: string }>();
 
@@ -214,9 +189,16 @@ export class CollectionsService {
    * DAILY COLLECTION LOGIC - Enhanced version
    */
   async getTodayCollections(dateParam?: string) {
-    const targetDate = this.resolveTargetDate(dateParam);
-    const weekday = targetDate.toLocaleString('en-US', { weekday: 'long' });
-    const dateString = this.formatDateString(targetDate);
+    const dateString = this.resolveTargetDate(dateParam);
+    const weekday = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ][this.businessTime.calendarDayOfWeek(dateString)];
 
     this.logger.log(
       `Getting collections for ${weekday} (${dateString}) [input=${dateParam ?? 'today'}]`,
@@ -284,7 +266,7 @@ export class CollectionsService {
     }
 
     const targetDate = dateParam
-      ? this.formatDateString(this.resolveTargetDate(dateParam))
+      ? this.resolveTargetDate(dateParam)
       : null;
 
     const collections = await this.collectionRepo.find({
@@ -377,25 +359,25 @@ export class CollectionsService {
 
     const allGroups = [...existingGroups, ...placeholders];
 
-    const today = new Date();
-    const todayMs = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    ).getTime();
+    const today = this.businessTime.currentBusinessDate();
 
     return allGroups.sort((a, b) => {
-      const aTime = new Date(a.collectionDate).getTime();
-      const bTime = new Date(b.collectionDate).getTime();
-
-      const aDiff = Math.abs(aTime - todayMs);
-      const bDiff = Math.abs(bTime - todayMs);
+      const aDiff = Math.abs(
+        this.businessTime.differenceInCalendarDays(today, a.collectionDate),
+      );
+      const bDiff = Math.abs(
+        this.businessTime.differenceInCalendarDays(today, b.collectionDate),
+      );
 
       if (aDiff === bDiff) {
-        if (aTime === bTime) {
+        const dateOrder = this.businessTime.compareCalendarDates(
+          a.collectionDate,
+          b.collectionDate,
+        );
+        if (dateOrder === 0) {
           return a.centerName.localeCompare(b.centerName);
         }
-        return aTime - bTime;
+        return dateOrder;
       }
 
       return aDiff - bDiff;

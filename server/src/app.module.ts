@@ -18,10 +18,16 @@ import { RepaymentsModule } from './repayments/repayments.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { RolesModule } from './roles/roles.module';
 import { TransactionsModule } from './transactions/transactions.module';
+import { BusinessTimeModule } from './common/business-time/business-time.module';
+import { validateBusinessTimeEnvironment } from './common/business-time/business-time.service';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateBusinessTimeEnvironment,
+    }),
+    BusinessTimeModule,
     ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',

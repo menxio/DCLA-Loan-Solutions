@@ -49,6 +49,11 @@ import { calculateLoanDetails, formatCurrency } from "../utils/loanCalculations"
 import { generateLoanPassbookPDF } from "@components/export/loanPassbookPDF";
 import { TransactionsAPI } from "@features/transactions/api";
 import type { TransactionHistoryItem } from "@features/transactions/types";
+import {
+  businessDateToLocalDate,
+  formatBusinessDate,
+  formatManilaDateTime,
+} from "@utils/businessDate";
 
 interface LoanModalProps {
   open: boolean;
@@ -377,8 +382,8 @@ export default function LoanModal({
 
     // Use loanCreatedDate if available, otherwise fall back to createdAt
     const releaseDate = activeLoan.loanCreatedDate
-      ? new Date(activeLoan.loanCreatedDate)
-      : new Date(activeLoan.createdAt);
+      ? businessDateToLocalDate(activeLoan.loanCreatedDate)
+      : businessDateToLocalDate(activeLoan.createdAt);
 
     // Map activeLoan and member data to your PDF function's expected args
     const memberData = {
@@ -618,11 +623,11 @@ export default function LoanModal({
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Loan Created: {activeLoan.loanCreatedDate
-                    ? new Date(activeLoan.loanCreatedDate).toLocaleDateString()
-                    : new Date(activeLoan!.createdAt).toLocaleDateString()}
+                    ? formatBusinessDate(activeLoan.loanCreatedDate)
+                    : formatBusinessDate(activeLoan!.createdAt)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
-                  Record Created: {new Date(activeLoan!.createdAt).toLocaleDateString()}
+                  Record Created: {formatBusinessDate(activeLoan!.createdAt)}
                 </Typography>
               </Box>
 
@@ -788,8 +793,8 @@ export default function LoanModal({
                         <Typography variant="body2" color="text.secondary">
                           {formatCurrency(loan.principalAmount)} • {loan.termWeeks} weeks • 
                           {loan.loanCreatedDate
-                            ? new Date(loan.loanCreatedDate).toLocaleDateString()
-                            : new Date(loan.createdAt).toLocaleDateString()}
+                            ? formatBusinessDate(loan.loanCreatedDate)
+                            : formatBusinessDate(loan.createdAt)}
                         </Typography>
                         <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
                           Click to view repayment history
@@ -978,7 +983,7 @@ export default function LoanModal({
                       {historySchedule.map((row) => (
                         <TableRow key={row.id} hover>
                           <TableCell>{row.weekNumber}</TableCell>
-                          <TableCell>{new Date(row.dueDate).toLocaleDateString()}</TableCell>
+                          <TableCell>{formatBusinessDate(row.dueDate)}</TableCell>
                           <TableCell align="right">{formatCurrency(row.amountDue)}</TableCell>
                           <TableCell align="right">{formatCurrency(row.amountPaid)}</TableCell>
                           <TableCell>
@@ -1035,7 +1040,7 @@ export default function LoanModal({
                                 {getTransactionTypeLabel(transaction.type)}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                Recorded: {new Date(transaction.createdAt).toLocaleString()}
+                                Recorded: {formatManilaDateTime(transaction.createdAt)}
                               </Typography>
                               {transaction.collectionDate && (
                                 <Typography
@@ -1043,9 +1048,9 @@ export default function LoanModal({
                                   color="text.secondary"
                                   display="block"
                                 >
-                                  Collection date: {new Date(
-                                    `${transaction.collectionDate}T00:00:00`
-                                  ).toLocaleDateString()}
+                                  Collection date: {formatBusinessDate(
+                                    transaction.collectionDate
+                                  )}
                                 </Typography>
                               )}
                               <Typography variant="body2" color="text.secondary">

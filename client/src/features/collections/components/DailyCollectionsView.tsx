@@ -31,6 +31,7 @@ import {
   hasLoanAmount,
 } from "../utils/memberStatus";
 import { withNetReleaseForDate } from "../utils/netRelease";
+import { getBusinessDate } from "@utils/businessDate";
 
 interface DailyCollectionsViewProps {
   data: DailyCollectionGroup[];
@@ -313,7 +314,7 @@ export default function DailyCollectionsView({
 
       // Generate the multi-sheet Excel file
       const collectionDate =
-        data[0]?.collectionDate || new Date().toISOString().split("T")[0];
+        data[0]?.collectionDate || getBusinessDate();
       const fileName = `Daily_Collections_Report_${collectionDate.replace(
         /-/g,
         "_"

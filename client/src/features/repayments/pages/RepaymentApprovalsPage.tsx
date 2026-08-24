@@ -26,16 +26,12 @@ import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import { useRepaymentApprovals } from "../hooks/useRepaymentApprovals";
 import type { PendingRepaymentCollectionGroup } from "../types";
+import { formatBusinessDate } from "@utils/businessDate";
 
 const formatCurrency = (value: number) =>
   `PHP ${Number(value || 0).toLocaleString()}`;
 
-const formatDate = (value?: string | null) => {
-  if (!value) return "N/A";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
-};
+const formatDate = formatBusinessDate;
 
 export default function RepaymentApprovalsPage() {
   const {
