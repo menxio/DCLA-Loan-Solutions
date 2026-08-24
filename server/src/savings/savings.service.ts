@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Savings } from './savings.entity';
 import { Member } from '../members/entities/member.entity';
 import { Loan } from '../loans/loan.entity';
@@ -20,7 +20,56 @@ export class SavingsService {
     private readonly memberRepository: Repository<Member>,
     @InjectRepository(Loan)
     private readonly loanRepository: Repository<Loan>,
+    private readonly dataSource: DataSource,
   ) {}
+
+  private async locateLoanId(
+    memberId: string,
+    loanId?: string,
+  ): Promise<string> {
+    if (loanId) return loanId;
+    const loan = await this.loanRepository.findOne({
+      where: { borrower: { id: memberId }, status: 'active' },
+      select: { id: true },
+    });
+    if (!loan) {
+      throw new BadRequestException('Member has no active loan');
+    }
+    return loan.id;
+  }
+
+  private async lockLoanAndMember(
+    manager: EntityManager,
+    memberId: string,
+    loanId: string,
+    operation: 'deposit' | 'withdraw',
+  ): Promise<{ loan: Loan; member: Member }> {
+    const loanRepository = manager.getRepository(Loan);
+    const locked = await loanRepository.findOne({
+      where: { id: loanId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!locked) {
+      throw new NotFoundException(`Loan #${loanId} not found`);
+    }
+    const loan = await loanRepository.findOne({
+      where: { id: loanId },
+      relations: ['borrower'],
+    });
+    const member = await manager.getRepository(Member).findOne({
+      where: { id: memberId },
+    });
+    if (!loan) throw new NotFoundException(`Loan #${loanId} not found`);
+    if (!member) throw new NotFoundException(`Member #${memberId} not found`);
+    if (loan.borrower?.id !== memberId) {
+      throw new BadRequestException('Loan does not belong to the member');
+    }
+    if (loan.status !== 'active') {
+      const action = operation === 'deposit' ? 'deposit to' : 'withdraw from';
+      throw new BadRequestException(`Cannot ${action} an inactive loan`);
+    }
+    return { loan, member };
+  }
 
   async deposit(dto: DepositSavingsDto) {
     const { memberId, loanId, amount, remarks } = dto;
@@ -30,62 +79,31 @@ export class SavingsService {
       throw new BadRequestException('amount must be greater than 0');
     }
 
-    const member = await this.memberRepository.findOne({
-      where: { id: memberId },
-    });
-    if (!member) {
-      throw new NotFoundException(`Member #${memberId} not found`);
-    }
-
-    let loan: Loan | null = null;
-    if (loanId) {
-      loan = await this.loanRepository.findOne({
-        where: { id: loanId },
-        relations: ['borrower'],
+    const targetLoanId = await this.locateLoanId(memberId, loanId);
+    return this.dataSource.transaction(async (manager) => {
+      const { loan, member } = await this.lockLoanAndMember(
+        manager,
+        memberId,
+        targetLoanId,
+        'deposit',
+      );
+      const savingsRepository = manager.getRepository(Savings);
+      const savingsEntry = savingsRepository.create({
+        borrower: member,
+        loan,
+        amount: numericAmount,
+        remarks,
       });
-      if (!loan) {
-        throw new NotFoundException(`Loan #${loanId} not found`);
-      }
-      if (loan.borrower?.id !== memberId) {
-        throw new BadRequestException('Loan does not belong to the member');
-      }
-      if (loan.status !== 'active') {
-        throw new BadRequestException('Cannot deposit to an inactive loan');
-      }
-    } else {
-      loan = await this.loanRepository.findOne({
-        where: { borrower: { id: memberId }, status: 'active' },
-      });
-      if (!loan) {
-        throw new BadRequestException('Member has no active loan');
-      }
-    }
+      const savedEntry = await savingsRepository.save(savingsEntry);
+      const updatedSavings = Number(loan.savings || 0) + numericAmount;
+      loan.savings = updatedSavings;
+      await manager.getRepository(Loan).save(loan);
 
-    if (!loan) {
-      throw new BadRequestException('Unable to resolve loan for deposit');
-    }
-
-    const savingsEntry = this.savingsRepository.create({
-      borrower: member,
-      loan: loan ?? undefined,
-      amount: numericAmount,
-      remarks,
+      return {
+        entry: this.mapSavings(savedEntry, memberId),
+        loan: { id: loan.id, savings: updatedSavings },
+      };
     });
-    const savedEntry = await this.savingsRepository.save(savingsEntry);
-
-    // Update the active loan's savings balance
-    const currentSavings = Number(loan.savings || 0);
-    const updatedSavings = currentSavings + numericAmount;
-    loan.savings = updatedSavings;
-    await this.loanRepository.save(loan);
-
-    return {
-      entry: this.mapSavings(savedEntry, memberId),
-      loan: {
-        id: loan.id,
-        savings: updatedSavings,
-      },
-    };
   }
 
   async withdraw(dto: WithdrawSavingsDto) {
@@ -96,67 +114,37 @@ export class SavingsService {
       throw new BadRequestException('amount must be greater than 0');
     }
 
-    const member = await this.memberRepository.findOne({
-      where: { id: memberId },
-    });
-    if (!member) {
-      throw new NotFoundException(`Member #${memberId} not found`);
-    }
-
-    let loan: Loan | null = null;
-    if (loanId) {
-      loan = await this.loanRepository.findOne({
-        where: { id: loanId },
-        relations: ['borrower'],
-      });
-      if (!loan) {
-        throw new NotFoundException(`Loan #${loanId} not found`);
-      }
-      if (loan.borrower?.id !== memberId) {
-        throw new BadRequestException('Loan does not belong to the member');
-      }
-      if (loan.status !== 'active') {
-        throw new BadRequestException('Cannot withdraw from an inactive loan');
-      }
-    } else {
-      loan = await this.loanRepository.findOne({
-        where: { borrower: { id: memberId }, status: 'active' },
-      });
-      if (!loan) {
-        throw new BadRequestException('Member has no active loan');
-      }
-    }
-
-    if (!loan) {
-      throw new BadRequestException('Unable to resolve loan for withdrawal');
-    }
-
-    const currentSavings = Number(loan.savings || 0);
-    if (numericAmount > currentSavings) {
-      throw new BadRequestException(
-        'Cannot withdraw more than available savings',
+    const targetLoanId = await this.locateLoanId(memberId, loanId);
+    return this.dataSource.transaction(async (manager) => {
+      const { loan, member } = await this.lockLoanAndMember(
+        manager,
+        memberId,
+        targetLoanId,
+        'withdraw',
       );
-    }
+      const currentSavings = Number(loan.savings || 0);
+      if (numericAmount > currentSavings) {
+        throw new BadRequestException(
+          'Cannot withdraw more than available savings',
+        );
+      }
+      const savingsRepository = manager.getRepository(Savings);
+      const savingsEntry = savingsRepository.create({
+        borrower: member,
+        loan,
+        amount: -numericAmount,
+        remarks,
+      });
+      const savedEntry = await savingsRepository.save(savingsEntry);
+      const updatedSavings = currentSavings - numericAmount;
+      loan.savings = updatedSavings;
+      await manager.getRepository(Loan).save(loan);
 
-    const savingsEntry = this.savingsRepository.create({
-      borrower: member,
-      loan,
-      amount: -numericAmount,
-      remarks,
+      return {
+        entry: this.mapSavings(savedEntry, memberId),
+        loan: { id: loan.id, savings: updatedSavings },
+      };
     });
-    const savedEntry = await this.savingsRepository.save(savingsEntry);
-
-    const updatedSavings = currentSavings - numericAmount;
-    loan.savings = updatedSavings;
-    await this.loanRepository.save(loan);
-
-    return {
-      entry: this.mapSavings(savedEntry, memberId),
-      loan: {
-        id: loan.id,
-        savings: updatedSavings,
-      },
-    };
   }
 
   async findByMember(memberId: string) {

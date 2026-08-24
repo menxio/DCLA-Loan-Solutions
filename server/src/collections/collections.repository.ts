@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, FindOptionsWhere, ILike, Repository, Or } from 'typeorm';
 import { Collection } from './entities/collection.entity';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
 
 @Injectable()
@@ -106,7 +107,7 @@ export class CollectionsRepository {
     return this.repo.findOne({ where, relations: ['center', 'member'] });
   }
 
-  update(id: string, data: Partial<Collection>) {
+  update(id: string, data: QueryDeepPartialEntity<Collection>) {
     return this.repo.update(id, data);
   }
 

@@ -15,6 +15,7 @@ import {
 import { Repayment } from '../repayments/repayment.entity';
 import { BusinessTimeService } from '../common/business-time/business-time.service';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 
 describe('LoansService', () => {
   let service: LoansService;
@@ -30,6 +31,7 @@ describe('LoansService', () => {
     find: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
   let ledgerEntries: LoanChargeLedger[];
   let pendingRepayments: Repayment[];
@@ -55,6 +57,16 @@ describe('LoansService', () => {
           return (
             ledgerEntries.find(
               (entry) => entry.idempotencyKey === where.idempotencyKey,
+            ) ?? null
+          );
+        }
+
+        if (where.sourceRepaymentId) {
+          return (
+            ledgerEntries.find(
+              (entry) =>
+                entry.sourceRepaymentId === where.sourceRepaymentId &&
+                entry.eventType === where.eventType,
             ) ?? null
           );
         }
@@ -96,6 +108,57 @@ describe('LoansService', () => {
         ledgerEntries.push(saved);
         return saved;
       }),
+      createQueryBuilder: jest.fn(() => {
+        let value: Partial<LoanChargeLedger> = {};
+        const builder = {
+          insert: jest.fn(() => builder),
+          into: jest.fn(() => builder),
+          values: jest.fn((entry) => {
+            value = entry;
+            return builder;
+          }),
+          onConflict: jest.fn(() => builder),
+          returning: jest.fn(() => builder),
+          setParameter: jest.fn((name, parameter) => {
+            if (name === 'metadata') value.metadata = parameter;
+            return builder;
+          }),
+          execute: jest.fn(async () => {
+            if (
+              ledgerEntries.some(
+                (entry) => entry.idempotencyKey === value.idempotencyKey,
+              )
+            ) {
+              return { raw: [] };
+            }
+            const saved = {
+              id: `ledger-${ledgerEntries.length + 1}`,
+              createdAt: new Date(),
+              ...value,
+            } as LoanChargeLedger;
+            ledgerEntries.push(saved);
+            return { raw: [saved] };
+          }),
+        };
+        return builder;
+      }),
+    };
+
+    const repaymentRepository = {
+      find: jest.fn(async () => pendingRepayments),
+    };
+    const manager = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Loan) return loanRepository;
+        if (entity === LoanRepaymentSchedule) return scheduleRepository;
+        if (entity === LoanWaiver) return waiverRepository;
+        if (entity === LoanChargeLedger) return chargeLedgerRepository;
+        if (entity === Repayment) return repaymentRepository;
+        return {};
+      }),
+    };
+    const dataSource = {
+      transaction: jest.fn(async (callback) => callback(manager)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -119,8 +182,9 @@ describe('LoansService', () => {
         },
         {
           provide: getRepositoryToken(Repayment),
-          useValue: { find: jest.fn(async () => pendingRepayments) },
+          useValue: repaymentRepository,
         },
+        { provide: DataSource, useValue: dataSource },
         BusinessTimeService,
         {
           provide: ConfigService,
@@ -246,24 +310,15 @@ describe('LoansService', () => {
       loanRepository.findOne.mockResolvedValue(loan);
       scheduleRepository.find.mockResolvedValue(schedules);
 
-      await service.postOverdueChargesForLoan(
-        loan.id,
-        '2026-08-28T15:59:59Z',
-      );
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-28T15:59:59Z');
       expect(ledgerEntries).toHaveLength(0);
 
       await service.postOverdueChargesForLoan(loan.id, '2026-08-28');
       expect(ledgerEntries).toHaveLength(0);
 
-      await service.postOverdueChargesForLoan(
-        loan.id,
-        '2026-08-28T16:00:00Z',
-      );
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-28T16:00:00Z');
       await service.postOverdueChargesForLoan(loan.id, '2026-08-29');
-      await service.postOverdueChargesForLoan(
-        loan.id,
-        '2026-08-28T16:00:01Z',
-      );
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-28T16:00:01Z');
 
       expect(ledgerEntries).toHaveLength(1);
       expect(ledgerEntries[0]).toMatchObject({
@@ -513,16 +568,10 @@ describe('LoansService', () => {
         },
       ] as LoanRepaymentSchedule[]);
 
-      await service.postOverdueChargesForLoan(
-        loan.id,
-        '2026-08-30T15:59:59Z',
-      );
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-30T15:59:59Z');
       expect(ledgerEntries).toHaveLength(0);
 
-      await service.postOverdueChargesForLoan(
-        loan.id,
-        '2026-08-30T16:00:00Z',
-      );
+      await service.postOverdueChargesForLoan(loan.id, '2026-08-30T16:00:00Z');
 
       expect(
         ledgerEntries.filter(

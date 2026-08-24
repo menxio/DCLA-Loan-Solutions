@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Loan } from './loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Collection } from '../collections/entities/collection.entity';
@@ -84,8 +84,41 @@ export class LoansService {
     private readonly loanChargeLedgerRepository: Repository<LoanChargeLedger>,
     @InjectRepository(Repayment)
     private readonly repaymentRepository: Repository<Repayment>,
+    private readonly dataSource: DataSource,
     private readonly businessTime: BusinessTimeService,
   ) {}
+
+  /**
+   * Canonical financial lock order starts with the loan row. Callers may use an
+   * initial unlocked lookup only to discover loanId; all decisions use this row.
+   */
+  async lockLoanForFinancialUpdate(
+    manager: EntityManager,
+    loanId: string,
+    relations: string[] = [],
+  ): Promise<Loan> {
+    const repository = manager.getRepository(Loan);
+    const lockedLoan = await repository.findOne({
+      where: { id: loanId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!lockedLoan) {
+      throw new NotFoundException(`Loan #${loanId} not found`);
+    }
+
+    if (relations.length === 0) {
+      return lockedLoan;
+    }
+
+    const loanWithRelations = await repository.findOne({
+      where: { id: loanId },
+      relations,
+    });
+    if (!loanWithRelations) {
+      throw new NotFoundException(`Loan #${loanId} not found`);
+    }
+    return loanWithRelations;
+  }
 
   // Business logic for interest rates
   private getInterestRate(
@@ -140,16 +173,26 @@ export class LoansService {
     };
   }
 
-  private async findLatestLoanForMember(
-    borrowerId: string,
-  ): Promise<Loan | null> {
-    return this.loanRepository.findOne({
-      where: { borrower: { id: borrowerId } },
-      order: { createdAt: 'DESC' },
+  async create(createLoanDto: CreateLoanDto): Promise<Loan> {
+    const borrowerId = (createLoanDto as any).borrowerId as string;
+    return this.dataSource.transaction(async (manager) => {
+      const memberRepository = manager.getRepository(Member);
+      const borrower = await memberRepository.findOne({
+        where: { id: borrowerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!borrower) {
+        throw new NotFoundException(`Member #${borrowerId} not found`);
+      }
+      return this.createLoanInTransaction(manager, createLoanDto, borrower);
     });
   }
 
-  async create(createLoanDto: CreateLoanDto): Promise<Loan> {
+  private async createLoanInTransaction(
+    manager: EntityManager,
+    createLoanDto: CreateLoanDto,
+    borrower: Member,
+  ): Promise<Loan> {
     const {
       borrowerId,
       principalAmount,
@@ -161,16 +204,11 @@ export class LoansService {
       monthlyInterestRate,
     } = createLoanDto as any;
 
-    // Check if borrower exists
-    const borrower = await this.memberRepository.findOne({
-      where: { id: borrowerId },
-    });
-    if (!borrower) {
-      throw new NotFoundException(`Member #${borrowerId} not found`);
-    }
+    const loanRepository = manager.getRepository(Loan);
+    const collectionRepository = manager.getRepository(Collection);
 
     // Check if borrower has active loan
-    const activeLoan = await this.loanRepository.findOne({
+    const activeLoan = await loanRepository.findOne({
       where: { borrower: { id: borrowerId }, status: 'active' },
     });
     if (activeLoan) {
@@ -178,7 +216,10 @@ export class LoansService {
     }
 
     // Determine if this is the borrower's first loan (no prior loans at all)
-    const latestLoan = await this.findLatestLoanForMember(borrowerId);
+    const latestLoan = await loanRepository.findOne({
+      where: { borrower: { id: borrowerId } },
+      order: { createdAt: 'DESC' },
+    });
     const isFirstLoan = !latestLoan;
 
     // Validate savings per business rule
@@ -228,7 +269,7 @@ export class LoansService {
       );
 
     // Create loan
-    const loan = this.loanRepository.create({
+    const loan = loanRepository.create({
       borrower,
       principalAmount,
       termWeeks,
@@ -256,10 +297,10 @@ export class LoansService {
     const netCashReleased = net > 0 ? net : 0;
     (loan as any).netCashReleased = netCashReleased;
 
-    const savedLoan = await this.loanRepository.save(loan);
+    const savedLoan = await loanRepository.save(loan);
 
     // Reset any existing collections' paymentReceived to 0 for this member
-    await this.collectionRepository.update(
+    await collectionRepository.update(
       { memberId: borrowerId },
       { paymentReceived: 0 },
     );
@@ -275,6 +316,25 @@ export class LoansService {
     loanId: string,
     amount: number,
     useSavings: boolean = false,
+  ): Promise<Loan> {
+    return this.dataSource.transaction(async (manager) => {
+      const loan = await this.lockLoanForFinancialUpdate(manager, loanId, [
+        'borrower',
+      ]);
+      return this.applyLegacyRepaymentInTransaction(
+        manager,
+        loan,
+        amount,
+        useSavings,
+      );
+    });
+  }
+
+  private async applyLegacyRepaymentInTransaction(
+    manager: EntityManager,
+    loan: Loan,
+    amount: number,
+    useSavings: boolean,
   ): Promise<Loan> {
     if (
       amount === undefined ||
@@ -295,7 +355,6 @@ export class LoansService {
       );
     }
 
-    const loan = await this.findOne(loanId);
     if (loan.status !== 'active') {
       throw new BadRequestException('Cannot pay a non-active loan');
     }
@@ -341,17 +400,18 @@ export class LoansService {
       loan.advancePaymentBuffer = 0;
     }
 
-    const savedLoan = await this.loanRepository.save(loan);
+    const savedLoan = await manager.getRepository(Loan).save(loan);
 
     // Record savings deduction as a savings withdrawal transaction entry
     if (savingsUsed > 0) {
-      const savingsEntry = this.savingsRepository.create({
+      const savingsRepository = manager.getRepository(Savings);
+      const savingsEntry = savingsRepository.create({
         borrower: loan.borrower,
         loan,
         amount: -Math.abs(savingsUsed),
         remarks: 'Applied to repayment',
       });
-      await this.savingsRepository.save(savingsEntry);
+      await savingsRepository.save(savingsEntry);
     }
 
     return savedLoan;
@@ -359,6 +419,27 @@ export class LoansService {
 
   async applyRepaymentWithChargeAllocation(
     loanId: string,
+    amount: number,
+    useSavings: boolean,
+    repaymentId: string,
+  ): Promise<ApplyRepaymentWithChargesResult> {
+    return this.dataSource.transaction(async (manager) => {
+      const loan = await this.lockLoanForFinancialUpdate(manager, loanId, [
+        'borrower',
+      ]);
+      return this.applyRepaymentWithChargeAllocationInTransaction(
+        manager,
+        loan,
+        amount,
+        useSavings,
+        repaymentId,
+      );
+    });
+  }
+
+  async applyRepaymentWithChargeAllocationInTransaction(
+    manager: EntityManager,
+    loan: Loan,
     amount: number,
     useSavings: boolean,
     repaymentId: string,
@@ -376,7 +457,6 @@ export class LoansService {
       throw new BadRequestException('Payment amount must be >= 0');
     }
 
-    const loan = await this.findOne(loanId);
     if (loan.status !== 'active') {
       throw new BadRequestException('Cannot pay a non-active loan');
     }
@@ -434,7 +514,7 @@ export class LoansService {
         Math.min(chargeBuckets.penaltyOutstanding, paymentRemaining),
       );
       const source = allocateFromSources(penaltyApplied);
-      await this.createLedgerEntry({
+      await this.createLedgerEntry(manager, {
         loanId: loan.id,
         chargeType: LoanChargeType.PENALTY,
         eventType: LoanChargeLedgerEventType.PAYMENT,
@@ -454,7 +534,7 @@ export class LoansService {
         Math.min(chargeBuckets.pastDueInterestOutstanding, paymentRemaining),
       );
       const source = allocateFromSources(pastDueInterestApplied);
-      await this.createLedgerEntry({
+      await this.createLedgerEntry(manager, {
         loanId: loan.id,
         chargeType: LoanChargeType.PAST_DUE_INTEREST,
         eventType: LoanChargeLedgerEventType.PAYMENT,
@@ -469,7 +549,9 @@ export class LoansService {
       );
     }
 
-    const regularApplied = this.roundCurrency(paymentRemaining);
+    const regularApplied = this.roundCurrency(
+      Math.min(paymentRemaining, regularOutstanding),
+    );
     const regularSource =
       regularApplied > 0
         ? allocateFromSources(regularApplied)
@@ -500,16 +582,17 @@ export class LoansService {
       loan.advancePaymentBuffer = 0;
     }
 
-    const savedLoan = await this.loanRepository.save(loan);
+    const savedLoan = await manager.getRepository(Loan).save(loan);
 
     if (savingsUsed > 0) {
-      const savingsEntry = this.savingsRepository.create({
+      const savingsRepository = manager.getRepository(Savings);
+      const savingsEntry = savingsRepository.create({
         borrower: loan.borrower,
         loan,
         amount: -Math.abs(savingsUsed),
         remarks: 'Applied to repayment',
       });
-      await this.savingsRepository.save(savingsEntry);
+      await savingsRepository.save(savingsEntry);
     }
 
     const chargeApplied = this.roundCurrency(
@@ -530,7 +613,35 @@ export class LoansService {
   async createChargePaymentReversalsForRepayment(
     repaymentId: string,
   ): Promise<ChargePaymentReversalResult> {
-    const paymentEntries = await this.loanChargeLedgerRepository.find({
+    const locator = await this.loanChargeLedgerRepository.findOne({
+      where: {
+        sourceRepaymentId: repaymentId,
+        eventType: LoanChargeLedgerEventType.PAYMENT,
+      },
+    });
+    if (!locator) {
+      return {
+        pastDueInterestAmount: 0,
+        penaltyAmount: 0,
+        savingsPortion: 0,
+        totalAmount: 0,
+      };
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      await this.lockLoanForFinancialUpdate(manager, locator.loanId);
+      return this.createChargePaymentReversalsForRepaymentInTransaction(
+        manager,
+        repaymentId,
+      );
+    });
+  }
+
+  async createChargePaymentReversalsForRepaymentInTransaction(
+    manager: EntityManager,
+    repaymentId: string,
+  ): Promise<ChargePaymentReversalResult> {
+    const paymentEntries = await manager.getRepository(LoanChargeLedger).find({
       where: {
         sourceRepaymentId: repaymentId,
         eventType: LoanChargeLedgerEventType.PAYMENT,
@@ -543,7 +654,7 @@ export class LoansService {
 
     for (const entry of paymentEntries) {
       const amount = Number(entry.amount || 0);
-      const reversal = await this.createLedgerEntry({
+      const reversal = await this.createLedgerEntry(manager, {
         loanId: entry.loanId,
         scheduleId: entry.scheduleId,
         chargeType: entry.chargeType,
@@ -654,6 +765,7 @@ export class LoansService {
   }
 
   private async getProjectedPaidAtCutoffBySchedule(
+    manager: EntityManager,
     loan: Loan,
     schedules: LoanRepaymentSchedule[],
   ): Promise<Map<string, number>> {
@@ -664,7 +776,7 @@ export class LoansService {
       ]),
     );
     const projectedPaid = new Map(paidAtCutoff);
-    const pendingRepayments = await this.repaymentRepository.find({
+    const pendingRepayments = await manager.getRepository(Repayment).find({
       where: {
         loan: { id: loan.id },
         status: RepaymentStatus.PENDING,
@@ -816,6 +928,7 @@ export class LoansService {
   }
 
   private async createLedgerEntry(
+    manager: EntityManager,
     entry: Partial<LoanChargeLedger> & {
       loanId: string;
       chargeType: LoanChargeType;
@@ -824,40 +937,48 @@ export class LoansService {
       idempotencyKey: string;
     },
   ): Promise<LoanChargeLedger | null> {
-    const existing = await this.loanChargeLedgerRepository.findOne({
-      where: { idempotencyKey: entry.idempotencyKey },
+    const repository = manager.getRepository(LoanChargeLedger);
+    const normalized = repository.create({
+      ...entry,
+      amount: this.roundCurrency(Number(entry.amount || 0)),
+      cashPortion: this.roundCurrency(Number(entry.cashPortion || 0)),
+      savingsPortion: this.roundCurrency(Number(entry.savingsPortion || 0)),
+      baseAmount: this.roundCurrency(Number(entry.baseAmount || 0)),
+      rate: Number(entry.rate || 0),
+      scheduleId: entry.scheduleId ?? null,
+      sourceRepaymentId: entry.sourceRepaymentId ?? null,
+      reversedLedgerEntryId: entry.reversedLedgerEntryId ?? null,
+      periodStart: entry.periodStart ?? null,
+      periodEnd: entry.periodEnd ?? null,
+      metadata: entry.metadata ?? null,
     });
-
-    if (existing) {
-      return null;
-    }
-
-    try {
-      return await this.loanChargeLedgerRepository.save(
-        this.loanChargeLedgerRepository.create({
-          ...entry,
-          amount: this.roundCurrency(Number(entry.amount || 0)),
-          cashPortion: this.roundCurrency(Number(entry.cashPortion || 0)),
-          savingsPortion: this.roundCurrency(Number(entry.savingsPortion || 0)),
-          baseAmount: this.roundCurrency(Number(entry.baseAmount || 0)),
-          rate: Number(entry.rate || 0),
-          scheduleId: entry.scheduleId ?? null,
-          sourceRepaymentId: entry.sourceRepaymentId ?? null,
-          reversedLedgerEntryId: entry.reversedLedgerEntryId ?? null,
-          periodStart: entry.periodStart ?? null,
-          periodEnd: entry.periodEnd ?? null,
-          metadata: entry.metadata ?? null,
-        }),
-      );
-    } catch (error) {
-      const duplicate = await this.loanChargeLedgerRepository.findOne({
-        where: { idempotencyKey: entry.idempotencyKey },
-      });
-      if (duplicate) {
-        return null;
-      }
-      throw error;
-    }
+    const result = await repository
+      .createQueryBuilder()
+      .insert()
+      .into(LoanChargeLedger)
+      .values({
+        loanId: normalized.loanId,
+        scheduleId: normalized.scheduleId,
+        chargeType: normalized.chargeType,
+        eventType: normalized.eventType,
+        amount: normalized.amount,
+        cashPortion: normalized.cashPortion,
+        savingsPortion: normalized.savingsPortion,
+        baseAmount: normalized.baseAmount,
+        rate: normalized.rate,
+        periodStart: normalized.periodStart,
+        periodEnd: normalized.periodEnd,
+        sourceRepaymentId: normalized.sourceRepaymentId,
+        reversedLedgerEntryId: normalized.reversedLedgerEntryId,
+        idempotencyKey: normalized.idempotencyKey,
+        metadata: () => ':metadata',
+      })
+      .onConflict('("idempotencyKey") DO NOTHING')
+      .returning('*')
+      .setParameter('metadata', normalized.metadata)
+      .execute();
+    const inserted = (result.raw as LoanChargeLedger[])[0];
+    return inserted ? repository.create(inserted) : null;
   }
 
   async postOverdueChargesForLoan(
@@ -865,14 +986,33 @@ export class LoansService {
     asOfDateInput?: Date | string,
     sourceRepaymentId?: string,
   ): Promise<Loan> {
-    const loan = await this.findOne(loanId);
+    return this.dataSource.transaction(async (manager) => {
+      const loan = await this.lockLoanForFinancialUpdate(manager, loanId);
+      return this.postOverdueChargesForLoanInTransaction(
+        manager,
+        loan,
+        asOfDateInput,
+        sourceRepaymentId,
+      );
+    });
+  }
+
+  async postOverdueChargesForLoanInTransaction(
+    manager: EntityManager,
+    loan: Loan,
+    asOfDateInput?: Date | string,
+    sourceRepaymentId?: string,
+  ): Promise<Loan> {
+    const loanRepository = manager.getRepository(Loan);
+    const scheduleRepository = manager.getRepository(LoanRepaymentSchedule);
+    const ledgerRepository = manager.getRepository(LoanChargeLedger);
     if (loan.status !== 'active') {
       return loan;
     }
 
     const asOfDate = this.normalizeDate(asOfDateInput);
     const asOfDateString = this.formatDate(asOfDate);
-    const schedules = await this.scheduleRepository.find({
+    const schedules = await scheduleRepository.find({
       where: { loanId: loan.id },
       order: { dueDate: 'ASC', weekNumber: 'ASC' },
     });
@@ -898,7 +1038,7 @@ export class LoansService {
         Number(loan.weeklyPaymentAmount || 0),
       );
       const projectedPaidAtCutoff =
-        await this.getProjectedPaidAtCutoffBySchedule(loan, schedules);
+        await this.getProjectedPaidAtCutoffBySchedule(manager, loan, schedules);
       const weeklyPenaltySchedules = schedules.filter((schedule) => {
         const dueDate = this.normalizeDate(`${schedule.dueDate}T00:00:00Z`);
         const cutoffDate = this.getWeeklyPenaltyCutoffDate(dueDate);
@@ -916,7 +1056,7 @@ export class LoansService {
         const dueDate = this.normalizeDate(`${schedule.dueDate}T00:00:00Z`);
         const cutoffDate = this.getWeeklyPenaltyCutoffDate(dueDate);
         const cutoffDateString = this.formatDate(cutoffDate);
-        const entry = await this.createLedgerEntry({
+        const entry = await this.createLedgerEntry(manager, {
           loanId: loan.id,
           scheduleId: schedule.id,
           chargeType: LoanChargeType.PENALTY,
@@ -951,10 +1091,10 @@ export class LoansService {
       );
       if (remainingPrincipal <= epsilon) {
         loan.balance = this.calculateLoanBalance(loan);
-        return this.loanRepository.save(loan);
+        return loanRepository.save(loan);
       }
 
-      const latestPastDueEntry = await this.loanChargeLedgerRepository.findOne({
+      const latestPastDueEntry = await ledgerRepository.findOne({
         where: {
           loanId: loan.id,
           chargeType: LoanChargeType.PAST_DUE_INTEREST,
@@ -988,7 +1128,7 @@ export class LoansService {
 
         if (pastDueInterestAmount > epsilon) {
           const periodStartString = this.formatDate(periodStart);
-          const entry = await this.createLedgerEntry({
+          const entry = await this.createLedgerEntry(manager, {
             loanId: loan.id,
             scheduleId: lastSchedule.id,
             chargeType: LoanChargeType.PAST_DUE_INTEREST,
@@ -1019,7 +1159,7 @@ export class LoansService {
       const amount = calculatePenalty(remainingPrincipal, this.penaltyRate);
       if (amount > epsilon) {
         const maturityDateString = this.formatDate(maturityDate);
-        const entry = await this.createLedgerEntry({
+        const entry = await this.createLedgerEntry(manager, {
           loanId: loan.id,
           scheduleId: lastSchedule.id,
           chargeType: LoanChargeType.PENALTY,
@@ -1047,7 +1187,7 @@ export class LoansService {
     }
 
     loan.balance = this.calculateLoanBalance(loan);
-    return this.loanRepository.save(loan);
+    return loanRepository.save(loan);
   }
 
   async postOverdueChargesForActiveLoans(
@@ -1153,7 +1293,18 @@ export class LoansService {
   }
 
   async applyWaiver(loanId: string, dto: ApplyLoanWaiverDto, actorId?: string) {
-    const loan = await this.findOne(loanId);
+    return this.dataSource.transaction(async (manager) => {
+      const loan = await this.lockLoanForFinancialUpdate(manager, loanId);
+      return this.applyWaiverInTransaction(manager, loan, dto, actorId);
+    });
+  }
+
+  private async applyWaiverInTransaction(
+    manager: EntityManager,
+    loan: Loan,
+    dto: ApplyLoanWaiverDto,
+    actorId?: string,
+  ) {
     if (loan.status !== 'active') {
       throw new BadRequestException(
         'Waiver can only be applied to active loans',
@@ -1205,8 +1356,10 @@ export class LoansService {
       loan.status = 'paid';
     }
 
-    const savedLoan = await this.loanRepository.save(loan);
-    const waiver = this.loanWaiverRepository.create({
+    const loanRepository = manager.getRepository(Loan);
+    const waiverRepository = manager.getRepository(LoanWaiver);
+    const savedLoan = await loanRepository.save(loan);
+    const waiver = waiverRepository.create({
       loanId: savedLoan.id,
       pastDueInterestWaived: this.roundCurrency(requestedPastDueInterestWaiver),
       penaltyWaived: this.roundCurrency(requestedPenaltyWaiver),
@@ -1216,7 +1369,7 @@ export class LoansService {
       beforeBalance: this.roundCurrency(beforeBalance),
       afterBalance: this.roundCurrency(savedLoan.balance || 0),
     });
-    const savedWaiver = await this.loanWaiverRepository.save(waiver);
+    const savedWaiver = await waiverRepository.save(waiver);
 
     return {
       loan: savedLoan,
@@ -1285,16 +1438,6 @@ export class LoansService {
       monthlyInterestRate,
     );
 
-    const loan = await this.findOne(loanId);
-    if (loan.status !== 'active')
-      throw new BadRequestException('Only active loans can be reloaned');
-
-    const { eligible, minWeeksRequired } = await this.eligibilityByLoan(loanId);
-    if (!eligible)
-      throw new BadRequestException(
-        `Not eligible for reloan. Requires >= ${minWeeksRequired} weeks paid.`,
-      );
-
     if (
       serviceCharge === undefined ||
       serviceCharge === null ||
@@ -1319,84 +1462,109 @@ export class LoansService {
       throw new BadRequestException('savings must be >= 0 when provided');
     }
 
-    // Combine any accumulated savings on the old loan for carry-over.
-    // Compute old remaining balance
-    const oldRemaining = Number(loan.balance);
+    return this.dataSource.transaction(async (manager) => {
+      const loan = await this.lockLoanForFinancialUpdate(manager, loanId, [
+        'borrower',
+        'borrower.center',
+      ]);
+      if (loan.status !== 'active') {
+        throw new BadRequestException('Only active loans can be reloaned');
+      }
+      let minWeeksRequired: number;
+      switch (loan.termWeeks) {
+        case 4:
+          minWeeksRequired = 2;
+          break;
+        case 8:
+          minWeeksRequired = 5;
+          break;
+        case 12:
+          minWeeksRequired = 8;
+          break;
+        default:
+          minWeeksRequired = Math.ceil(loan.termWeeks * 0.625);
+      }
+      if (Number(loan.weeksPaid || 0) < minWeeksRequired) {
+        throw new BadRequestException(
+          `Not eligible for reloan. Requires >= ${minWeeksRequired} weeks paid.`,
+        );
+      }
 
-    // Close old loan - mark as completed based on mode
-    loan.status = mode === 'payoff' ? 'payoff' : 'netoff';
-    loan.balance = 0;
-    loan.advancePaymentBuffer = 0;
-    await this.loanRepository.save(loan);
+      // Combine any accumulated savings on the old loan for carry-over.
+      // Compute old remaining balance
+      const oldRemaining = Number(loan.balance);
 
-    // Create the new loan
-    const borrowerId = loan.borrower.id;
-    const tempCreate: CreateLoanDto = {
-      borrowerId,
-      principalAmount: Number(newPrincipalAmount),
-      termWeeks: newTermWeeks,
-      savings: savingsAmount,
-      serviceCharge: fee,
-      notarialFee: legalFee,
-      monthlyInterestRate,
-    } as any;
-    const newLoan = await this.create(tempCreate);
+      // Close old loan - mark as completed based on mode
+      loan.status = mode === 'payoff' ? 'payoff' : 'netoff';
+      loan.balance = 0;
+      loan.advancePaymentBuffer = 0;
+      await manager.getRepository(Loan).save(loan);
 
-    // Reset any existing collections' paymentReceived to 0 for this member (already done in create, but being explicit)
-    await this.collectionRepository.update(
-      { memberId: borrowerId },
-      { paymentReceived: 0 },
-    );
+      // Create the new loan
+      const borrowerId = loan.borrower.id;
+      const tempCreate: CreateLoanDto = {
+        borrowerId,
+        principalAmount: Number(newPrincipalAmount),
+        termWeeks: newTermWeeks,
+        savings: savingsAmount,
+        serviceCharge: fee,
+        notarialFee: legalFee,
+        monthlyInterestRate,
+      } as any;
+      const newLoan = await this.createLoanInTransaction(
+        manager,
+        tempCreate,
+        loan.borrower,
+      );
 
-    // Compute net cash released per mode
-    let netCashReleased = 0;
-    if (mode === 'payoff') {
-      // Client pays old balance in cash, gets full new loan minus service charge and savings
-      netCashReleased =
-        Number(newPrincipalAmount) - fee - legalFee - savingsAmount;
-    } else {
-      // Net off: old balance is deducted from new loan; also deduct service charge, notarial fee, and savings
-      netCashReleased =
-        Number(newPrincipalAmount) -
-        oldRemaining -
-        fee -
-        legalFee -
-        savingsAmount;
-      if (netCashReleased < 0) netCashReleased = 0; // Never negative release
-    }
+      // Reset any existing collections' paymentReceived to 0 for this member (already done in create, but being explicit)
+      await manager
+        .getRepository(Collection)
+        .update({ memberId: borrowerId }, { paymentReceived: 0 });
 
-    // Persist net cash released on the newly created loan
-    try {
-      await this.loanRepository.update(newLoan.id, {
-        netCashReleased: Number(netCashReleased) || 0,
-      } as any);
-      // reflect in object returned
-      (newLoan as any).netCashReleased = Number(netCashReleased) || 0;
-    } catch (e) {}
+      // Compute net cash released per mode
+      let netCashReleased = 0;
+      if (mode === 'payoff') {
+        // Client pays old balance in cash, gets full new loan minus service charge and savings
+        netCashReleased =
+          Number(newPrincipalAmount) - fee - legalFee - savingsAmount;
+      } else {
+        // Net off: old balance is deducted from new loan; also deduct service charge, notarial fee, and savings
+        netCashReleased =
+          Number(newPrincipalAmount) -
+          oldRemaining -
+          fee -
+          legalFee -
+          savingsAmount;
+        if (netCashReleased < 0) netCashReleased = 0; // Never negative release
+      }
 
-    return {
-      oldLoanId: loanId,
-      newLoanId: newLoan.id,
-      mode,
-      serviceCharge: fee,
-      notarialFee: legalFee,
-      savings: savingsAmount,
-      oldRemaining,
-      newPrincipalAmount,
-      netCashReleased,
-      newLoan,
-      message:
-        mode === 'payoff'
-          ? `Pay Off: Client pays ₱${oldRemaining.toLocaleString()} cash, receives ₱${netCashReleased.toLocaleString()}`
-          : `Net Off: ₱${oldRemaining.toLocaleString()} deducted from new loan, client receives ₱${netCashReleased.toLocaleString()}`,
-    };
+      // Persist net cash released on the newly created loan
+      newLoan.netCashReleased = Number(netCashReleased) || 0;
+      await manager.getRepository(Loan).save(newLoan);
+
+      return {
+        oldLoanId: loanId,
+        newLoanId: newLoan.id,
+        mode,
+        serviceCharge: fee,
+        notarialFee: legalFee,
+        savings: savingsAmount,
+        oldRemaining,
+        newPrincipalAmount,
+        netCashReleased,
+        newLoan,
+        message:
+          mode === 'payoff'
+            ? `Pay Off: Client pays ₱${oldRemaining.toLocaleString()} cash, receives ₱${netCashReleased.toLocaleString()}`
+            : `Net Off: ₱${oldRemaining.toLocaleString()} deducted from new loan, client receives ₱${netCashReleased.toLocaleString()}`,
+      };
+    });
   }
 
   async update(id: string, updateLoanDto: UpdateLoanDto): Promise<Loan> {
-    const loan = await this.findOne(id);
-
     // Currently no updatable fields
-    return this.loanRepository.save(loan);
+    return this.findOne(id);
   }
 
   async updateTermWeeks(
@@ -1404,65 +1572,72 @@ export class LoansService {
     newTermWeeks: number,
     monthlyInterestRate?: number,
   ): Promise<Loan> {
-    const loan = await this.findOne(id);
+    return this.dataSource.transaction(async (manager) => {
+      const loan = await this.lockLoanForFinancialUpdate(manager, id, [
+        'borrower',
+      ]);
 
-    if (loan.status !== 'active') {
-      throw new BadRequestException(
-        'Only active loans can have their term updated',
-      );
-    }
+      if (loan.status !== 'active') {
+        throw new BadRequestException(
+          'Only active loans can have their term updated',
+        );
+      }
 
-    if (
-      Number(loan.weeksPaid || 0) > 0 ||
-      Number(loan.amountPaid || 0) > 0 ||
-      this.getChargeOutstandingBuckets(loan).totalOutstanding > 0 ||
-      Number(loan.pastDueInterestAccrued || 0) > 0 ||
-      Number(loan.penaltyAccrued || 0) > 0
-    ) {
-      throw new BadRequestException(
-        'Cannot change term weeks after repayments or charges have been recorded',
-      );
-    }
+      if (
+        Number(loan.weeksPaid || 0) > 0 ||
+        Number(loan.amountPaid || 0) > 0 ||
+        this.getChargeOutstandingBuckets(loan).totalOutstanding > 0 ||
+        Number(loan.pastDueInterestAccrued || 0) > 0 ||
+        Number(loan.penaltyAccrued || 0) > 0
+      ) {
+        throw new BadRequestException(
+          'Cannot change term weeks after repayments or charges have been recorded',
+        );
+      }
 
-    const { interestRate, totalAmount, weeklyPaymentAmount } =
-      this.calculateLoanDetails(
-        Number(loan.principalAmount),
-        newTermWeeks,
-        monthlyInterestRate,
-      );
+      const { interestRate, totalAmount, weeklyPaymentAmount } =
+        this.calculateLoanDetails(
+          Number(loan.principalAmount),
+          newTermWeeks,
+          monthlyInterestRate,
+        );
 
-    loan.termWeeks = newTermWeeks;
-    loan.interestRate = interestRate;
-    loan.totalAmount = totalAmount;
-    loan.weeklyPaymentAmount = weeklyPaymentAmount;
-    loan.balance = totalAmount;
-    loan.amountPaid = 0;
-    loan.weeksPaid = 0;
-    loan.advancePaymentBuffer = 0;
+      loan.termWeeks = newTermWeeks;
+      loan.interestRate = interestRate;
+      loan.totalAmount = totalAmount;
+      loan.weeklyPaymentAmount = weeklyPaymentAmount;
+      loan.balance = totalAmount;
+      loan.amountPaid = 0;
+      loan.weeksPaid = 0;
+      loan.advancePaymentBuffer = 0;
 
-    await this.loanRepository.save(loan);
+      await manager.getRepository(Loan).save(loan);
 
-    const borrower = await this.memberRepository.findOne({
-      where: { id: loan.borrower.id },
-      relations: ['center'],
+      const borrower = await manager.getRepository(Member).findOne({
+        where: { id: loan.borrower.id },
+        relations: ['center'],
+      });
+
+      if (!borrower) {
+        throw new NotFoundException(
+          `Borrower #${loan.borrower.id} not found while rebuilding schedule`,
+        );
+      }
+
+      await this.rebuildRepaymentSchedule(manager, loan, borrower);
+
+      return loan;
     });
-
-    if (!borrower) {
-      throw new NotFoundException(
-        `Borrower #${loan.borrower.id} not found while rebuilding schedule`,
-      );
-    }
-
-    await this.rebuildRepaymentSchedule(loan, borrower);
-
-    return this.findOne(id);
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.loanRepository.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Loan #${id} not found`);
-    }
+    await this.dataSource.transaction(async (manager) => {
+      await this.lockLoanForFinancialUpdate(manager, id);
+      const result = await manager.getRepository(Loan).delete(id);
+      if (result.affected === 0) {
+        throw new NotFoundException(`Loan #${id} not found`);
+      }
+    });
   }
 
   // Check if member is eligible for reloan
@@ -1593,10 +1768,12 @@ export class LoansService {
   }
 
   private async rebuildRepaymentSchedule(
+    manager: EntityManager,
     loan: Loan,
     member: Member,
   ): Promise<void> {
-    await this.scheduleRepository.delete({ loanId: loan.id });
+    const scheduleRepository = manager.getRepository(LoanRepaymentSchedule);
+    await scheduleRepository.delete({ loanId: loan.id });
 
     const termWeeks = Number(loan.termWeeks || 0);
     const weeklyDue = Number(loan.weeklyPaymentAmount || 0);
@@ -1613,7 +1790,7 @@ export class LoansService {
       const dueDate = this.addDays(firstDueDate, i * 7);
       const scheduleBreakdown = breakdown[i];
       schedules.push(
-        this.scheduleRepository.create({
+        scheduleRepository.create({
           loanId: loan.id,
           memberId: member.id,
           centerId: center?.id ?? null,
@@ -1629,6 +1806,6 @@ export class LoansService {
       );
     }
 
-    await this.scheduleRepository.save(schedules);
+    await scheduleRepository.save(schedules);
   }
 }

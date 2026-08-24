@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import {
   Repayment,
   RepaymentOperationType,
@@ -84,9 +84,40 @@ export class RepaymentsService implements OnModuleInit {
     private readonly savingsRepo: Repository<Savings>,
     @InjectRepository(CollectionBatch)
     private readonly collectionBatchRepo: Repository<CollectionBatch>,
+    private readonly dataSource: DataSource,
     private readonly loansService: LoansService,
     private readonly businessTime: BusinessTimeService,
   ) {}
+
+  private async lockRepaymentRows(
+    manager: EntityManager,
+    repaymentIds: string[],
+  ): Promise<void> {
+    const repository = manager.getRepository(Repayment);
+    for (const id of [...new Set(repaymentIds)].sort()) {
+      const repayment = await repository.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!repayment) {
+        throw new NotFoundException('Repayment not found');
+      }
+    }
+  }
+
+  private async loadRepaymentWithRelations(
+    manager: EntityManager,
+    repaymentId: string,
+  ): Promise<Repayment> {
+    const repayment = await manager.getRepository(Repayment).findOne({
+      where: { id: repaymentId },
+      relations: ['loan', 'member', 'member.center', 'center'],
+    });
+    if (!repayment) {
+      throw new NotFoundException('Repayment not found');
+    }
+    return repayment;
+  }
 
   async onModuleInit(): Promise<void> {
     const existingSchedules = await this.scheduleRepo.count();
@@ -189,21 +220,16 @@ export class RepaymentsService implements OnModuleInit {
     return this.businessTime.toBusinessDate(collectionDate);
   }
 
-  private isUniqueConstraintError(error: unknown): boolean {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      (error as { code?: string }).code === '23505'
-    );
-  }
-
   private async ensurePendingCollectionBatch(
     centerId: string,
     collectionDate: string,
     submittedById?: string | null,
+    manager?: EntityManager,
   ): Promise<CollectionBatch> {
-    const existing = await this.collectionBatchRepo.findOne({
+    const repository = manager
+      ? manager.getRepository(CollectionBatch)
+      : this.collectionBatchRepo;
+    const existing = await repository.findOne({
       where: {
         centerId,
         collectionDate,
@@ -215,35 +241,38 @@ export class RepaymentsService implements OnModuleInit {
       return existing;
     }
 
-    const created = this.collectionBatchRepo.create({
-      centerId,
-      collectionDate,
-      status: CollectionBatchStatus.PENDING,
-      submittedById: submittedById ?? null,
-      submittedAt: new Date(),
-    });
-
-    try {
-      return await this.collectionBatchRepo.save(created);
-    } catch (error) {
-      if (!this.isUniqueConstraintError(error)) {
-        throw error;
-      }
-
-      const current = await this.collectionBatchRepo.findOne({
-        where: {
-          centerId,
-          collectionDate,
-          status: CollectionBatchStatus.PENDING,
-        },
-      });
-
-      if (!current) {
-        throw error;
-      }
-
-      return current;
+    const result = await repository
+      .createQueryBuilder()
+      .insert()
+      .into(CollectionBatch)
+      .values({
+        centerId,
+        collectionDate,
+        status: CollectionBatchStatus.PENDING,
+        submittedById: submittedById ?? null,
+        submittedAt: new Date(),
+      })
+      .onConflict(
+        `("centerId", "collectionDate") WHERE "status" = 'pending' DO NOTHING`,
+      )
+      .returning('*')
+      .execute();
+    const inserted = (result.raw as CollectionBatch[])[0];
+    if (inserted) {
+      return repository.create(inserted);
     }
+
+    const current = await repository.findOne({
+      where: {
+        centerId,
+        collectionDate,
+        status: CollectionBatchStatus.PENDING,
+      },
+    });
+    if (!current) {
+      throw new BadRequestException('Unable to establish pending collection');
+    }
+    return current;
   }
 
   async create(
@@ -287,79 +316,82 @@ export class RepaymentsService implements OnModuleInit {
       );
     }
 
-    const [loan, member, center] = await Promise.all([
-      this.loanRepo.findOne({
-        where: { id: loanId },
-        relations: ['borrower', 'borrower.center'],
-      }),
-      this.memberRepo.findOne({
-        where: { id: memberId },
-        relations: ['center'],
-      }),
-      this.centerRepo.findOne({ where: { id: centerId } }),
-    ]);
-
-    if (!loan) throw new NotFoundException('Loan not found');
-    if (!member) throw new NotFoundException('Member not found');
-    if (!center) throw new NotFoundException('Center not found');
-
-    if (loan.status !== 'active') {
-      throw new BadRequestException(
-        'Cannot post payment for a non-active loan',
-      );
-    }
-
-    if (loan.borrower?.id !== member.id) {
-      throw new BadRequestException('Loan does not belong to the member');
-    }
-
-    if (member.center?.id !== center.id) {
-      throw new BadRequestException('Member does not belong to the center');
-    }
-
-    const activeLoans = await this.loanRepo.find({
-      where: { borrower: { id: member.id }, status: 'active' },
-    });
-    if (activeLoans.length > 1) {
-      throw new BadRequestException(
-        'Member has multiple active loans. Resolve loan records before posting payment',
-      );
-    }
-
-    if (activeLoans.length !== 1 || activeLoans[0].id !== loan.id) {
-      throw new BadRequestException(
-        'Submitted loan is not the member active loan',
-      );
-    }
-
     const collectionDateString = this.normalizeCollectionDate(collectionDate);
     const createdById = actor?.userId ?? null;
     const shouldAutoApprove =
       actor?.role === 'manager' || actor?.role === 'admin';
-    const pendingBatch = shouldAutoApprove
-      ? null
-      : await this.ensurePendingCollectionBatch(
-          center.id,
-          collectionDateString,
-          createdById,
+    const savedRepayment = await this.dataSource.transaction(
+      async (manager) => {
+        const loan = await this.loansService.lockLoanForFinancialUpdate(
+          manager,
+          loanId,
+          ['borrower', 'borrower.center'],
         );
+        const memberRepository = manager.getRepository(Member);
+        const centerRepository = manager.getRepository(Center);
+        const repaymentRepository = manager.getRepository(Repayment);
+        const member = await memberRepository.findOne({
+          where: { id: memberId },
+          relations: ['center'],
+        });
+        const center = await centerRepository.findOne({
+          where: { id: centerId },
+        });
 
-    const repayment = this.repaymentRepo.create({
-      loan,
-      member,
-      center,
-      amount: numericAmount,
-      notes,
-      paymentDate: collectionDateString,
-      collectionDate: collectionDateString,
-      useSavings: Boolean(useSavings),
-      status: RepaymentStatus.PENDING,
-      operationType: RepaymentOperationType.PAYMENT,
-      relatedRepaymentId: null,
-      batchId: pendingBatch?.id ?? null,
-      createdById,
-    });
-    const savedRepayment = await this.repaymentRepo.save(repayment);
+        if (!member) throw new NotFoundException('Member not found');
+        if (!center) throw new NotFoundException('Center not found');
+        if (loan.status !== 'active') {
+          throw new BadRequestException(
+            'Cannot post payment for a non-active loan',
+          );
+        }
+        if (loan.borrower?.id !== member.id) {
+          throw new BadRequestException('Loan does not belong to the member');
+        }
+        if (member.center?.id !== center.id) {
+          throw new BadRequestException('Member does not belong to the center');
+        }
+
+        const activeLoans = await manager.getRepository(Loan).find({
+          where: { borrower: { id: member.id }, status: 'active' },
+        });
+        if (activeLoans.length > 1) {
+          throw new BadRequestException(
+            'Member has multiple active loans. Resolve loan records before posting payment',
+          );
+        }
+        if (activeLoans.length !== 1 || activeLoans[0].id !== loan.id) {
+          throw new BadRequestException(
+            'Submitted loan is not the member active loan',
+          );
+        }
+
+        const pendingBatch = shouldAutoApprove
+          ? null
+          : await this.ensurePendingCollectionBatch(
+              center.id,
+              collectionDateString,
+              createdById,
+              manager,
+            );
+        const repayment = repaymentRepository.create({
+          loan,
+          member,
+          center,
+          amount: numericAmount,
+          notes,
+          paymentDate: collectionDateString,
+          collectionDate: collectionDateString,
+          useSavings: Boolean(useSavings),
+          status: RepaymentStatus.PENDING,
+          operationType: RepaymentOperationType.PAYMENT,
+          relatedRepaymentId: null,
+          batchId: pendingBatch?.id ?? null,
+          createdById,
+        });
+        return repaymentRepository.save(repayment);
+      },
+    );
 
     if (!shouldAutoApprove) {
       return savedRepayment;
@@ -373,79 +405,91 @@ export class RepaymentsService implements OnModuleInit {
     body: { reason?: string },
     actor?: { userId?: string; role?: string },
   ) {
-    const sourceRepayment = await this.repaymentRepo.findOne({
+    const locator = await this.repaymentRepo.findOne({
       where: { id: repaymentId },
-      relations: ['loan', 'member', 'center'],
+      relations: ['loan'],
     });
-
-    if (!sourceRepayment) {
+    if (!locator?.loan?.id) {
       throw new NotFoundException('Repayment not found');
     }
-
-    if (sourceRepayment.operationType === RepaymentOperationType.REVERSAL) {
-      throw new BadRequestException('Cannot reverse a reversal transaction');
-    }
-
-    if (sourceRepayment.status !== RepaymentStatus.APPROVED) {
-      throw new BadRequestException('Only approved repayments can be reversed');
-    }
-
-    const existingReversal = await this.repaymentRepo.findOne({
-      where: {
-        relatedRepaymentId: sourceRepayment.id,
-        operationType: RepaymentOperationType.REVERSAL,
-        status: In([RepaymentStatus.PENDING, RepaymentStatus.APPROVED]),
-      },
-      order: { createdAt: 'DESC' },
-    });
-
-    if (existingReversal) {
-      if (existingReversal.status === RepaymentStatus.PENDING) {
-        throw new BadRequestException(
-          'A reversal request is already pending approval',
-        );
-      }
-      throw new BadRequestException('Repayment has already been reversed');
-    }
-
     const createdById = actor?.userId ?? null;
     const shouldAutoApprove =
       actor?.role === 'manager' || actor?.role === 'admin';
     const reason = body.reason?.trim();
-    const sourceCenterId = sourceRepayment.center?.id;
-    if (!sourceCenterId) {
-      throw new NotFoundException('Center not found');
-    }
-    const reversalCollectionDate =
-      sourceRepayment.collectionDate ??
-      this.normalizeCollectionDate(sourceRepayment.createdAt.toISOString());
-    const pendingBatch = shouldAutoApprove
-      ? null
-      : await this.ensurePendingCollectionBatch(
-          sourceCenterId,
-          reversalCollectionDate,
-          createdById,
+    const savedReversal = await this.dataSource.transaction(async (manager) => {
+      await this.loansService.lockLoanForFinancialUpdate(
+        manager,
+        locator.loan.id,
+      );
+      await this.lockRepaymentRows(manager, [repaymentId]);
+      const sourceRepayment = await this.loadRepaymentWithRelations(
+        manager,
+        repaymentId,
+      );
+      if (sourceRepayment.loan?.id !== locator.loan.id) {
+        throw new BadRequestException('Repayment loan changed during reversal');
+      }
+      if (sourceRepayment.operationType === RepaymentOperationType.REVERSAL) {
+        throw new BadRequestException('Cannot reverse a reversal transaction');
+      }
+      if (sourceRepayment.status !== RepaymentStatus.APPROVED) {
+        throw new BadRequestException(
+          'Only approved repayments can be reversed',
         );
+      }
 
-    const reversal = this.repaymentRepo.create({
-      loan: sourceRepayment.loan,
-      member: sourceRepayment.member,
-      center: sourceRepayment.center,
-      amount: Number(sourceRepayment.amount),
-      notes:
-        reason && reason.length > 0
-          ? reason
-          : `Reversal request for repayment ${sourceRepayment.id}`,
-      collectionDate: reversalCollectionDate,
-      useSavings: false,
-      status: RepaymentStatus.PENDING,
-      operationType: RepaymentOperationType.REVERSAL,
-      relatedRepaymentId: sourceRepayment.id,
-      batchId: pendingBatch?.id ?? null,
-      createdById,
+      const repaymentRepository = manager.getRepository(Repayment);
+      const existingReversal = await repaymentRepository.findOne({
+        where: {
+          relatedRepaymentId: sourceRepayment.id,
+          operationType: RepaymentOperationType.REVERSAL,
+          status: In([RepaymentStatus.PENDING, RepaymentStatus.APPROVED]),
+        },
+        order: { createdAt: 'DESC' },
+      });
+      if (existingReversal) {
+        if (existingReversal.status === RepaymentStatus.PENDING) {
+          throw new BadRequestException(
+            'A reversal request is already pending approval',
+          );
+        }
+        throw new BadRequestException('Repayment has already been reversed');
+      }
+
+      const sourceCenterId = sourceRepayment.center?.id;
+      if (!sourceCenterId) {
+        throw new NotFoundException('Center not found');
+      }
+      const reversalCollectionDate =
+        sourceRepayment.collectionDate ??
+        this.normalizeCollectionDate(sourceRepayment.createdAt.toISOString());
+      const pendingBatch = shouldAutoApprove
+        ? null
+        : await this.ensurePendingCollectionBatch(
+            sourceCenterId,
+            reversalCollectionDate,
+            createdById,
+            manager,
+          );
+      const reversal = repaymentRepository.create({
+        loan: sourceRepayment.loan,
+        member: sourceRepayment.member,
+        center: sourceRepayment.center,
+        amount: Number(sourceRepayment.amount),
+        notes:
+          reason && reason.length > 0
+            ? reason
+            : `Reversal request for repayment ${sourceRepayment.id}`,
+        collectionDate: reversalCollectionDate,
+        useSavings: false,
+        status: RepaymentStatus.PENDING,
+        operationType: RepaymentOperationType.REVERSAL,
+        relatedRepaymentId: sourceRepayment.id,
+        batchId: pendingBatch?.id ?? null,
+        createdById,
+      });
+      return repaymentRepository.save(reversal);
     });
-
-    const savedReversal = await this.repaymentRepo.save(reversal);
 
     if (!shouldAutoApprove) {
       return savedReversal;
@@ -517,8 +561,12 @@ export class RepaymentsService implements OnModuleInit {
     loan: Loan,
     member: Member,
     center: Center | null,
+    manager?: EntityManager,
   ): Promise<void> {
-    const existingRows = await this.scheduleRepo.find({
+    const scheduleRepository = manager
+      ? manager.getRepository(LoanRepaymentSchedule)
+      : this.scheduleRepo;
+    const existingRows = await scheduleRepository.find({
       where: { loanId: loan.id },
       order: { weekNumber: 'ASC' },
     });
@@ -538,7 +586,7 @@ export class RepaymentsService implements OnModuleInit {
       );
 
       if (needsBreakdownBackfill && breakdown.length === existingRows.length) {
-        await this.scheduleRepo.save(
+        await scheduleRepository.save(
           existingRows.map((schedule, index) => ({
             ...schedule,
             principalDue: breakdown[index]?.principalDue ?? 0,
@@ -570,7 +618,7 @@ export class RepaymentsService implements OnModuleInit {
     for (let i = 0; i < termWeeks; i += 1) {
       const dueDate = this.formatDate(this.addDays(firstDueDate, i * 7));
       const scheduleBreakdown = breakdown[i];
-      const schedule = this.scheduleRepo.create({
+      const schedule = scheduleRepository.create({
         loanId: loan.id,
         memberId: memberId ?? null,
         centerId: centerId ?? null,
@@ -586,7 +634,7 @@ export class RepaymentsService implements OnModuleInit {
       });
       rows.push(schedule);
     }
-    await this.scheduleRepo.save(rows);
+    await scheduleRepository.save(rows);
   }
 
   private resolveScheduleStatus(
@@ -610,6 +658,7 @@ export class RepaymentsService implements OnModuleInit {
   }
 
   private async applyRepaymentToSchedule(params: {
+    manager?: EntityManager;
     loan: Loan;
     member: Member;
     center: Center | null;
@@ -621,6 +670,7 @@ export class RepaymentsService implements OnModuleInit {
   }): Promise<void> {
     const {
       loan,
+      manager,
       member,
       center,
       repayment,
@@ -635,9 +685,15 @@ export class RepaymentsService implements OnModuleInit {
       return;
     }
 
-    await this.ensureLoanSchedule(loan, member, center);
+    await this.ensureLoanSchedule(loan, member, center, manager);
 
-    const schedules = await this.scheduleRepo.find({
+    const scheduleRepository = manager
+      ? manager.getRepository(LoanRepaymentSchedule)
+      : this.scheduleRepo;
+    const allocationRepository = manager
+      ? manager.getRepository(LoanRepaymentAllocation)
+      : this.allocationRepo;
+    const schedules = await scheduleRepository.find({
       where: { loanId: loan.id },
       order: { dueDate: 'ASC', weekNumber: 'ASC' },
     });
@@ -673,7 +729,7 @@ export class RepaymentsService implements OnModuleInit {
       touched.set(schedule.id, schedule);
       allocations.set(
         schedule.id,
-        this.allocationRepo.create({
+        allocationRepository.create({
           repaymentId: repayment.id,
           scheduleId: schedule.id,
           amountApplied: applied,
@@ -717,7 +773,7 @@ export class RepaymentsService implements OnModuleInit {
       } else {
         allocations.set(
           last.id,
-          this.allocationRepo.create({
+          allocationRepository.create({
             repaymentId: repayment.id,
             scheduleId: last.id,
             amountApplied: remaining,
@@ -732,10 +788,10 @@ export class RepaymentsService implements OnModuleInit {
     }
 
     if (touched.size > 0) {
-      await this.scheduleRepo.save([...touched.values()]);
+      await scheduleRepository.save([...touched.values()]);
     }
     if (allocations.size > 0) {
-      await this.allocationRepo.save([...allocations.values()]);
+      await allocationRepository.save([...allocations.values()]);
     }
   }
 
@@ -1064,37 +1120,60 @@ export class RepaymentsService implements OnModuleInit {
   }
 
   async approveRepayment(id: string, actorId?: string): Promise<Repayment> {
-    const repayment = await this.repaymentRepo.findOne({
+    const locator = await this.repaymentRepo.findOne({
       where: { id },
-      relations: ['loan', 'member', 'center'],
+      relations: ['loan'],
     });
-    if (!repayment) {
+    if (!locator?.loan?.id) {
       throw new NotFoundException('Repayment not found');
     }
-
-    if (repayment.status !== RepaymentStatus.PENDING) {
-      throw new BadRequestException('Only pending repayments can be approved');
+    const repaymentIds = [id];
+    if (
+      locator.operationType === RepaymentOperationType.REVERSAL &&
+      locator.relatedRepaymentId
+    ) {
+      repaymentIds.push(locator.relatedRepaymentId);
     }
 
-    if (repayment.operationType === RepaymentOperationType.REVERSAL) {
-      return this.approveReversalRepayment(repayment, actorId);
-    }
+    return this.dataSource.transaction(async (manager) => {
+      const loan = await this.loansService.lockLoanForFinancialUpdate(
+        manager,
+        locator.loan.id,
+        ['borrower', 'borrower.center'],
+      );
+      await this.lockRepaymentRows(manager, repaymentIds);
+      const repayment = await this.loadRepaymentWithRelations(manager, id);
+      if (repayment.loan?.id !== loan.id) {
+        throw new BadRequestException('Repayment loan changed during approval');
+      }
+      if (repayment.status !== RepaymentStatus.PENDING) {
+        throw new BadRequestException(
+          'Only pending repayments can be approved',
+        );
+      }
 
-    return this.approvePaymentRepayment(repayment, actorId);
+      if (repayment.operationType === RepaymentOperationType.REVERSAL) {
+        if (
+          !repayment.relatedRepaymentId ||
+          !repaymentIds.includes(repayment.relatedRepaymentId)
+        ) {
+          throw new BadRequestException(
+            'Reversal source changed during approval',
+          );
+        }
+        return this.approveReversalRepayment(manager, loan, repayment, actorId);
+      }
+
+      return this.approvePaymentRepayment(manager, loan, repayment, actorId);
+    });
   }
 
   private async approvePaymentRepayment(
+    manager: EntityManager,
+    loan: Loan,
     repayment: Repayment,
     actorId?: string,
   ): Promise<Repayment> {
-    const loan = await this.loanRepo.findOne({
-      where: { id: repayment.loan?.id },
-      relations: ['borrower', 'borrower.center'],
-    });
-    if (!loan) {
-      throw new NotFoundException('Loan not found');
-    }
-
     const member = repayment.member;
     const center = repayment.center ?? member?.center ?? null;
     if (!member) {
@@ -1105,15 +1184,17 @@ export class RepaymentsService implements OnModuleInit {
       repayment.collectionDate ??
       this.normalizeCollectionDate(repayment.createdAt.toISOString());
 
-    await this.ensureLoanSchedule(loan, member, center);
-    await this.loansService.postOverdueChargesForLoan(
-      loan.id,
+    await this.ensureLoanSchedule(loan, member, center, manager);
+    await this.loansService.postOverdueChargesForLoanInTransaction(
+      manager,
+      loan,
       paymentDate,
       repayment.id,
     );
     const repaymentApplication =
-      await this.loansService.applyRepaymentWithChargeAllocation(
-        loan.id,
+      await this.loansService.applyRepaymentWithChargeAllocationInTransaction(
+        manager,
+        loan,
         Number(repayment.amount),
         Boolean(repayment.useSavings),
         repayment.id,
@@ -1122,6 +1203,7 @@ export class RepaymentsService implements OnModuleInit {
 
     if (repaymentApplication.regularApplied > 0) {
       await this.applyRepaymentToSchedule({
+        manager,
         loan: targetLoan,
         member,
         center,
@@ -1138,7 +1220,7 @@ export class RepaymentsService implements OnModuleInit {
       throw new NotFoundException('Center not found');
     }
 
-    await this.recordCollectionEntry({
+    await this.recordCollectionEntry(manager, {
       memberId: member.id,
       centerId: targetCenterId,
       collectionDate:
@@ -1152,10 +1234,12 @@ export class RepaymentsService implements OnModuleInit {
       notes: repayment.notes ?? undefined,
     });
 
-    return this.markRepaymentApproved(repayment, actorId);
+    return this.markRepaymentApproved(manager, repayment, actorId);
   }
 
   private async approveReversalRepayment(
+    manager: EntityManager,
+    loan: Loan,
     reversal: Repayment,
     actorId?: string,
   ): Promise<Repayment> {
@@ -1166,9 +1250,9 @@ export class RepaymentsService implements OnModuleInit {
       );
     }
 
-    const original = await this.repaymentRepo.findOne({
+    const original = await manager.getRepository(Repayment).findOne({
       where: { id: originalRepaymentId },
-      relations: ['loan', 'member', 'center'],
+      relations: ['loan', 'member', 'member.center', 'center'],
     });
     if (!original) {
       throw new NotFoundException('Original repayment not found');
@@ -1182,12 +1266,8 @@ export class RepaymentsService implements OnModuleInit {
       throw new BadRequestException('Only approved repayments can be reversed');
     }
 
-    const loan = await this.loanRepo.findOne({
-      where: { id: original.loan?.id },
-      relations: ['borrower', 'borrower.center'],
-    });
-    if (!loan) {
-      throw new NotFoundException('Loan not found');
+    if (original.loan?.id !== loan.id) {
+      throw new BadRequestException('Reversal source belongs to another loan');
     }
 
     const member = original.member ?? loan.borrower;
@@ -1200,11 +1280,14 @@ export class RepaymentsService implements OnModuleInit {
       throw new NotFoundException('Center not found');
     }
 
-    const originalAllocations = await this.allocationRepo.find({
+    const allocationRepository = manager.getRepository(LoanRepaymentAllocation);
+    const scheduleRepository = manager.getRepository(LoanRepaymentSchedule);
+    const originalAllocations = await allocationRepository.find({
       where: { repaymentId: original.id },
     });
     const chargeReversal =
-      await this.loansService.createChargePaymentReversalsForRepayment(
+      await this.loansService.createChargePaymentReversalsForRepaymentInTransaction(
+        manager,
         original.id,
       );
 
@@ -1235,7 +1318,7 @@ export class RepaymentsService implements OnModuleInit {
         );
       }
 
-      const targetSchedules = await this.scheduleRepo.find({
+      const targetSchedules = await scheduleRepository.find({
         where: { id: In([...rollbackByScheduleId.keys()]) },
       });
       for (const schedule of targetSchedules) {
@@ -1247,10 +1330,10 @@ export class RepaymentsService implements OnModuleInit {
         schedule.status = this.resolveScheduleStatus(schedule, paymentDate);
       }
       if (targetSchedules.length > 0) {
-        await this.scheduleRepo.save(targetSchedules);
+        await scheduleRepository.save(targetSchedules);
       }
 
-      await this.allocationRepo.delete({ repaymentId: original.id });
+      await allocationRepository.delete({ repaymentId: original.id });
     }
 
     const previousAmountPaid = Number(loan.amountPaid || 0);
@@ -1290,19 +1373,20 @@ export class RepaymentsService implements OnModuleInit {
     } else if (loan.status === 'paid') {
       loan.status = 'active';
     }
-    await this.loanRepo.save(loan);
+    await manager.getRepository(Loan).save(loan);
 
     if (savingsUsed > 0) {
-      const savingsEntry = this.savingsRepo.create({
+      const savingsRepository = manager.getRepository(Savings);
+      const savingsEntry = savingsRepository.create({
         borrower: member,
         loan,
         amount: Number(savingsUsed.toFixed(2)),
         remarks: `Reversal credit for repayment ${original.id}`,
       });
-      await this.savingsRepo.save(savingsEntry);
+      await savingsRepository.save(savingsEntry);
     }
 
-    await this.reverseCollectionEntry({
+    await this.reverseCollectionEntry(manager, {
       memberId: member.id,
       centerId: center.id,
       collectionDate:
@@ -1313,10 +1397,11 @@ export class RepaymentsService implements OnModuleInit {
       notes: reversal.notes ?? undefined,
     });
 
-    return this.markRepaymentApproved(reversal, actorId);
+    return this.markRepaymentApproved(manager, reversal, actorId);
   }
 
   private async markRepaymentApproved(
+    manager: EntityManager,
     repayment: Repayment,
     actorId?: string,
   ): Promise<Repayment> {
@@ -1332,7 +1417,7 @@ export class RepaymentsService implements OnModuleInit {
     if (!repayment.paymentDate) {
       repayment.paymentDate = repayment.collectionDate;
     }
-    return this.repaymentRepo.save(repayment);
+    return manager.getRepository(Repayment).save(repayment);
   }
 
   async rejectRepayment(
@@ -1340,20 +1425,37 @@ export class RepaymentsService implements OnModuleInit {
     actorId?: string,
     reason?: string,
   ): Promise<Repayment> {
-    const repayment = await this.repaymentRepo.findOne({ where: { id } });
-    if (!repayment) {
+    const locator = await this.repaymentRepo.findOne({
+      where: { id },
+      relations: ['loan'],
+    });
+    if (!locator?.loan?.id) {
       throw new NotFoundException('Repayment not found');
     }
+    return this.dataSource.transaction(async (manager) => {
+      await this.loansService.lockLoanForFinancialUpdate(
+        manager,
+        locator.loan.id,
+      );
+      await this.lockRepaymentRows(manager, [id]);
+      const repayment = await manager
+        .getRepository(Repayment)
+        .findOne({ where: { id } });
+      if (!repayment) {
+        throw new NotFoundException('Repayment not found');
+      }
+      if (repayment.status !== RepaymentStatus.PENDING) {
+        throw new BadRequestException(
+          'Only pending repayments can be rejected',
+        );
+      }
 
-    if (repayment.status !== RepaymentStatus.PENDING) {
-      throw new BadRequestException('Only pending repayments can be rejected');
-    }
-
-    repayment.status = RepaymentStatus.REJECTED;
-    repayment.rejectedById = actorId ?? null;
-    repayment.rejectedAt = new Date();
-    repayment.rejectedReason = reason?.trim() || null;
-    return this.repaymentRepo.save(repayment);
+      repayment.status = RepaymentStatus.REJECTED;
+      repayment.rejectedById = actorId ?? null;
+      repayment.rejectedAt = new Date();
+      repayment.rejectedReason = reason?.trim() || null;
+      return manager.getRepository(Repayment).save(repayment);
+    });
   }
 
   async getScheduleForLoan(loanId: string) {
@@ -1390,14 +1492,17 @@ export class RepaymentsService implements OnModuleInit {
     return schedule;
   }
 
-  private async reverseCollectionEntry(params: {
-    memberId: string;
-    centerId: string;
-    collectionDate: string;
-    amountToReverse: number;
-    totalWeeksPaid: number;
-    notes?: string;
-  }) {
+  private async reverseCollectionEntry(
+    manager: EntityManager,
+    params: {
+      memberId: string;
+      centerId: string;
+      collectionDate: string;
+      amountToReverse: number;
+      totalWeeksPaid: number;
+      notes?: string;
+    },
+  ) {
     const {
       memberId,
       centerId,
@@ -1406,8 +1511,10 @@ export class RepaymentsService implements OnModuleInit {
       totalWeeksPaid,
       notes,
     } = params;
-    const existing = await this.collectionRepo.findOne({
+    const collectionRepository = manager.getRepository(Collection);
+    const existing = await collectionRepository.findOne({
       where: { memberId, centerId, collectionDate },
+      lock: { mode: 'pessimistic_write' },
     });
     if (!existing) {
       return;
@@ -1422,18 +1529,21 @@ export class RepaymentsService implements OnModuleInit {
     if (notes) {
       existing.notes = notes;
     }
-    await this.collectionRepo.save(existing);
+    await collectionRepository.save(existing);
   }
 
-  private async recordCollectionEntry(params: {
-    memberId: string;
-    centerId: string;
-    collectionDate: string;
-    weeklyAmount: number;
-    amountApplied: number;
-    totalWeeksPaid: number;
-    notes?: string;
-  }) {
+  private async recordCollectionEntry(
+    manager: EntityManager,
+    params: {
+      memberId: string;
+      centerId: string;
+      collectionDate: string;
+      weeklyAmount: number;
+      amountApplied: number;
+      totalWeeksPaid: number;
+      notes?: string;
+    },
+  ) {
     const {
       memberId,
       centerId,
@@ -1445,8 +1555,10 @@ export class RepaymentsService implements OnModuleInit {
     } = params;
 
     const applied = Number(amountApplied || 0);
-    const existing = await this.collectionRepo.findOne({
+    const collectionRepository = manager.getRepository(Collection);
+    const existing = await collectionRepository.findOne({
       where: { memberId, centerId, collectionDate },
+      lock: { mode: 'pessimistic_write' },
     });
 
     if (existing) {
@@ -1461,11 +1573,11 @@ export class RepaymentsService implements OnModuleInit {
       if (notes) {
         existing.notes = notes;
       }
-      await this.collectionRepo.save(existing);
+      await collectionRepository.save(existing);
       return;
     }
 
-    const collection = this.collectionRepo.create({
+    const collection = collectionRepository.create({
       memberId,
       centerId,
       collectionDate,
@@ -1478,6 +1590,6 @@ export class RepaymentsService implements OnModuleInit {
       advancePaymentStatus: AdvancePaymentStatus.NONE,
       notes,
     });
-    await this.collectionRepo.save(collection);
+    await collectionRepository.save(collection);
   }
 }

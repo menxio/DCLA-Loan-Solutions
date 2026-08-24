@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { BusinessTimeService } from '../common/business-time/business-time.service';
 import { LoansService } from '../loans/loans.service';
 import { RepaymentsService } from './repayments.service';
+import { DataSource } from 'typeorm';
 
 describe('RepaymentsService business dates', () => {
   const businessTime = new BusinessTimeService({
@@ -17,6 +18,7 @@ describe('RepaymentsService business dates', () => {
     {} as never,
     {} as never,
     {} as never,
+    {} as DataSource,
     {} as LoansService,
     businessTime,
   );
@@ -33,8 +35,8 @@ describe('RepaymentsService business dates', () => {
   });
 
   it('converts an offset-bearing repayment instant to its Manila date', () => {
-    expect(
-      internal.normalizeCollectionDate('2026-08-28T16:00:00Z'),
-    ).toBe('2026-08-29');
+    expect(internal.normalizeCollectionDate('2026-08-28T16:00:00Z')).toBe(
+      '2026-08-29',
+    );
   });
 });

@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   OneToMany,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Loan } from '../loans/loan.entity';
 import { Member } from '../members/entities/member.entity';
@@ -24,6 +25,12 @@ export enum RepaymentOperationType {
   REVERSAL = 'reversal',
 }
 @Entity()
+@Index('UQ_repayment_active_reversal_source', ['relatedRepaymentId'], {
+  unique: true,
+  where:
+    `"operationType" = 'reversal' AND "status" IN ('pending', 'approved') ` +
+    `AND "relatedRepaymentId" IS NOT NULL`,
+})
 export class Repayment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
