@@ -549,9 +549,7 @@ export class LoansService {
       );
     }
 
-    const regularApplied = this.roundCurrency(
-      Math.min(paymentRemaining, regularOutstanding),
-    );
+    const regularApplied = this.roundCurrency(paymentRemaining);
     const regularSource =
       regularApplied > 0
         ? allocateFromSources(regularApplied)

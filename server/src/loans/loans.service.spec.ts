@@ -259,6 +259,127 @@ describe('LoansService', () => {
         ...overrides,
       }) as Loan;
 
+    describe('repayment allocation reconciliation', () => {
+      const applyPayment = async (
+        loan: Loan,
+        amount: number,
+        repaymentId = 'repayment-1',
+      ) => {
+        loanRepository.findOne.mockResolvedValue(loan);
+        return service.applyRepaymentWithChargeAllocation(
+          loan.id,
+          amount,
+          false,
+          repaymentId,
+        );
+      };
+
+      it.each([
+        {
+          label: 'less than the outstanding amount',
+          payment: 1_000,
+          expectedBalance: 500,
+          expectedStatus: 'active',
+        },
+        {
+          label: 'the exact outstanding amount',
+          payment: 1_500,
+          expectedBalance: 0,
+          expectedStatus: 'paid',
+        },
+      ])(
+        'fully accounts for $label',
+        async ({ payment, expectedBalance, expectedStatus }) => {
+          const loan = createLoan({
+            principalAmount: 1_500,
+            totalAmount: 1_500,
+            weeklyPaymentAmount: 1_000,
+            balance: 1_500,
+          });
+
+          const result = await applyPayment(loan, payment);
+
+          expect(result.regularApplied).toBe(payment);
+          expect(result.totalApplied).toBe(payment);
+          expect(loan.amountPaid).toBe(payment);
+          expect(loan.balance).toBe(expectedBalance);
+          expect(loan.status).toBe(expectedStatus);
+        },
+      );
+
+      it('keeps an accepted overpayment available for schedule advance allocation', async () => {
+        const loan = createLoan({
+          principalAmount: 1_500,
+          totalAmount: 1_500,
+          weeklyPaymentAmount: 1_000,
+          balance: 1_500,
+        });
+
+        const result = await applyPayment(loan, 2_000);
+
+        expect(result).toMatchObject({
+          chargeApplied: 0,
+          regularApplied: 2_000,
+          totalApplied: 2_000,
+          savingsUsed: 0,
+        });
+        expect(loan.amountPaid).toBe(2_000);
+        expect(loan.balance).toBe(0);
+        expect(loan.status).toBe('paid');
+      });
+
+      it('allocates charges first and preserves the full residual overpayment', async () => {
+        const loan = createLoan({
+          principalAmount: 1_500,
+          totalAmount: 1_500,
+          weeklyPaymentAmount: 1_000,
+          balance: 1_650,
+          penaltyAccrued: 100,
+          pastDueInterestAccrued: 50,
+        });
+
+        const result = await applyPayment(loan, 2_150);
+        const paymentEntries = ledgerEntries.filter(
+          (entry) => entry.eventType === LoanChargeLedgerEventType.PAYMENT,
+        );
+
+        expect(result).toMatchObject({
+          chargeApplied: 150,
+          regularApplied: 2_000,
+          totalApplied: 2_150,
+          savingsUsed: 0,
+        });
+        expect(paymentEntries.map((entry) => entry.chargeType)).toEqual([
+          LoanChargeType.PENALTY,
+          LoanChargeType.PAST_DUE_INTEREST,
+        ]);
+        expect(
+          paymentEntries.reduce((sum, entry) => sum + Number(entry.amount), 0) +
+            result.regularApplied,
+        ).toBe(2_150);
+        expect(loan.amountPaid).toBe(2_000);
+        expect(loan.balance).toBe(0);
+      });
+
+      it('fully accounts for two serialized payments against the same loan', async () => {
+        const loan = createLoan({
+          principalAmount: 1_500,
+          totalAmount: 1_500,
+          weeklyPaymentAmount: 1_000,
+          balance: 1_500,
+        });
+
+        const first = await applyPayment(loan, 1_000, 'repayment-1');
+        const second = await applyPayment(loan, 1_000, 'repayment-2');
+
+        expect(first.totalApplied).toBe(1_000);
+        expect(second.totalApplied).toBe(1_000);
+        expect(first.totalApplied + second.totalApplied).toBe(2_000);
+        expect(loan.amountPaid).toBe(2_000);
+        expect(loan.balance).toBe(0);
+      });
+    });
+
     it.each([
       [999.99, 50],
       [1_000, 100],

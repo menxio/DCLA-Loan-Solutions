@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -18,6 +19,14 @@ export enum CollectionBatchStatus {
 }
 
 @Entity()
+@Index(
+  'UQ_collection_batch_pending_center_date',
+  ['centerId', 'collectionDate'],
+  {
+    unique: true,
+    where: `"status" = 'pending'`,
+  },
+)
 export class CollectionBatch {
   @PrimaryGeneratedColumn('uuid')
   id: string;

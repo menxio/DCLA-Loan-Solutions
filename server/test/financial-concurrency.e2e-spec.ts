@@ -34,6 +34,9 @@ const describePostgres = runConcurrencyTests ? describe : describe.skip;
 
 describePostgres('financial concurrency (PostgreSQL)', () => {
   const schema = `financial_concurrency_${process.pid}_${Date.now()}`;
+  const managerAId = '00000000-0000-4000-8000-000000000001';
+  const managerBId = '00000000-0000-4000-8000-000000000002';
+  const cashierAId = '00000000-0000-4000-8000-000000000003';
   let adminDataSource: DataSource;
   let dataSource: DataSource;
   let loansService: LoansService;
@@ -111,7 +114,7 @@ describePostgres('financial concurrency (PostgreSQL)', () => {
       loansService,
       businessTime,
     );
-  });
+  }, 30_000);
 
   beforeEach(async () => {
     await dataSource.synchronize(true);
@@ -244,8 +247,8 @@ describePostgres('financial concurrency (PostgreSQL)', () => {
     const repayment = await seedPendingRepayment(fixture, 1_000);
 
     const results = await Promise.allSettled([
-      repaymentsService.approveRepayment(repayment.id, 'manager-a'),
-      repaymentsService.approveRepayment(repayment.id, 'manager-b'),
+      repaymentsService.approveRepayment(repayment.id, managerAId),
+      repaymentsService.approveRepayment(repayment.id, managerBId),
     ]);
 
     expect(fulfilledCount(results)).toBe(1);
@@ -274,8 +277,8 @@ describePostgres('financial concurrency (PostgreSQL)', () => {
     const repaymentB = await seedPendingRepayment(fixture, 1_000);
 
     const results = await Promise.allSettled([
-      repaymentsService.approveRepayment(repaymentA.id, 'manager-a'),
-      repaymentsService.approveRepayment(repaymentB.id, 'manager-b'),
+      repaymentsService.approveRepayment(repaymentA.id, managerAId),
+      repaymentsService.approveRepayment(repaymentB.id, managerBId),
     ]);
 
     expect(fulfilledCount(results)).toBe(2);
@@ -283,11 +286,40 @@ describePostgres('financial concurrency (PostgreSQL)', () => {
     const allocations = await allocationRepository.find({
       where: [{ repaymentId: repaymentA.id }, { repaymentId: repaymentB.id }],
     });
-    expect(Number(loan.amountPaid)).toBe(1_500);
+    expect(Number(loan.amountPaid)).toBe(2_000);
     expect(Number(loan.balance)).toBe(0);
     expect(
       allocations.reduce((sum, row) => sum + Number(row.amountApplied), 0),
-    ).toBe(1_500);
+    ).toBe(2_000);
+    const schedules = await scheduleRepository.find({
+      where: { loanId: fixture.loan.id },
+      order: { weekNumber: 'ASC' },
+    });
+    expect(
+      schedules.reduce(
+        (sum, schedule) => sum + Number(schedule.advanceApplied),
+        0,
+      ),
+    ).toBe(500);
+    expect(
+      Number(
+        (
+          await collectionRepository.findOneByOrFail({
+            memberId: fixture.member.id,
+            centerId: fixture.center.id,
+            collectionDate: '2026-08-21',
+          })
+        ).paymentReceived,
+      ),
+    ).toBe(2_000);
+    expect(
+      await repaymentRepository.count({
+        where: {
+          loan: { id: fixture.loan.id },
+          status: RepaymentStatus.APPROVED,
+        },
+      }),
+    ).toBe(2);
   });
 
   it('C: posts one weekly charge under concurrent scheduler attempts', async () => {
@@ -337,7 +369,7 @@ describePostgres('financial concurrency (PostgreSQL)', () => {
 
     await Promise.all([
       loansService.postOverdueChargesForLoan(fixture.loan.id, '2026-08-29'),
-      repaymentsService.approveRepayment(repayment.id, 'manager-a'),
+      repaymentsService.approveRepayment(repayment.id, managerAId),
     ]);
 
     expect(
@@ -356,28 +388,90 @@ describePostgres('financial concurrency (PostgreSQL)', () => {
   it('F: reverses one repayment exactly once', async () => {
     const fixture = await seedLoan();
     const payment = await seedPendingRepayment(fixture, 1_000);
-    await repaymentsService.approveRepayment(payment.id, 'manager-a');
+    await repaymentsService.approveRepayment(payment.id, managerAId);
+
+    const initiallyApprovedPayment = await repaymentRepository.findOneByOrFail({
+      id: payment.id,
+    });
+    const initialAllocations = await allocationRepository.find({
+      where: { repaymentId: payment.id },
+    });
+    expect(initiallyApprovedPayment.status).toBe(RepaymentStatus.APPROVED);
+    expect(
+      initialAllocations.reduce(
+        (sum, allocation) => sum + Number(allocation.amountApplied),
+        0,
+      ),
+    ).toBe(1_000);
+
     const reversal = await repaymentsService.requestReversal(
       payment.id,
       { reason: 'test reversal' },
-      { userId: 'cashier-a', role: 'cashier' },
+      { userId: cashierAId, role: 'cashier' },
     );
 
     const results = await Promise.allSettled([
-      repaymentsService.approveRepayment(reversal.id, 'manager-a'),
-      repaymentsService.approveRepayment(reversal.id, 'manager-b'),
+      repaymentsService.approveRepayment(reversal.id, managerAId),
+      repaymentsService.approveRepayment(reversal.id, managerBId),
     ]);
 
     expect(fulfilledCount(results)).toBe(1);
-    expect(
-      Number(
-        (await loanRepository.findOneByOrFail({ id: fixture.loan.id }))
-          .amountPaid,
-      ),
-    ).toBe(0);
+    const persistedLoan = await loanRepository.findOneByOrFail({
+      id: fixture.loan.id,
+    });
+    const persistedSchedules = await scheduleRepository.find({
+      where: { loanId: fixture.loan.id },
+      order: { weekNumber: 'ASC' },
+    });
+    const persistedCollection = await collectionRepository.findOneByOrFail({
+      memberId: fixture.member.id,
+      centerId: fixture.center.id,
+      collectionDate: '2026-08-21',
+    });
+    const persistedReversals = await repaymentRepository.find({
+      where: {
+        relatedRepaymentId: payment.id,
+        operationType: RepaymentOperationType.REVERSAL,
+      },
+    });
+    const persistedSavings = await dataSource.getRepository(Savings).find({
+      where: { loan: { id: fixture.loan.id } },
+    });
+
+    expect(persistedReversals).toHaveLength(1);
+    expect(persistedReversals[0].id).toBe(reversal.id);
+    expect(persistedReversals[0].status).toBe(RepaymentStatus.APPROVED);
+    expect(Number(persistedLoan.amountPaid)).toBe(0);
+    expect(Number(persistedLoan.balance)).toBe(1_500);
+    expect(Number(persistedLoan.advancePaymentBuffer)).toBe(0);
+    expect(persistedLoan.weeksPaid).toBe(0);
+    expect(Number(persistedLoan.savings)).toBe(0);
     expect(
       await allocationRepository.count({ where: { repaymentId: payment.id } }),
     ).toBe(0);
+    expect(
+      persistedSchedules.reduce(
+        (sum, schedule) => sum + Number(schedule.amountPaid),
+        0,
+      ),
+    ).toBe(0);
+    expect(
+      persistedSchedules.reduce(
+        (sum, schedule) => sum + Number(schedule.advanceApplied),
+        0,
+      ),
+    ).toBe(0);
+    expect(
+      persistedSchedules.every(
+        (schedule) =>
+          Number(schedule.amountPaid) >= 0 &&
+          Number(schedule.advanceApplied) >= 0,
+      ),
+    ).toBe(true);
+    expect(Number(persistedCollection.paymentReceived)).toBe(0);
+    expect(persistedCollection.numberOfPayments).toBe(0);
+    expect(Number(persistedCollection.advancePaymentAmount)).toBe(0);
+    expect(persistedSavings).toHaveLength(0);
     expect(
       (await repaymentRepository.findOneByOrFail({ id: reversal.id })).status,
     ).toBe(RepaymentStatus.APPROVED);
@@ -389,12 +483,12 @@ describePostgres('financial concurrency (PostgreSQL)', () => {
       loansService.applyWaiver(
         fixture.loan.id,
         { penaltyWaiver: 400 },
-        'manager-a',
+        managerAId,
       ),
       loansService.applyWaiver(
         fixture.loan.id,
         { penaltyWaiver: 400 },
-        'manager-b',
+        managerBId,
       ),
     ]);
 
@@ -478,7 +572,7 @@ describePostgres('financial concurrency (PostgreSQL)', () => {
     `);
 
     await expect(
-      repaymentsService.approveRepayment(repayment.id, 'manager-a'),
+      repaymentsService.approveRepayment(repayment.id, managerAId),
     ).rejects.toThrow('forced allocation failure');
     expect(
       Number(
