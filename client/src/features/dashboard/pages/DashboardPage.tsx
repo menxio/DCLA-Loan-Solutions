@@ -341,7 +341,7 @@ export default function DashboardPage() {
               <CollectionPulsePanel activity={stats.todayCollectionActivity} />
               <ManagerActionsPanel
                 onOpenApprovals={() => navigate("/approvals")}
-                onOpenWaivers={() => navigate("/waivers")}
+                // onOpenWaivers={() => navigate("/waivers")}
                 onOpenTransactions={() => navigate("/transactions")}
               />
             </Stack>

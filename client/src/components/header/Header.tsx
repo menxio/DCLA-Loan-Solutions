@@ -47,7 +47,7 @@ const navItems = [
   { label: "Portfolio", path: "/portfolio", icon: AccountBalance },
   { label: "Transactions", path: "/transactions", icon: History },
   { label: "Approvals", path: "/approvals", icon: FactCheck },
-  { label: "Waivers", path: "/waivers", icon: MoneyOff },
+  // { label: "Waivers", path: "/waivers", icon: MoneyOff },
 ];
 
 export default function Header({

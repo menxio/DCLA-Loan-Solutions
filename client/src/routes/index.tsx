@@ -100,10 +100,10 @@ export default function AppRouter() {
           path="/approvals"
           element={renderProtectedRoute("/approvals", <RepaymentApprovalsPage />)}
         />
-        <Route
+        {/* <Route
           path="/waivers"
           element={renderProtectedRoute("/waivers", <LoanWaiversPage />)}
-        />
+        /> */}
         <Route
           path="*"
           element={
