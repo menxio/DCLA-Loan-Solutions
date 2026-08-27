@@ -60,13 +60,14 @@ export function useRepaymentApprovals() {
     const actionKey = getActionKey(centerId, collectionDate, batchId);
     updateActing(actionKey, true);
     try {
-      await repaymentsService.approveCollection(centerId, collectionDate);
+      const result = await repaymentsService.approveCollection(centerId, collectionDate);
       setPendingCollections((prev) =>
         prev.filter(
           (item) =>
             !(item.centerId === centerId && item.collectionDate === collectionDate)
         )
       );
+      return result;
     } finally {
       updateActing(actionKey, false);
     }

@@ -1,0 +1,87 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Req,
+} from '@nestjs/common';
+import { ROLE } from '../auth/roles.constants';
+import { Roles } from '../auth/roles.decorator';
+import { Public } from '../auth/public.decorator';
+import { RepaymentSmsBatchDto } from './dto/repayment-sms-batch.dto';
+import { UniSmsWebhookDto } from './dto/unisms-webhook.dto';
+import { NotificationsService } from './notifications.service';
+
+type AuthenticatedRequest = { user?: { userId?: string } };
+
+@Controller()
+export class NotificationsController {
+  constructor(private readonly notifications: NotificationsService) {}
+
+  @Roles(ROLE.LoanProcessor)
+  @Get('loans/:loanId/notifications/sms/eligibility')
+  getLoanEligibility(@Param('loanId') loanId: string) {
+    return this.notifications.getLoanEligibility(loanId);
+  }
+
+  @Roles(ROLE.LoanProcessor)
+  @Post('loans/:loanId/notifications/sms')
+  @HttpCode(HttpStatus.ACCEPTED)
+  requestLoanSms(
+    @Param('loanId') loanId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.notifications.requestLoanSms(loanId, request.user?.userId);
+  }
+
+  @Roles(ROLE.Manager)
+  @Post('repayments/notifications/sms/eligibility')
+  getRepaymentEligibility(@Body() body: RepaymentSmsBatchDto) {
+    return this.notifications.getRepaymentEligibility(body.repaymentIds);
+  }
+
+  @Roles(ROLE.Manager)
+  @Post('repayments/:repaymentId/notifications/sms')
+  @HttpCode(HttpStatus.ACCEPTED)
+  requestRepaymentSms(
+    @Param('repaymentId') repaymentId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.notifications.requestRepaymentSms(
+      repaymentId,
+      request.user?.userId,
+    );
+  }
+
+  @Roles(ROLE.Manager)
+  @Post('repayments/notifications/sms/batch')
+  @HttpCode(HttpStatus.ACCEPTED)
+  requestRepaymentBatch(
+    @Body() body: RepaymentSmsBatchDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.notifications.requestRepaymentBatch(
+      body.repaymentIds,
+      request.user?.userId,
+    );
+  }
+
+  @Roles(ROLE.LoanProcessor, ROLE.Manager)
+  @Get('notifications/sms/:notificationId')
+  getStatus(@Param('notificationId') notificationId: string) {
+    return this.notifications.getStatus(notificationId);
+  }
+
+  @Public()
+  @Post('notifications/sms/webhooks/unisms')
+  handleUniSmsWebhook(
+    @Headers('webhook-secret-key') webhookSecret: string | undefined,
+    @Body() payload: UniSmsWebhookDto,
+  ) {
+    return this.notifications.applyUniSmsWebhook(webhookSecret, payload);
+  }
+}

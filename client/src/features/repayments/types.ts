@@ -45,3 +45,12 @@ export interface PendingRepaymentCollectionGroup {
   reversalAmount: number;
   netAmount: number;
 }
+
+export interface PendingCollectionApprovalResult {
+  batchId: string | null;
+  centerId: string;
+  collectionDate: string;
+  processedCount: number;
+  approvedCount: number;
+  approvedPaymentIds: string[];
+}

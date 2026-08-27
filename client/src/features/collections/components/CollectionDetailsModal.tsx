@@ -47,6 +47,10 @@ import {
   type MemberStatusResult,
 } from "../utils/memberStatus";
 import { withNetReleaseForDate } from "../utils/netRelease";
+import { smsNotificationsApi } from "@features/notifications/api";
+import SendSmsConfirmationDialog from "@features/notifications/components/SendSmsConfirmationDialog";
+import type { SmsEligibilityItem } from "@features/notifications/types";
+import { shouldOfferRepaymentSms } from "@features/notifications/eligibility";
 
 type MemberLoan = MemberWithLoans["loans"][number] & {
   weeksPaid?: number;
@@ -132,6 +136,8 @@ export default function CollectionDetailsModal({
     message: "",
     severity: "success",
   });
+  const [smsCandidates, setSmsCandidates] = useState<SmsEligibilityItem[]>([]);
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false);
 
   const collectionByMemberId = useMemo(() => {
     const map = new Map<string, Collection>();
@@ -311,6 +317,21 @@ export default function CollectionDetailsModal({
         severity: "success",
       });
       handleClosePaymentDialog();
+      if (shouldOfferRepaymentSms(repayment)) {
+        try {
+          const eligibility = await smsNotificationsApi.getRepaymentEligibility([
+            repayment.id,
+          ]);
+          setSmsCandidates(eligibility);
+          setSmsDialogOpen(true);
+        } catch {
+          setToast({
+            open: true,
+            message: "Payment recorded successfully. SMS options are temporarily unavailable.",
+            severity: "success",
+          });
+        }
+      }
     },
     [fetchCenterMembers, handleClosePaymentDialog, onDataChanged]
   );
@@ -913,6 +934,13 @@ export default function CollectionDetailsModal({
         onClose={handleCloseReloanDialog}
         onSuccess={handleReloanSuccess}
         formatCurrency={formatCurrency}
+      />
+      <SendSmsConfirmationDialog
+        open={smsDialogOpen}
+        eventType="repayment_posted"
+        title="Payment Posted Successfully"
+        candidates={smsCandidates}
+        onClose={() => setSmsDialogOpen(false)}
       />
     </>
   );

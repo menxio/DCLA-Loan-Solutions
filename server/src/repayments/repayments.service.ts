@@ -52,6 +52,7 @@ export interface PendingCollectionActionResult {
   processedCount: number;
   approvedCount?: number;
   rejectedCount?: number;
+  approvedPaymentIds?: string[];
 }
 
 export interface RepaymentScheduleRepairSummary {
@@ -970,9 +971,16 @@ export class RepaymentsService implements OnModuleInit {
       );
     }
 
+    const approvedPaymentIds: string[] = [];
     for (const repayment of pendingRepayments) {
       try {
-        await this.approveRepayment(repayment.id, actorId);
+        const approved = await this.approveRepayment(repayment.id, actorId);
+        if (
+          approved.status === RepaymentStatus.APPROVED &&
+          approved.operationType === RepaymentOperationType.PAYMENT
+        ) {
+          approvedPaymentIds.push(approved.id);
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unknown approval error';
@@ -998,6 +1006,7 @@ export class RepaymentsService implements OnModuleInit {
       collectionDate: normalizedDate,
       processedCount: pendingRepayments.length,
       approvedCount: pendingRepayments.length,
+      approvedPaymentIds,
     };
   }
 

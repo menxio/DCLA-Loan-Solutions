@@ -1,5 +1,9 @@
 import api from "@utils/api";
-import type { PendingRepaymentCollectionGroup, Repayment } from "./types";
+import type {
+  PendingCollectionApprovalResult,
+  PendingRepaymentCollectionGroup,
+  Repayment,
+} from "./types";
 
 export const repaymentsService = {
   getPending: async (): Promise<Repayment[]> => {
@@ -32,7 +36,7 @@ export const repaymentsService = {
   approveCollection: async (
     centerId: string,
     collectionDate: string
-  ): Promise<{ centerId: string; collectionDate: string; processedCount: number }> => {
+  ): Promise<PendingCollectionApprovalResult> => {
     const response = await api.post("/repayments/pending/collections/approve", {
       centerId,
       collectionDate,

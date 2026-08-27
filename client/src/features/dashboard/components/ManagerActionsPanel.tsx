@@ -1,9 +1,14 @@
-import { Assessment, PendingActions, WarningAmber } from "@mui/icons-material";
-import { Button, Paper, Stack, Typography } from "@mui/material";
+import Assessment from "@mui/icons-material/Assessment";
+import PendingActions from "@mui/icons-material/PendingActions";
+import WarningAmber from "@mui/icons-material/WarningAmber";
+import Button from "@mui/material/Button";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 
 interface ManagerActionsPanelProps {
   onOpenApprovals: () => void;
-  onOpenWaivers: () => void;
+  onOpenWaivers?: () => void;
   onOpenTransactions: () => void;
 }
 
@@ -33,15 +38,17 @@ export default function ManagerActionsPanel({
         >
           Open Collection Approvals
         </Button>
-        <Button
-          fullWidth
-          variant="outlined"
-          startIcon={<WarningAmber />}
-          onClick={onOpenWaivers}
-          sx={{ textTransform: "none", fontWeight: 700 }}
-        >
-          Review Loan Waivers
-        </Button>
+        {onOpenWaivers && (
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<WarningAmber />}
+            onClick={onOpenWaivers}
+            sx={{ textTransform: "none", fontWeight: 700 }}
+          >
+            Review Loan Waivers
+          </Button>
+        )}
         <Button
           fullWidth
           variant="outlined"

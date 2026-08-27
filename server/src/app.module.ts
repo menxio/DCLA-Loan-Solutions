@@ -17,6 +17,7 @@ import { RepaymentsModule } from './repayments/repayments.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { RolesModule } from './roles/roles.module';
 import { TransactionsModule } from './transactions/transactions.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { TransactionsModule } from './transactions/transactions.module';
     RepaymentsModule,
     PortfolioModule,
     TransactionsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

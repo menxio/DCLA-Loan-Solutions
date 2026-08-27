@@ -26,6 +26,9 @@ import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import { useRepaymentApprovals } from "../hooks/useRepaymentApprovals";
 import type { PendingRepaymentCollectionGroup } from "../types";
+import { smsNotificationsApi } from "@features/notifications/api";
+import SendSmsConfirmationDialog from "@features/notifications/components/SendSmsConfirmationDialog";
+import type { SmsEligibilityItem } from "@features/notifications/types";
 
 const formatCurrency = (value: number) =>
   `PHP ${Number(value || 0).toLocaleString()}`;
@@ -63,6 +66,8 @@ export default function RepaymentApprovalsPage() {
     message: string;
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
+  const [smsCandidates, setSmsCandidates] = useState<SmsEligibilityItem[]>([]);
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -92,13 +97,26 @@ export default function RepaymentApprovalsPage() {
 
     setApproveSubmitting(true);
     try {
-      await approveCollection(
+      const result = await approveCollection(
         approveTarget.centerId,
         approveTarget.collectionDate,
         approveTarget.batchId
       );
       showSnackbar("Collection approved successfully.");
-    } catch (err) {
+      if (result.approvedPaymentIds.length > 0) {
+        try {
+          const eligibility = await smsNotificationsApi.getRepaymentEligibility(
+            result.approvedPaymentIds
+          );
+          setSmsCandidates(eligibility);
+          setSmsDialogOpen(true);
+        } catch {
+          showSnackbar(
+            "Collection approved successfully. SMS options are temporarily unavailable."
+          );
+        }
+      }
+    } catch {
       showSnackbar("Failed to approve collection.", "error");
     } finally {
       setApproveSubmitting(false);
@@ -117,7 +135,7 @@ export default function RepaymentApprovalsPage() {
         rejectState.target.batchId
       );
       showSnackbar("Collection rejected.");
-    } catch (err) {
+    } catch {
       showSnackbar("Failed to reject collection.", "error");
     } finally {
       setRejectState({ open: false, target: null, reason: "" });
@@ -457,6 +475,13 @@ export default function RepaymentApprovalsPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      <SendSmsConfirmationDialog
+        open={smsDialogOpen}
+        eventType="repayment_posted"
+        title={`${smsCandidates.length} Payment${smsCandidates.length === 1 ? "" : "s"} Successfully Approved`}
+        candidates={smsCandidates}
+        onClose={() => setSmsDialogOpen(false)}
+      />
     </DashboardLayout>
   );
 }

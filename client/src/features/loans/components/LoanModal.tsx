@@ -49,6 +49,9 @@ import { calculateLoanDetails, formatCurrency } from "../utils/loanCalculations"
 import { generateLoanPassbookPDF } from "@components/export/loanPassbookPDF";
 import { TransactionsAPI } from "@features/transactions/api";
 import type { TransactionHistoryItem } from "@features/transactions/types";
+import { smsNotificationsApi } from "@features/notifications/api";
+import SendSmsConfirmationDialog from "@features/notifications/components/SendSmsConfirmationDialog";
+import type { SmsEligibilityItem } from "@features/notifications/types";
 
 interface LoanModalProps {
   open: boolean;
@@ -88,6 +91,8 @@ export default function LoanModal({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
+  const [smsCandidates, setSmsCandidates] = useState<SmsEligibilityItem[]>([]);
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false);
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
   const [historyTotal, setHistoryTotal] = useState(0);
   const loanListCacheRef = useRef(
@@ -349,7 +354,7 @@ export default function LoanModal({
   const handleCreateLoan = async (formData: LoanFormData) => {
     setLoading(true);
     try {
-      await LoansAPI.create({
+      const createdLoan = await LoansAPI.create({
         borrowerId: member.id,
         ...formData,
       });
@@ -359,6 +364,26 @@ export default function LoanModal({
       await loadLoans(); // Reload loans
       setCreatingLoan(false);
       onLoanCreated?.();
+      try {
+        const eligibility = await smsNotificationsApi.getLoanEligibility(createdLoan.id);
+        setSmsCandidates([eligibility]);
+        setSmsDialogOpen(true);
+      } catch {
+        setSmsCandidates([
+          {
+            resourceId: createdLoan.id,
+            memberName: `${member.firstName} ${member.lastName}`.trim(),
+            amount: Number(createdLoan.principalAmount),
+            recipientMasked: null,
+            eligible: false,
+            errorCode: "SMS_OPTIONS_UNAVAILABLE",
+            errorMessage: "SMS options are temporarily unavailable.",
+            notificationId: null,
+            notificationStatus: null,
+          },
+        ]);
+        setSmsDialogOpen(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -1197,6 +1222,13 @@ export default function LoanModal({
         {termMessage}
       </Alert>
     </Snackbar>
+    <SendSmsConfirmationDialog
+      open={smsDialogOpen}
+      eventType="loan_created"
+      title="Loan Created Successfully"
+      candidates={smsCandidates}
+      onClose={() => setSmsDialogOpen(false)}
+    />
     </>
   );
 } 
