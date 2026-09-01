@@ -1,0 +1,111 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import type {
+  RecentSmsActivityItem,
+  RecentSmsActivityResult,
+  SmsNotificationStatus,
+} from "@features/notifications/types";
+import RecentSmsActivity from "./RecentSmsActivity";
+import {
+  formatSmsActivityTime,
+  selectSmsActivityTimestamp,
+} from "../utils/recentSmsActivity";
+
+const item = (
+  notificationId: string,
+  status: SmsNotificationStatus,
+  overrides: Partial<RecentSmsActivityItem> = {}
+): RecentSmsActivityItem => ({
+  notificationId,
+  memberName: "Maria Santos",
+  eventType: "loan_created",
+  status,
+  createdAt: "2026-08-31T16:10:00.000Z",
+  updatedAt: "2026-08-31T16:20:00.000Z",
+  sentAt: "2026-08-31T16:30:00.000Z",
+  ...overrides,
+});
+
+const result = (items: RecentSmsActivityItem[]): RecentSmsActivityResult => ({
+  items,
+  summary: { sentToday: 24, pending: 2, failedToday: 1 },
+});
+
+describe("RecentSmsActivity", () => {
+  it("renders the compact summary and user-friendly event labels", () => {
+    render(
+      <RecentSmsActivity
+        data={result([
+          item("loan", "sent"),
+          item("repayment", "pending", {
+            memberName: "Unknown client",
+            eventType: "repayment_posted",
+          }),
+        ])}
+        loading={false}
+        error={null}
+      />
+    );
+
+    expect(screen.getByText("24 Sent Today")).toBeInTheDocument();
+    expect(screen.getByText("2 Pending")).toBeInTheDocument();
+    expect(screen.getByText("1 Failed Today")).toBeInTheDocument();
+    expect(screen.getByText("Loan Approval")).toBeInTheDocument();
+    expect(screen.getByText("Repayment")).toBeInTheDocument();
+    expect(screen.getByText("Unknown client")).toBeInTheDocument();
+  });
+
+  it("renders every status and selects its required timestamp", () => {
+    const rows = [
+      item("sent", "sent"),
+      item("pending", "pending"),
+      item("processing", "processing"),
+      item("failed", "failed"),
+    ];
+    render(
+      <RecentSmsActivity data={result(rows)} loading={false} error={null} />
+    );
+
+    for (const status of ["sent", "pending", "processing", "failed"]) {
+      expect(screen.getByText(status)).toBeInTheDocument();
+    }
+    expect(selectSmsActivityTimestamp(rows[0])).toBe(rows[0].sentAt);
+    expect(selectSmsActivityTimestamp(rows[1])).toBe(rows[1].createdAt);
+    expect(selectSmsActivityTimestamp(rows[2])).toBe(rows[2].updatedAt);
+    expect(selectSmsActivityTimestamp(rows[3])).toBe(rows[3].updatedAt);
+  });
+
+  it("falls back to createdAt for a sent item without sentAt", () => {
+    const sent = item("sent", "sent", { sentAt: null });
+    expect(selectSmsActivityTimestamp(sent)).toBe(sent.createdAt);
+  });
+
+  it("formats timestamps explicitly in Asia/Manila", () => {
+    expect(formatSmsActivityTime("2026-08-31T16:00:00.000Z")).toBe(
+      "Sep 1, 2026, 12:00 AM"
+    );
+  });
+
+  it("renders loading, empty, and focused error states", () => {
+    const { rerender } = render(
+      <RecentSmsActivity data={null} loading error={null} />
+    );
+    expect(screen.getByTestId("recent-sms-loading")).toBeInTheDocument();
+
+    rerender(
+      <RecentSmsActivity data={result([])} loading={false} error={null} />
+    );
+    expect(screen.getByText("No SMS notifications yet.")).toBeInTheDocument();
+
+    rerender(
+      <RecentSmsActivity
+        data={null}
+        loading={false}
+        error="Unable to load recent SMS activity."
+      />
+    );
+    expect(
+      screen.getByText("Unable to load recent SMS activity.")
+    ).toBeInTheDocument();
+  });
+});

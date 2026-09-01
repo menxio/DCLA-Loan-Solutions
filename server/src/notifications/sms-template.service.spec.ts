@@ -3,20 +3,20 @@ import { SmsTemplateService } from './sms-template.service';
 describe('SmsTemplateService', () => {
   const service = new SmsTemplateService();
 
-  it('builds the original approved loan message exactly', () => {
+  it('builds the approved shortened loan message exactly', () => {
     const message = service.buildLoanCreatedSms({
       clientName: 'Juan Dela Cruz',
       principalAmount: 10_000,
     });
 
     expect(message).toBe(
-      'Dear Juan Dela Cruz,\n\nWe are pleased to inform you that your loan application with DCLA has been approved in the amount of PHP 10,000.00. Please coordinate with our office for the release schedule and completion of the necessary documents. Thank you for choosing DCLA.\n\n- DCLA Management',
+      'Dear Juan Dela Cruz,\n\nYour DCLA loan of PHP 10,000.00 is approved. Please contact our office for release details.\n\n- DCLA',
     );
-    expect(message).toHaveLength(287);
-    expect(message.length).toBeLessThanOrEqual(670);
+    expect(message).toHaveLength(121);
+    expect(message.length).toBeLessThanOrEqual(160);
   });
 
-  it('builds the original approved payment message exactly', () => {
+  it('builds the approved shortened payment message exactly', () => {
     const message = service.buildRepaymentPostedSms({
       clientName: 'Juan Dela Cruz',
       amount: 1_000,
@@ -24,10 +24,10 @@ describe('SmsTemplateService', () => {
     });
 
     expect(message).toBe(
-      'Dear Juan Dela Cruz,\n\nThis is to formally acknowledge receipt of your loan repayment in the amount of PHP 1,000.00, received on 2026-08-27. Your payment has been successfully posted and recorded in the books of DCLA. Thank you for your prompt payment and continued trust.\n\n- DCLA Management',
+      'Dear Juan Dela Cruz,\n\nYour DCLA payment of PHP 1,000.00 was received on 2026-08-27 and posted successfully. Thank you.\n\n- DCLA',
     );
-    expect(message).toHaveLength(290);
-    expect(message.length).toBeLessThanOrEqual(670);
+    expect(message).toHaveLength(126);
+    expect(message.length).toBeLessThanOrEqual(160);
   });
 
   it('formats a payment timestamp using the Asia/Manila calendar date', () => {
@@ -37,7 +37,9 @@ describe('SmsTemplateService', () => {
       paymentDate: new Date('2026-08-26T16:30:00.000Z'),
     });
 
-    expect(message).toContain('received on 2026-08-27.');
+    expect(message).toContain(
+      'received on 2026-08-27 and posted successfully.',
+    );
   });
 
   it('preserves a date-only payment date without timezone shifting', () => {
@@ -47,29 +49,43 @@ describe('SmsTemplateService', () => {
       paymentDate: '2026-08-27',
     });
 
-    expect(message).toContain('received on 2026-08-27.');
+    expect(message).toContain(
+      'received on 2026-08-27 and posted successfully.',
+    );
   });
 
-  it('preserves a realistically long client name below the provider limit', () => {
-    const clientName = 'Maria Cristina De Los Santos-Reyes';
+  it('keeps representative maximum values within the 160-character limit', () => {
+    const clientName = 'Mariah Cristina De Los Santos-Reyes';
+    const amount = 999_999_999.99;
+    const formattedAmount = '999,999,999.99';
     const loanMessage = service.buildLoanCreatedSms({
       clientName,
-      principalAmount: 10_000,
+      principalAmount: amount,
     });
     const paymentMessage = service.buildRepaymentPostedSms({
       clientName,
-      amount: 1_000,
-      paymentDate: '2026-08-27',
+      amount,
+      paymentDate: new Date('2026-08-26T16:30:00.000Z'),
     });
 
+    expect(clientName).toHaveLength(35);
+    expect(formattedAmount).toHaveLength(14);
     expect(loanMessage).toContain(`Dear ${clientName},`);
     expect(paymentMessage).toContain(`Dear ${clientName},`);
-    expect(loanMessage).toHaveLength(307);
-    expect(paymentMessage).toHaveLength(310);
-    expect(loanMessage.length).toBeLessThanOrEqual(670);
-    expect(paymentMessage.length).toBeLessThanOrEqual(670);
-    expect(loanMessage).toContain('\n\n- DCLA Management');
-    expect(paymentMessage).toContain('\n\n- DCLA Management');
-    expect(`${loanMessage}${paymentMessage}`).not.toMatch(/[₱—]/);
+    expect(loanMessage).toContain(`PHP ${formattedAmount}`);
+    expect(paymentMessage).toContain(`PHP ${formattedAmount}`);
+    expect(paymentMessage).toContain('received on 2026-08-27');
+    expect(loanMessage).toHaveLength(147);
+    expect(paymentMessage).toHaveLength(153);
+    expect(loanMessage.length).toBeLessThanOrEqual(160);
+    expect(paymentMessage.length).toBeLessThanOrEqual(160);
+    expect(loanMessage).toContain('\n\n- DCLA');
+    expect(paymentMessage).toContain('\n\n- DCLA');
+    expect(`${loanMessage}${paymentMessage}`).not.toMatch(/[₱—–]/u);
+    expect(
+      Array.from(`${loanMessage}${paymentMessage}`).every(
+        (character) => (character.codePointAt(0) ?? 0) <= 127,
+      ),
+    ).toBe(true);
   });
 });

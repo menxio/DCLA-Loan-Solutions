@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-const MAX_SMS_LENGTH = 670;
+const MAX_SMS_LENGTH = 160;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MONEY_FORMATTER = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 2,
@@ -19,7 +19,7 @@ export class SmsTemplateService {
     clientName: string;
     principalAmount: number;
   }): string {
-    const message = `Dear ${this.name(input.clientName)},\n\nWe are pleased to inform you that your loan application with DCLA has been approved in the amount of PHP ${this.money(input.principalAmount)}. Please coordinate with our office for the release schedule and completion of the necessary documents. Thank you for choosing DCLA.\n\n- DCLA Management`;
+    const message = `Dear ${this.name(input.clientName)},\n\nYour DCLA loan of PHP ${this.money(input.principalAmount)} is approved. Please contact our office for release details.\n\n- DCLA`;
     return this.requireValidLength(message);
   }
 
@@ -28,7 +28,7 @@ export class SmsTemplateService {
     amount: number;
     paymentDate: Date | string | null;
   }): string {
-    const message = `Dear ${this.name(input.clientName)},\n\nThis is to formally acknowledge receipt of your loan repayment in the amount of PHP ${this.money(input.amount)}, received on ${this.date(input.paymentDate)}. Your payment has been successfully posted and recorded in the books of DCLA. Thank you for your prompt payment and continued trust.\n\n- DCLA Management`;
+    const message = `Dear ${this.name(input.clientName)},\n\nYour DCLA payment of PHP ${this.money(input.amount)} was received on ${this.date(input.paymentDate)} and posted successfully. Thank you.\n\n- DCLA`;
     return this.requireValidLength(message);
   }
 

@@ -7,11 +7,13 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 import { Public } from '../auth/public.decorator';
+import { RecentSmsQueryDto } from './dto/recent-sms-query.dto';
 import { RepaymentSmsBatchDto } from './dto/repayment-sms-batch.dto';
 import { UniSmsWebhookDto } from './dto/unisms-webhook.dto';
 import { NotificationsService } from './notifications.service';
@@ -68,6 +70,12 @@ export class NotificationsController {
       body.repaymentIds,
       request.user?.userId,
     );
+  }
+
+  @Roles(ROLE.Manager)
+  @Get('notifications/sms/recent')
+  getRecentSms(@Query() query: RecentSmsQueryDto) {
+    return this.notifications.getRecentSms(query.limit);
   }
 
   @Roles(ROLE.LoanProcessor, ROLE.Manager)

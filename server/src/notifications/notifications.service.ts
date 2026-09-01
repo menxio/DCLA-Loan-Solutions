@@ -19,6 +19,7 @@ import {
   SmsNotificationEventType,
   SmsNotificationStatus,
 } from './entities/sms-notification.entity';
+import { getManilaDayBounds, toUtcTimestampParameter } from './recent-sms-time';
 import { SmsRecipientNormalizer } from './sms-recipient-normalizer';
 import { SmsTemplateService } from './sms-template.service';
 
@@ -80,6 +81,40 @@ interface RepaymentSmsRow {
   contactNumber: string | null;
   loanId: string;
   loanBorrowerId: string;
+}
+
+interface RecentSmsRow {
+  notificationId: string;
+  eventType: SmsNotificationEventType;
+  status: SmsNotificationStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  sentAt: Date | null;
+  firstName: string | null;
+  lastName: string | null;
+}
+
+interface RecentSmsSummaryRow {
+  sentToday: string;
+  pending: string;
+  failedToday: string;
+}
+
+export interface RecentSmsResponse {
+  items: Array<{
+    notificationId: string;
+    memberName: string;
+    eventType: SmsNotificationEventType;
+    status: SmsNotificationStatus;
+    createdAt: Date;
+    updatedAt: Date;
+    sentAt: Date | null;
+  }>;
+  summary: {
+    sentToday: number;
+    pending: number;
+    failedToday: number;
+  };
 }
 
 @Injectable()
@@ -171,6 +206,88 @@ export class NotificationsService {
     if (!notification)
       throw new NotFoundException('SMS notification not found');
     return this.toStatusResponse(notification);
+  }
+
+  async getRecentSms(limit = 10): Promise<RecentSmsResponse> {
+    const repository = this.dataSource.getRepository(SmsNotification);
+    const { startUtc, endUtc } = getManilaDayBounds();
+    const rangeParameters = {
+      startUtc: toUtcTimestampParameter(startUtc),
+      endUtc: toUtcTimestampParameter(endUtc),
+    };
+
+    const recentQuery = repository
+      .createQueryBuilder('notification')
+      .leftJoin('notification.member', 'member')
+      .select('notification.id', 'notificationId')
+      .addSelect('notification.eventType', 'eventType')
+      .addSelect('notification.status', 'status')
+      .addSelect('notification.createdAt', 'createdAt')
+      .addSelect('notification.updatedAt', 'updatedAt')
+      .addSelect('notification.sentAt', 'sentAt')
+      .addSelect('member.firstName', 'firstName')
+      .addSelect('member.lastName', 'lastName')
+      .orderBy('notification.createdAt', 'DESC')
+      .addOrderBy('notification.id', 'DESC')
+      .take(limit);
+
+    const summaryQuery = repository
+      .createQueryBuilder('notification')
+      .select(
+        `COUNT(*) FILTER (
+          WHERE notification.status = :sentStatus
+            AND notification.sentAt >= :startUtc
+            AND notification.sentAt < :endUtc
+        )`,
+        'sentToday',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (
+          WHERE notification.status IN (:...pendingStatuses)
+        )`,
+        'pending',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (
+          WHERE notification.status = :failedStatus
+            AND notification.updatedAt >= :startUtc
+            AND notification.updatedAt < :endUtc
+        )`,
+        'failedToday',
+      )
+      .setParameters({
+        sentStatus: SmsNotificationStatus.SENT,
+        pendingStatuses: [
+          SmsNotificationStatus.PENDING,
+          SmsNotificationStatus.PROCESSING,
+        ],
+        failedStatus: SmsNotificationStatus.FAILED,
+        ...rangeParameters,
+      });
+
+    const [rows, summary] = await Promise.all([
+      recentQuery.getRawMany<RecentSmsRow>(),
+      summaryQuery.getRawOne<RecentSmsSummaryRow>(),
+    ]);
+
+    return {
+      items: rows.map((row) => ({
+        notificationId: row.notificationId,
+        memberName:
+          [row.firstName, row.lastName].filter(Boolean).join(' ').trim() ||
+          'Unknown client',
+        eventType: row.eventType,
+        status: row.status,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        sentAt: row.sentAt,
+      })),
+      summary: {
+        sentToday: Number(summary?.sentToday ?? 0),
+        pending: Number(summary?.pending ?? 0),
+        failedToday: Number(summary?.failedToday ?? 0),
+      },
+    };
   }
 
   async applyUniSmsWebhook(

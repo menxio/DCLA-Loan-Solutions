@@ -1,5 +1,6 @@
 import api from "@utils/api";
 import type {
+  RecentSmsActivityResult,
   SmsBatchResult,
   SmsEligibilityItem,
   SmsRequestResult,
@@ -7,6 +8,17 @@ import type {
 } from "./types";
 
 export const smsNotificationsApi = {
+  getRecent: async (
+    limit = 10,
+    signal?: AbortSignal
+  ): Promise<RecentSmsActivityResult> => {
+    const response = await api.get("/notifications/sms/recent", {
+      params: { limit },
+      signal,
+    });
+    return response.data;
+  },
+
   getLoanEligibility: async (loanId: string): Promise<SmsEligibilityItem> => {
     const response = await api.get(`/loans/${loanId}/notifications/sms/eligibility`);
     return response.data;

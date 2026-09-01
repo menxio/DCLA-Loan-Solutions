@@ -40,3 +40,22 @@ export interface SmsStatusResult {
   errorCode: string | null;
   errorMessage: string | null;
 }
+
+export interface RecentSmsActivityItem {
+  notificationId: string;
+  memberName: string;
+  eventType: SmsEventType;
+  status: SmsNotificationStatus;
+  createdAt: string;
+  updatedAt: string;
+  sentAt: string | null;
+}
+
+export interface RecentSmsActivityResult {
+  items: RecentSmsActivityItem[];
+  summary: {
+    sentToday: number;
+    pending: number;
+    failedToday: number;
+  };
+}
