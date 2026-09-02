@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Not, Repository } from 'typeorm';
 import {
   Repayment,
   RepaymentOperationType,
@@ -142,7 +142,9 @@ export class RepaymentsService implements OnModuleInit {
 
       const deletedAllocations = schedulesBefore.length
         ? await this.allocationRepo.count({
-            where: { scheduleId: In(schedulesBefore.map((schedule) => schedule.id)) },
+            where: {
+              scheduleId: In(schedulesBefore.map((schedule) => schedule.id)),
+            },
           })
         : 0;
 
@@ -167,7 +169,10 @@ export class RepaymentsService implements OnModuleInit {
       );
 
       summary.loansRepaired += 1;
-      summary.schedulesCreated += Math.max(0, scheduleCountAfter - scheduleCountBefore);
+      summary.schedulesCreated += Math.max(
+        0,
+        scheduleCountAfter - scheduleCountBefore,
+      );
       summary.allocationsDeleted += deletedAllocations;
       summary.approvedRepaymentsReplayed += approvedEntries.filter(
         (entry) =>
@@ -247,15 +252,18 @@ export class RepaymentsService implements OnModuleInit {
     }
   }
 
-  async create(body: {
-    loanId: string;
-    memberId: string;
-    centerId: string;
-    amount: number;
-    collectionDate?: string;
-    notes?: string;
-    useSavings?: boolean;
-  }, actor?: { userId?: string; role?: string }) {
+  async create(
+    body: {
+      loanId: string;
+      memberId: string;
+      centerId: string;
+      amount: number;
+      collectionDate?: string;
+      notes?: string;
+      useSavings?: boolean;
+    },
+    actor?: { userId?: string; role?: string },
+  ) {
     const {
       loanId,
       memberId,
@@ -266,7 +274,11 @@ export class RepaymentsService implements OnModuleInit {
       useSavings = false,
     } = body;
 
-    if (amount === undefined || amount === null || Number.isNaN(Number(amount))) {
+    if (
+      amount === undefined ||
+      amount === null ||
+      Number.isNaN(Number(amount))
+    ) {
       throw new BadRequestException('Amount must be provided as a number');
     }
 
@@ -298,7 +310,9 @@ export class RepaymentsService implements OnModuleInit {
     if (!center) throw new NotFoundException('Center not found');
 
     if (loan.status !== 'active') {
-      throw new BadRequestException('Cannot post payment for a non-active loan');
+      throw new BadRequestException(
+        'Cannot post payment for a non-active loan',
+      );
     }
 
     if (loan.borrower?.id !== member.id) {
@@ -379,9 +393,7 @@ export class RepaymentsService implements OnModuleInit {
     }
 
     if (sourceRepayment.status !== RepaymentStatus.APPROVED) {
-      throw new BadRequestException(
-        'Only approved repayments can be reversed',
-      );
+      throw new BadRequestException('Only approved repayments can be reversed');
     }
 
     const existingReversal = await this.repaymentRepo.findOne({
@@ -516,8 +528,11 @@ export class RepaymentsService implements OnModuleInit {
     loan: Loan,
     member: Member,
     center: Center | null,
+    manager?: EntityManager,
   ): Promise<void> {
-    const existingRows = await this.scheduleRepo.find({
+    const scheduleRepository =
+      manager?.getRepository(LoanRepaymentSchedule) ?? this.scheduleRepo;
+    const existingRows = await scheduleRepository.find({
       where: { loanId: loan.id },
       order: { weekNumber: 'ASC' },
     });
@@ -537,7 +552,7 @@ export class RepaymentsService implements OnModuleInit {
       );
 
       if (needsBreakdownBackfill && breakdown.length === existingRows.length) {
-        await this.scheduleRepo.save(
+        await scheduleRepository.save(
           existingRows.map((schedule, index) => ({
             ...schedule,
             principalDue: breakdown[index]?.principalDue ?? 0,
@@ -569,7 +584,7 @@ export class RepaymentsService implements OnModuleInit {
     for (let i = 0; i < termWeeks; i += 1) {
       const dueDate = this.formatDate(this.addDays(firstDueDate, i * 7));
       const scheduleBreakdown = breakdown[i];
-      const schedule = this.scheduleRepo.create({
+      const schedule = scheduleRepository.create({
         loanId: loan.id,
         memberId: memberId ?? null,
         centerId: centerId ?? null,
@@ -585,7 +600,7 @@ export class RepaymentsService implements OnModuleInit {
       });
       rows.push(schedule);
     }
-    await this.scheduleRepo.save(rows);
+    await scheduleRepository.save(rows);
   }
 
   private resolveScheduleStatus(
@@ -608,16 +623,19 @@ export class RepaymentsService implements OnModuleInit {
     return LoanRepaymentStatus.UNPAID;
   }
 
-  private async applyRepaymentToSchedule(params: {
-    loan: Loan;
-    member: Member;
-    center: Center | null;
-    repayment: Repayment;
-    allocationAmount: number;
-    cashPortion: number;
-    savingsPortion: number;
-    paymentDate: string | null;
-  }): Promise<void> {
+  private async applyRepaymentToSchedule(
+    params: {
+      loan: Loan;
+      member: Member;
+      center: Center | null;
+      repayment: Repayment;
+      allocationAmount: number;
+      cashPortion: number;
+      savingsPortion: number;
+      paymentDate: string | null;
+    },
+    manager?: EntityManager,
+  ): Promise<void> {
     const {
       loan,
       member,
@@ -634,9 +652,13 @@ export class RepaymentsService implements OnModuleInit {
       return;
     }
 
-    await this.ensureLoanSchedule(loan, member, center);
+    const scheduleRepository =
+      manager?.getRepository(LoanRepaymentSchedule) ?? this.scheduleRepo;
+    const allocationRepository =
+      manager?.getRepository(LoanRepaymentAllocation) ?? this.allocationRepo;
+    await this.ensureLoanSchedule(loan, member, center, manager);
 
-    const schedules = await this.scheduleRepo.find({
+    const schedules = await scheduleRepository.find({
       where: { loanId: loan.id },
       order: { dueDate: 'ASC', weekNumber: 'ASC' },
     });
@@ -672,7 +694,7 @@ export class RepaymentsService implements OnModuleInit {
       touched.set(schedule.id, schedule);
       allocations.set(
         schedule.id,
-        this.allocationRepo.create({
+        allocationRepository.create({
           repaymentId: repayment.id,
           scheduleId: schedule.id,
           amountApplied: applied,
@@ -699,12 +721,14 @@ export class RepaymentsService implements OnModuleInit {
       const existingAllocation = allocations.get(last.id);
       if (existingAllocation) {
         existingAllocation.amountApplied = Number(
-          (
-            Number(existingAllocation.amountApplied || 0) + remaining
-          ).toFixed(2),
+          (Number(existingAllocation.amountApplied || 0) + remaining).toFixed(
+            2,
+          ),
         );
         existingAllocation.cashPortion = Number(
-          (Number(existingAllocation.cashPortion || 0) + cashApplied).toFixed(2),
+          (Number(existingAllocation.cashPortion || 0) + cashApplied).toFixed(
+            2,
+          ),
         );
         existingAllocation.savingsPortion = Number(
           (
@@ -714,7 +738,7 @@ export class RepaymentsService implements OnModuleInit {
       } else {
         allocations.set(
           last.id,
-          this.allocationRepo.create({
+          allocationRepository.create({
             repaymentId: repayment.id,
             scheduleId: last.id,
             amountApplied: remaining,
@@ -729,10 +753,10 @@ export class RepaymentsService implements OnModuleInit {
     }
 
     if (touched.size > 0) {
-      await this.scheduleRepo.save([...touched.values()]);
+      await scheduleRepository.save([...touched.values()]);
     }
     if (allocations.size > 0) {
-      await this.allocationRepo.save([...allocations.values()]);
+      await allocationRepository.save([...allocations.values()]);
     }
   }
 
@@ -853,7 +877,10 @@ export class RepaymentsService implements OnModuleInit {
         continue;
       }
 
-      if (entry.batchId && entry.batch?.status !== CollectionBatchStatus.PENDING) {
+      if (
+        entry.batchId &&
+        entry.batch?.status !== CollectionBatchStatus.PENDING
+      ) {
         continue;
       }
 
@@ -1066,37 +1093,66 @@ export class RepaymentsService implements OnModuleInit {
   }
 
   async approveRepayment(id: string, actorId?: string): Promise<Repayment> {
-    const repayment = await this.repaymentRepo.findOne({
+    const repaymentReference = await this.repaymentRepo.findOne({
       where: { id },
-      relations: ['loan', 'member', 'center'],
+      relations: ['loan'],
     });
-    if (!repayment) {
+    if (!repaymentReference) {
       throw new NotFoundException('Repayment not found');
     }
-
-    if (repayment.status !== RepaymentStatus.PENDING) {
-      throw new BadRequestException('Only pending repayments can be approved');
+    const loanId = repaymentReference.loan?.id;
+    if (!loanId) {
+      throw new NotFoundException('Loan not found');
     }
 
-    if (repayment.operationType === RepaymentOperationType.REVERSAL) {
-      return this.approveReversalRepayment(repayment, actorId);
-    }
+    return this.repaymentRepo.manager.transaction(async (manager) => {
+      const loanRepository = manager.getRepository(Loan);
+      const repaymentRepository = manager.getRepository(Repayment);
+      await loanRepository
+        .createQueryBuilder('loan')
+        .setLock('pessimistic_write')
+        .where('loan.id = :loanId', { loanId })
+        .getOne();
+      const loan = await loanRepository.findOne({
+        where: { id: loanId },
+        relations: ['borrower', 'borrower.center'],
+      });
+      if (!loan) {
+        throw new NotFoundException('Loan not found');
+      }
 
-    return this.approvePaymentRepayment(repayment, actorId);
+      await repaymentRepository
+        .createQueryBuilder('repayment')
+        .setLock('pessimistic_write')
+        .where('repayment.id = :id', { id })
+        .getOne();
+      const repayment = await repaymentRepository.findOne({
+        where: { id },
+        relations: ['loan', 'member', 'center'],
+      });
+      if (!repayment) {
+        throw new NotFoundException('Repayment not found');
+      }
+      if (repayment.status !== RepaymentStatus.PENDING) {
+        throw new BadRequestException(
+          'Only pending repayments can be approved',
+        );
+      }
+
+      if (repayment.operationType === RepaymentOperationType.REVERSAL) {
+        return this.approveReversalRepayment(repayment, loan, manager, actorId);
+      }
+
+      return this.approvePaymentRepayment(repayment, loan, manager, actorId);
+    });
   }
 
   private async approvePaymentRepayment(
     repayment: Repayment,
+    loan: Loan,
+    manager: EntityManager,
     actorId?: string,
   ): Promise<Repayment> {
-    const loan = await this.loanRepo.findOne({
-      where: { id: repayment.loan?.id },
-      relations: ['borrower', 'borrower.center'],
-    });
-    if (!loan) {
-      throw new NotFoundException('Loan not found');
-    }
-
     const member = repayment.member;
     const center = repayment.center ?? member?.center ?? null;
     if (!member) {
@@ -1108,15 +1164,16 @@ export class RepaymentsService implements OnModuleInit {
       loan.id,
       Number(repayment.amount),
       Boolean(repayment.useSavings),
+      manager,
     );
 
-    const updatedLoan = await this.loanRepo.findOne({
+    const updatedLoan = await manager.getRepository(Loan).findOne({
       where: { id: loan.id },
       relations: ['borrower', 'borrower.center'],
     });
     const targetLoan = updatedLoan ?? loan;
 
-    await this.ensureLoanSchedule(targetLoan, member, center);
+    await this.ensureLoanSchedule(targetLoan, member, center, manager);
 
     const cumulativeAmountPaid = Number(targetLoan.amountPaid) || 0;
     const newlyAppliedAmount = cumulativeAmountPaid - previousAmountPaid;
@@ -1124,18 +1181,21 @@ export class RepaymentsService implements OnModuleInit {
     if (newlyAppliedAmount > 0) {
       const cashPortion = Number(repayment.amount);
       const savingsPortion = Math.max(0, newlyAppliedAmount - cashPortion);
-      await this.applyRepaymentToSchedule({
-        loan: targetLoan,
-        member,
-        center,
-        repayment,
-        allocationAmount: newlyAppliedAmount,
-        cashPortion,
-        savingsPortion,
-        paymentDate:
-          repayment.collectionDate ??
-          this.normalizeCollectionDate(repayment.createdAt.toISOString()),
-      });
+      await this.applyRepaymentToSchedule(
+        {
+          loan: targetLoan,
+          member,
+          center,
+          repayment,
+          allocationAmount: newlyAppliedAmount,
+          cashPortion,
+          savingsPortion,
+          paymentDate:
+            repayment.collectionDate ??
+            this.normalizeCollectionDate(repayment.createdAt.toISOString()),
+        },
+        manager,
+      );
     }
 
     const targetCenterId = center?.id ?? repayment.center?.id;
@@ -1143,25 +1203,30 @@ export class RepaymentsService implements OnModuleInit {
       throw new NotFoundException('Center not found');
     }
 
-    await this.recordCollectionEntry({
-      memberId: member.id,
-      centerId: targetCenterId,
-      collectionDate:
-        repayment.collectionDate ?? this.normalizeCollectionDate(),
-      weeklyAmount:
-        Number(targetLoan.weeklyPaymentAmount) ||
-        Number(loan.weeklyPaymentAmount) ||
-        0,
-      amountApplied: newlyAppliedAmount,
-      totalWeeksPaid: Number(targetLoan.weeksPaid) || 0,
-      notes: repayment.notes ?? undefined,
-    });
+    await this.recordCollectionEntry(
+      {
+        memberId: member.id,
+        centerId: targetCenterId,
+        collectionDate:
+          repayment.collectionDate ?? this.normalizeCollectionDate(),
+        weeklyAmount:
+          Number(targetLoan.weeklyPaymentAmount) ||
+          Number(loan.weeklyPaymentAmount) ||
+          0,
+        amountApplied: newlyAppliedAmount,
+        totalWeeksPaid: Number(targetLoan.weeksPaid) || 0,
+        notes: repayment.notes ?? undefined,
+      },
+      manager,
+    );
 
-    return this.markRepaymentApproved(repayment, actorId);
+    return this.markRepaymentApproved(repayment, actorId, manager);
   }
 
   private async approveReversalRepayment(
     reversal: Repayment,
+    loan: Loan,
+    manager: EntityManager,
     actorId?: string,
   ): Promise<Repayment> {
     const originalRepaymentId = reversal.relatedRepaymentId;
@@ -1171,7 +1236,13 @@ export class RepaymentsService implements OnModuleInit {
       );
     }
 
-    const original = await this.repaymentRepo.findOne({
+    const repaymentRepository = manager.getRepository(Repayment);
+    await repaymentRepository
+      .createQueryBuilder('repayment')
+      .setLock('pessimistic_write')
+      .where('repayment.id = :originalRepaymentId', { originalRepaymentId })
+      .getOne();
+    const original = await repaymentRepository.findOne({
       where: { id: originalRepaymentId },
       relations: ['loan', 'member', 'center'],
     });
@@ -1187,12 +1258,16 @@ export class RepaymentsService implements OnModuleInit {
       throw new BadRequestException('Only approved repayments can be reversed');
     }
 
-    const loan = await this.loanRepo.findOne({
-      where: { id: original.loan?.id },
-      relations: ['borrower', 'borrower.center'],
+    const approvedReversal = await repaymentRepository.findOne({
+      where: {
+        id: Not(reversal.id),
+        relatedRepaymentId: original.id,
+        operationType: RepaymentOperationType.REVERSAL,
+        status: RepaymentStatus.APPROVED,
+      },
     });
-    if (!loan) {
-      throw new NotFoundException('Loan not found');
+    if (approvedReversal) {
+      throw new BadRequestException('Repayment has already been reversed');
     }
 
     const member = original.member ?? loan.borrower;
@@ -1205,7 +1280,10 @@ export class RepaymentsService implements OnModuleInit {
       throw new NotFoundException('Center not found');
     }
 
-    const originalAllocations = await this.allocationRepo.find({
+    const allocationRepository = manager.getRepository(LoanRepaymentAllocation);
+    const scheduleRepository = manager.getRepository(LoanRepaymentSchedule);
+    const savingsRepository = manager.getRepository(Savings);
+    const originalAllocations = await allocationRepository.find({
       where: { repaymentId: original.id },
     });
 
@@ -1235,7 +1313,7 @@ export class RepaymentsService implements OnModuleInit {
         );
       }
 
-      const targetSchedules = await this.scheduleRepo.find({
+      const targetSchedules = await scheduleRepository.find({
         where: { id: In([...rollbackByScheduleId.keys()]) },
       });
       for (const schedule of targetSchedules) {
@@ -1247,10 +1325,10 @@ export class RepaymentsService implements OnModuleInit {
         schedule.status = this.resolveScheduleStatus(schedule, paymentDate);
       }
       if (targetSchedules.length > 0) {
-        await this.scheduleRepo.save(targetSchedules);
+        await scheduleRepository.save(targetSchedules);
       }
 
-      await this.allocationRepo.delete({ repaymentId: original.id });
+      await allocationRepository.delete({ repaymentId: original.id });
     }
 
     const previousAmountPaid = Number(loan.amountPaid || 0);
@@ -1260,7 +1338,9 @@ export class RepaymentsService implements OnModuleInit {
       weeklyAmount > 0 ? Math.floor(updatedAmountPaid / weeklyAmount) : 0;
     const recomputedBuffer =
       weeklyAmount > 0
-        ? Number((updatedAmountPaid - recomputedWeeksPaid * weeklyAmount).toFixed(2))
+        ? Number(
+            (updatedAmountPaid - recomputedWeeksPaid * weeklyAmount).toFixed(2),
+          )
         : 0;
 
     loan.amountPaid = updatedAmountPaid;
@@ -1277,35 +1357,39 @@ export class RepaymentsService implements OnModuleInit {
     } else if (loan.status === 'paid') {
       loan.status = 'active';
     }
-    await this.loanRepo.save(loan);
+    await manager.getRepository(Loan).save(loan);
 
     if (savingsUsed > 0) {
-      const savingsEntry = this.savingsRepo.create({
+      const savingsEntry = savingsRepository.create({
         borrower: member,
         loan,
         amount: Number(savingsUsed.toFixed(2)),
         remarks: `Reversal credit for repayment ${original.id}`,
       });
-      await this.savingsRepo.save(savingsEntry);
+      await savingsRepository.save(savingsEntry);
     }
 
-    await this.reverseCollectionEntry({
-      memberId: member.id,
-      centerId: center.id,
-      collectionDate:
-        original.collectionDate ??
-        this.normalizeCollectionDate(original.createdAt.toISOString()),
-      amountToReverse: totalApplied,
-      totalWeeksPaid: Number(loan.weeksPaid) || 0,
-      notes: reversal.notes ?? undefined,
-    });
+    await this.reverseCollectionEntry(
+      {
+        memberId: member.id,
+        centerId: center.id,
+        collectionDate:
+          original.collectionDate ??
+          this.normalizeCollectionDate(original.createdAt.toISOString()),
+        amountToReverse: totalApplied,
+        totalWeeksPaid: Number(loan.weeksPaid) || 0,
+        notes: reversal.notes ?? undefined,
+      },
+      manager,
+    );
 
-    return this.markRepaymentApproved(reversal, actorId);
+    return this.markRepaymentApproved(reversal, actorId, manager);
   }
 
   private async markRepaymentApproved(
     repayment: Repayment,
     actorId?: string,
+    manager?: EntityManager,
   ): Promise<Repayment> {
     repayment.status = RepaymentStatus.APPROVED;
     repayment.approvedById = actorId ?? null;
@@ -1319,7 +1403,9 @@ export class RepaymentsService implements OnModuleInit {
     if (!repayment.paymentDate) {
       repayment.paymentDate = repayment.collectionDate;
     }
-    return this.repaymentRepo.save(repayment);
+    return (manager?.getRepository(Repayment) ?? this.repaymentRepo).save(
+      repayment,
+    );
   }
 
   async rejectRepayment(
@@ -1377,17 +1463,28 @@ export class RepaymentsService implements OnModuleInit {
     return schedule;
   }
 
-  private async reverseCollectionEntry(params: {
-    memberId: string;
-    centerId: string;
-    collectionDate: string;
-    amountToReverse: number;
-    totalWeeksPaid: number;
-    notes?: string;
-  }) {
-    const { memberId, centerId, collectionDate, amountToReverse, totalWeeksPaid, notes } =
-      params;
-    const existing = await this.collectionRepo.findOne({
+  private async reverseCollectionEntry(
+    params: {
+      memberId: string;
+      centerId: string;
+      collectionDate: string;
+      amountToReverse: number;
+      totalWeeksPaid: number;
+      notes?: string;
+    },
+    manager?: EntityManager,
+  ) {
+    const {
+      memberId,
+      centerId,
+      collectionDate,
+      amountToReverse,
+      totalWeeksPaid,
+      notes,
+    } = params;
+    const collectionRepository =
+      manager?.getRepository(Collection) ?? this.collectionRepo;
+    const existing = await collectionRepository.findOne({
       where: { memberId, centerId, collectionDate },
     });
     if (!existing) {
@@ -1403,18 +1500,21 @@ export class RepaymentsService implements OnModuleInit {
     if (notes) {
       existing.notes = notes;
     }
-    await this.collectionRepo.save(existing);
+    await collectionRepository.save(existing);
   }
 
-  private async recordCollectionEntry(params: {
-    memberId: string;
-    centerId: string;
-    collectionDate: string;
-    weeklyAmount: number;
-    amountApplied: number;
-    totalWeeksPaid: number;
-    notes?: string;
-  }) {
+  private async recordCollectionEntry(
+    params: {
+      memberId: string;
+      centerId: string;
+      collectionDate: string;
+      weeklyAmount: number;
+      amountApplied: number;
+      totalWeeksPaid: number;
+      notes?: string;
+    },
+    manager?: EntityManager,
+  ) {
     const {
       memberId,
       centerId,
@@ -1426,7 +1526,9 @@ export class RepaymentsService implements OnModuleInit {
     } = params;
 
     const applied = Number(amountApplied || 0);
-    const existing = await this.collectionRepo.findOne({
+    const collectionRepository =
+      manager?.getRepository(Collection) ?? this.collectionRepo;
+    const existing = await collectionRepository.findOne({
       where: { memberId, centerId, collectionDate },
     });
 
@@ -1442,11 +1544,11 @@ export class RepaymentsService implements OnModuleInit {
       if (notes) {
         existing.notes = notes;
       }
-      await this.collectionRepo.save(existing);
+      await collectionRepository.save(existing);
       return;
     }
 
-    const collection = this.collectionRepo.create({
+    const collection = collectionRepository.create({
       memberId,
       centerId,
       collectionDate,
@@ -1459,6 +1561,6 @@ export class RepaymentsService implements OnModuleInit {
       advancePaymentStatus: AdvancePaymentStatus.NONE,
       notes,
     });
-    await this.collectionRepo.save(collection);
+    await collectionRepository.save(collection);
   }
 }

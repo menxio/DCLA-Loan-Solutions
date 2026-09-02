@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Loan } from './loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Collection } from '../collections/entities/collection.entity';
@@ -110,8 +110,7 @@ export class LoansService {
       notarialFee,
       loanCreatedDate,
       monthlyInterestRate,
-    } =
-      createLoanDto as any;
+    } = createLoanDto as any;
 
     // Check if borrower exists
     const borrower = await this.memberRepository.findOne({
@@ -163,7 +162,8 @@ export class LoansService {
     if (isNaN(legalFee) || legalFee < 0) {
       throw new BadRequestException('notarialFee must be >= 0 when provided');
     }
-    const totalSavingsForValidation = previousSavingsTotal + newSavingsContribution;
+    const totalSavingsForValidation =
+      previousSavingsTotal + newSavingsContribution;
     if (isFirstLoan && newSavingsContribution <= 0) {
       throw new BadRequestException(
         'Savings contribution must be greater than 0 for the first loan',
@@ -172,7 +172,11 @@ export class LoansService {
 
     // Calculate loan details (no auto-10% savings)
     const { interestRate, totalAmount, weeklyPaymentAmount } =
-      this.calculateLoanDetails(principalAmount, termWeeks, monthlyInterestRate);
+      this.calculateLoanDetails(
+        principalAmount,
+        termWeeks,
+        monthlyInterestRate,
+      );
 
     // Create loan
     const loan = this.loanRepository.create({
@@ -206,7 +210,7 @@ export class LoansService {
     // Reset any existing collections' paymentReceived to 0 for this member
     await this.collectionRepository.update(
       { memberId: borrowerId },
-      { paymentReceived: 0 }
+      { paymentReceived: 0 },
     );
 
     return savedLoan;
@@ -220,8 +224,13 @@ export class LoansService {
     loanId: string,
     amount: number,
     useSavings: boolean = false,
+    manager?: EntityManager,
   ): Promise<Loan> {
-    if (amount === undefined || amount === null || Number.isNaN(Number(amount))) {
+    if (
+      amount === undefined ||
+      amount === null ||
+      Number.isNaN(Number(amount))
+    ) {
       throw new BadRequestException('Payment amount must be provided');
     }
 
@@ -236,7 +245,26 @@ export class LoansService {
       );
     }
 
-    const loan = await this.findOne(loanId);
+    if (!manager) {
+      return this.loanRepository.manager.transaction((transactionManager) =>
+        this.applyRepayment(loanId, amount, useSavings, transactionManager),
+      );
+    }
+
+    const loanRepository = manager.getRepository(Loan);
+    const savingsRepository = manager.getRepository(Savings);
+    await loanRepository
+      .createQueryBuilder('loan')
+      .setLock('pessimistic_write')
+      .where('loan.id = :loanId', { loanId })
+      .getOne();
+    const loan = await loanRepository.findOne({
+      where: { id: loanId },
+      relations: ['borrower'],
+    });
+    if (!loan) {
+      throw new NotFoundException(`Loan #${loanId} not found`);
+    }
     if (loan.status !== 'active') {
       throw new BadRequestException('Cannot pay a non-active loan');
     }
@@ -282,17 +310,17 @@ export class LoansService {
       loan.advancePaymentBuffer = 0;
     }
 
-    const savedLoan = await this.loanRepository.save(loan);
+    const savedLoan = await loanRepository.save(loan);
 
     // Record savings deduction as a savings withdrawal transaction entry
     if (savingsUsed > 0) {
-      const savingsEntry = this.savingsRepository.create({
+      const savingsEntry = savingsRepository.create({
         borrower: loan.borrower,
         loan,
         amount: -Math.abs(savingsUsed),
         remarks: 'Applied to repayment',
       });
-      await this.savingsRepository.save(savingsEntry);
+      await savingsRepository.save(savingsEntry);
     }
 
     return savedLoan;
@@ -361,7 +389,9 @@ export class LoansService {
     );
 
     return {
-      pastDueInterestOutstanding: this.roundCurrency(pastDueInterestOutstanding),
+      pastDueInterestOutstanding: this.roundCurrency(
+        pastDueInterestOutstanding,
+      ),
       penaltyOutstanding: this.roundCurrency(penaltyOutstanding),
       totalOutstanding: this.roundCurrency(
         pastDueInterestOutstanding + penaltyOutstanding,
@@ -400,24 +430,23 @@ export class LoansService {
     });
   }
 
-  async applyWaiver(
-    loanId: string,
-    dto: ApplyLoanWaiverDto,
-    actorId?: string,
-  ) {
+  async applyWaiver(loanId: string, dto: ApplyLoanWaiverDto, actorId?: string) {
     const loan = await this.findOne(loanId);
     if (loan.status !== 'active') {
-      throw new BadRequestException('Waiver can only be applied to active loans');
+      throw new BadRequestException(
+        'Waiver can only be applied to active loans',
+      );
     }
 
-    const requestedPastDueInterestWaiver = Number(dto.pastDueInterestWaiver || 0);
+    const requestedPastDueInterestWaiver = Number(
+      dto.pastDueInterestWaiver || 0,
+    );
     const requestedPenaltyWaiver = Number(dto.penaltyWaiver || 0);
 
-    if (
-      requestedPastDueInterestWaiver <= 0 &&
-      requestedPenaltyWaiver <= 0
-    ) {
-      throw new BadRequestException('At least one waiver amount must be greater than 0');
+    if (requestedPastDueInterestWaiver <= 0 && requestedPenaltyWaiver <= 0) {
+      throw new BadRequestException(
+        'At least one waiver amount must be greater than 0',
+      );
     }
 
     const { pastDueInterestOutstanding, penaltyOutstanding } =
@@ -560,11 +589,10 @@ export class LoansService {
         ? Number(notarialFee)
         : 0;
     if (isNaN(legalFee) || legalFee < 0) {
-      throw new BadRequestException(
-        'notarialFee is required and must be >= 0',
-      );
+      throw new BadRequestException('notarialFee is required and must be >= 0');
     }
-    const savingsAmount = savings !== undefined && savings !== null ? Number(savings) : 0;
+    const savingsAmount =
+      savings !== undefined && savings !== null ? Number(savings) : 0;
     if (isNaN(savingsAmount) || savingsAmount < 0) {
       throw new BadRequestException('savings must be >= 0 when provided');
     }
@@ -595,7 +623,7 @@ export class LoansService {
     // Reset any existing collections' paymentReceived to 0 for this member (already done in create, but being explicit)
     await this.collectionRepository.update(
       { memberId: borrowerId },
-      { paymentReceived: 0 }
+      { paymentReceived: 0 },
     );
 
     // Compute net cash released per mode
@@ -867,8 +895,7 @@ export class LoansService {
           dueDate: this.formatDate(dueDate),
           amountDue: scheduleBreakdown?.amountDue ?? weeklyDue,
           principalDue: scheduleBreakdown?.principalDue ?? 0,
-          interestDue:
-            scheduleBreakdown?.interestDue ?? Math.max(0, weeklyDue),
+          interestDue: scheduleBreakdown?.interestDue ?? Math.max(0, weeklyDue),
           amountPaid: 0,
           status: LoanRepaymentStatus.UNPAID,
           advanceApplied: 0,
