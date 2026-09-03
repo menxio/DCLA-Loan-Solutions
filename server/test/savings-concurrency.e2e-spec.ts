@@ -16,6 +16,8 @@ import {
 import { RepaymentsService } from '../src/repayments/repayments.service';
 import { Savings } from '../src/savings/savings.entity';
 import { SavingsService } from '../src/savings/savings.service';
+import { Role } from '../src/roles/role.entity';
+import { User } from '../src/users/user.entity';
 
 jest.setTimeout(30_000);
 
@@ -46,6 +48,8 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
     CollectionBatch,
     LoanRepaymentSchedule,
     LoanRepaymentAllocation,
+    Role,
+    User,
   ];
   let adminDataSource: DataSource;
   let dataSource: DataSource;
