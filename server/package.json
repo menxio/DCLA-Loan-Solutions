@@ -23,6 +23,7 @@
   "typeorm": "typeorm-ts-node-commonjs",
   "migration:generate": "npm run typeorm -- migration:generate -d src/data-source.ts",
   "migration:run": "npm run typeorm -- migration:run -d dist/data-source.js",
+  "migration:show": "npm run typeorm -- migration:show -d dist/data-source.js",
   "repair:repayment-schedules": "ts-node -r tsconfig-paths/register src/scripts/repair-repayment-schedules.ts",
   "backfill:repayment-schedule-revenue": "ts-node -r tsconfig-paths/register src/scripts/backfill-repayment-schedule-revenue.ts",
   "backfill:actual-revenue": "ts-node -r tsconfig-paths/register src/scripts/backfill-actual-revenue.ts"

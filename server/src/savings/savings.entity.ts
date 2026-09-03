@@ -31,11 +31,21 @@ export enum SavingsEventType {
   unique: true,
   where: '"reversalOfId" IS NOT NULL',
 })
+@Index('IDX_savings_ledger_history', ['borrowerId', 'createdAt', 'id'], {
+  where: '"eventType" IS NOT NULL',
+})
+@Index('IDX_savings_legacy_history', ['borrowerId', 'createdAt', 'id'], {
+  where: '"eventType" IS NULL',
+})
 export class Savings {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ type: 'uuid' })
+  borrowerId: string;
+
   @ManyToOne(() => Member, (borrower) => borrower.savings)
+  @JoinColumn({ name: 'borrowerId' })
   borrower: Member;
 
   @ManyToOne(() => Loan, { nullable: true, onDelete: 'SET NULL' })

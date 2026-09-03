@@ -16,6 +16,8 @@ import {
 import { RepaymentsService } from '../src/repayments/repayments.service';
 import { Savings, SavingsEventType } from '../src/savings/savings.entity';
 import { SavingsService } from '../src/savings/savings.service';
+import { SavingsHistoryService } from '../src/savings/savings-history.service';
+import { SavingsHistoryScope } from '../src/savings/dto/savings-history-query.dto';
 import { Role } from '../src/roles/role.entity';
 import { User } from '../src/users/user.entity';
 
@@ -60,6 +62,7 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
   let scheduleRepository: Repository<LoanRepaymentSchedule>;
   let collectionRepository: Repository<Collection>;
   let savingsService: SavingsService;
+  let savingsHistoryService: SavingsHistoryService;
   let repaymentsService: RepaymentsService;
   let loansService: LoansService;
 
@@ -116,6 +119,10 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
       savingsRepository,
       dataSource.getRepository(Member),
       loanRepository,
+    );
+    savingsHistoryService = new SavingsHistoryService(
+      savingsRepository,
+      dataSource.getRepository(Member),
     );
     repaymentsService = new RepaymentsService(
       repaymentRepository,
@@ -709,6 +716,205 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
         idempotencyKey: `repayment:v1:${repayment.id}:savings-debit`,
       }),
     ).toBe(1);
+  });
+
+  it('I. reads paginated ledger history with deterministic ordering and actor provenance', async () => {
+    const fixture = await createFixture();
+    const sharedCreatedAt = new Date('2026-09-03T04:05:06.000Z');
+    const debitId = '00000000-0000-4000-8000-000000000001';
+    const reversalId = '00000000-0000-4000-8000-000000000002';
+
+    await savingsRepository.save([
+      savingsRepository.create({
+        id: debitId,
+        borrower: fixture.member,
+        loan: fixture.loan,
+        amount: -125.5,
+        remarks: 'Repayment debit',
+        eventType: SavingsEventType.REPAYMENT_DEBIT,
+        balanceBefore: 1000,
+        balanceAfter: 874.5,
+        businessDate: '2026-09-02',
+        referenceType: 'repayment',
+        referenceId: null,
+        idempotencyKey: 'history-reader-debit',
+        performedById: fixture.actor.id,
+        reversalOfId: null,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      }),
+      savingsRepository.create({
+        id: reversalId,
+        borrower: fixture.member,
+        loan: fixture.loan,
+        amount: 125.5,
+        remarks: 'Repayment reversal',
+        eventType: SavingsEventType.REPAYMENT_REVERSAL_CREDIT,
+        balanceBefore: 874.5,
+        balanceAfter: 1000,
+        businessDate: '2026-09-03',
+        referenceType: 'repayment_reversal',
+        referenceId: null,
+        idempotencyKey: 'history-reader-reversal',
+        performedById: null,
+        reversalOfId: debitId,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      }),
+      savingsRepository.create({
+        borrower: fixture.member,
+        loan: fixture.loan,
+        amount: 50,
+        remarks: 'Legacy row',
+        eventType: null,
+        balanceBefore: null,
+        balanceAfter: null,
+        businessDate: null,
+        referenceType: null,
+        referenceId: null,
+        idempotencyKey: null,
+        performedById: null,
+        reversalOfId: null,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      }),
+    ]);
+
+    const firstPage = await savingsHistoryService.findMemberHistory(
+      fixture.member.id,
+      { scope: SavingsHistoryScope.LEDGER, page: 1, limit: 1 },
+    );
+    const secondPage = await savingsHistoryService.findMemberHistory(
+      fixture.member.id,
+      { scope: SavingsHistoryScope.LEDGER, page: 2, limit: 1 },
+    );
+
+    expect(firstPage).toEqual({
+      scope: SavingsHistoryScope.LEDGER,
+      items: [
+        expect.objectContaining({
+          recordClass: SavingsHistoryScope.LEDGER,
+          id: reversalId,
+          eventType: SavingsEventType.REPAYMENT_REVERSAL_CREDIT,
+          amount: '125.50',
+          balanceBefore: '874.50',
+          balanceAfter: '1000.00',
+          businessDate: '2026-09-03',
+          performedBy: null,
+          referenceType: 'repayment_reversal',
+          reversalOfId: debitId,
+        }),
+      ],
+      pagination: { page: 1, limit: 1, total: 2, totalPages: 2 },
+    });
+    expect(secondPage.items).toEqual([
+      expect.objectContaining({
+        id: debitId,
+        amount: '-125.50',
+        performedBy: {
+          id: fixture.actor.id,
+          name: 'Ledger Actor',
+        },
+      }),
+    ]);
+  });
+
+  it('J. reads legacy history without fabricating ledger metadata', async () => {
+    const fixture = await createFixture();
+    const sharedCreatedAt = new Date('2026-09-03T04:05:06.000Z');
+    await savingsRepository.save([
+      savingsRepository.create({
+        id: '00000000-0000-4000-8000-000000000011',
+        borrower: fixture.member,
+        loan: fixture.loan,
+        amount: 250,
+        remarks: 'Legacy credit',
+        eventType: null,
+        balanceBefore: null,
+        balanceAfter: null,
+        businessDate: null,
+        referenceType: null,
+        referenceId: null,
+        idempotencyKey: null,
+        performedById: null,
+        reversalOfId: null,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      }),
+      savingsRepository.create({
+        id: '00000000-0000-4000-8000-000000000012',
+        borrower: fixture.member,
+        loan: fixture.loan,
+        amount: -300,
+        remarks: 'Legacy debit',
+        eventType: null,
+        balanceBefore: null,
+        balanceAfter: null,
+        businessDate: null,
+        referenceType: null,
+        referenceId: null,
+        idempotencyKey: null,
+        performedById: null,
+        reversalOfId: null,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      }),
+      savingsRepository.create({
+        borrower: fixture.member,
+        loan: fixture.loan,
+        amount: 100,
+        remarks: 'Ledger row',
+        eventType: SavingsEventType.MANUAL_DEPOSIT,
+        balanceBefore: 0,
+        balanceAfter: 100,
+        businessDate: '2026-09-03',
+        referenceType: null,
+        referenceId: null,
+        idempotencyKey: null,
+        performedById: null,
+        reversalOfId: null,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      }),
+    ]);
+
+    const result = await savingsHistoryService.findMemberHistory(
+      fixture.member.id,
+      { scope: SavingsHistoryScope.LEGACY, page: 1, limit: 25 },
+    );
+
+    expect(result).toEqual({
+      scope: SavingsHistoryScope.LEGACY,
+      items: [
+        {
+          recordClass: SavingsHistoryScope.LEGACY,
+          id: '00000000-0000-4000-8000-000000000012',
+          amount: '-300.00',
+          direction: 'debit',
+          createdAt: sharedCreatedAt,
+          remarks: 'Legacy debit',
+        },
+        {
+          recordClass: SavingsHistoryScope.LEGACY,
+          id: '00000000-0000-4000-8000-000000000011',
+          amount: '250.00',
+          direction: 'credit',
+          createdAt: sharedCreatedAt,
+          remarks: 'Legacy credit',
+        },
+      ],
+      pagination: { page: 1, limit: 25, total: 2, totalPages: 1 },
+    });
+    for (const item of result.items) {
+      expect(item).not.toHaveProperty('eventType');
+      expect(item).not.toHaveProperty('balanceBefore');
+      expect(item).not.toHaveProperty('balanceAfter');
+      expect(item).not.toHaveProperty('businessDate');
+      expect(item).not.toHaveProperty('performedBy');
+      expect(item).not.toHaveProperty('referenceType');
+      expect(item).not.toHaveProperty('referenceId');
+      expect(item).not.toHaveProperty('reversalOfId');
+    }
   });
 
   async function installLoanSavingsFailureTrigger() {

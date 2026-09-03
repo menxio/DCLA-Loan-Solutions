@@ -6,6 +6,7 @@ import { LoanWaiver } from '../src/loans/entities/loan-waiver.entity';
 import { Loan } from '../src/loans/loan.entity';
 import { Member } from '../src/members/entities/member.entity';
 import { AddSavingsLedgerFoundation1763400000000 } from '../src/migrations/1763400000000-AddSavingsLedgerFoundation';
+import { AddSavingsHistoryIndexes1763500000000 } from '../src/migrations/1763500000000-AddSavingsHistoryIndexes';
 import { Role } from '../src/roles/role.entity';
 import { CollectionBatch } from '../src/repayments/entities/collection-batch.entity';
 import { LoanRepaymentAllocation } from '../src/repayments/entities/loan-repayment-allocation.entity';
@@ -34,6 +35,7 @@ describeWithPostgres('Savings ledger migration against real PostgreSQL', () => {
     .toString(16)
     .slice(2)}`;
   const migration = new AddSavingsLedgerFoundation1763400000000();
+  const historyIndexMigration = new AddSavingsHistoryIndexes1763500000000();
   const legacyId = randomUUID();
   const memberId = randomUUID();
   const actorId = randomUUID();
@@ -42,6 +44,7 @@ describeWithPostgres('Savings ledger migration against real PostgreSQL', () => {
   let queryRunner: QueryRunner;
   let savingsRepository: Repository<Savings>;
   let migrationApplied = false;
+  let historyIndexMigrationApplied = false;
 
   const entityClasses = [
     Center,
@@ -123,6 +126,8 @@ describeWithPostgres('Savings ledger migration against real PostgreSQL', () => {
 
     await migration.up(queryRunner);
     migrationApplied = true;
+    await historyIndexMigration.up(queryRunner);
+    historyIndexMigrationApplied = true;
 
     entityDataSource = new DataSource({
       type: 'postgres',
@@ -141,6 +146,9 @@ describeWithPostgres('Savings ledger migration against real PostgreSQL', () => {
     }
     if (queryRunner?.isReleased === false) {
       await queryRunner.query(`SET search_path TO "${schema}"`);
+      if (historyIndexMigrationApplied) {
+        await historyIndexMigration.down(queryRunner);
+      }
       if (migrationApplied) {
         await migration.down(queryRunner);
       }
@@ -151,6 +159,31 @@ describeWithPostgres('Savings ledger migration against real PostgreSQL', () => {
     if (adminDataSource?.isInitialized) {
       await adminDataSource.destroy();
     }
+  });
+
+  it('creates separate partial indexes for ledger and legacy history', async () => {
+    const indexes = (await queryRunner.query(
+      `SELECT indexname, indexdef
+       FROM pg_indexes
+       WHERE schemaname = $1
+         AND indexname IN (
+           'IDX_savings_ledger_history',
+           'IDX_savings_legacy_history'
+         )
+       ORDER BY indexname`,
+      [schema],
+    )) as Array<{ indexname: string; indexdef: string }>;
+
+    expect(indexes.map((index) => index.indexname)).toEqual([
+      'IDX_savings_ledger_history',
+      'IDX_savings_legacy_history',
+    ]);
+    expect(indexes[0].indexdef).toMatch(
+      /\("borrowerId", "createdAt", id\).*\("eventType" IS NOT NULL\)/,
+    );
+    expect(indexes[1].indexdef).toMatch(
+      /\("borrowerId", "createdAt", id\).*\("eventType" IS NULL\)/,
+    );
   });
 
   it('preserves existing rows and accepts legacy-style entity inserts', async () => {
