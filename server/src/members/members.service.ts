@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Member } from './entities/member.entity';
@@ -6,6 +10,7 @@ import { Center } from '../centers/entities/center.entity';
 import { Loan } from '../loans/loan.entity';
 import { Repayment } from '../repayments/repayment.entity';
 import { Savings } from '../savings/savings.entity';
+import { Collection } from '../collections/entities/collection.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { FindMembersQueryDto } from './dto/find-members-query.dto';
@@ -44,13 +49,16 @@ export class MembersService {
     return this.memberRepository.save(member);
   }
 
-  async findAll(query?: FindMembersQueryDto): Promise<{
-    items: Member[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  } | Member[]> {
+  async findAll(query?: FindMembersQueryDto): Promise<
+    | {
+        items: Member[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+      }
+    | Member[]
+  > {
     // Backward compatibility if no query provided
     if (!query) {
       return this.memberRepository.find({ relations: ['center'] });
@@ -117,34 +125,27 @@ export class MembersService {
   }
 
   async remove(id: string): Promise<void> {
-    // Use a transaction to ensure all deletions succeed or none do
     await this.dataSource.transaction(async (manager) => {
-      // First, check if the member exists
-      const member = await manager.findOne(Member, { where: { id } });
+      const member = await manager.findOne(Member, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!member) {
         throw new NotFoundException(`Member #${id} not found`);
       }
 
-      // Get all loans for this member
-      const loans = await manager.find(Loan, { where: { borrower: { id } } });
-      
-      // Delete all repayments for this member's loans
-      if (loans.length > 0) {
-        for (const loan of loans) {
-          await manager.delete(Repayment, { loan: { id: loan.id } });
-        }
+      const hasFinancialHistory =
+        (await manager.exists(Loan, { where: { borrower: { id } } })) ||
+        (await manager.exists(Savings, { where: { borrower: { id } } })) ||
+        (await manager.exists(Repayment, { where: { member: { id } } })) ||
+        (await manager.exists(Collection, { where: { memberId: id } }));
+
+      if (hasFinancialHistory) {
+        throw new ConflictException(
+          'Member cannot be deleted because financial history exists',
+        );
       }
 
-      // Delete all repayments directly associated with this member
-      await manager.delete(Repayment, { member: { id } });
-
-      // Delete all loans for this member
-      await manager.delete(Loan, { borrower: { id } });
-
-      // Delete all savings for this member
-      await manager.delete(Savings, { borrower: { id } });
-
-      // Finally, delete the member
       await manager.delete(Member, { id });
     });
   }
@@ -195,7 +196,7 @@ export class MembersService {
         // Sum of net cash released across active loans only (reloans)
         const netCashReleased = loans
           .filter((loan) => loan.status === 'active')
-          .reduce((sum, loan) => sum + Number((loan as any).netCashReleased || 0), 0);
+          .reduce((sum, loan) => sum + Number(loan.netCashReleased || 0), 0);
 
         return {
           ...member,

@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -91,13 +92,45 @@ export class LoansService {
     };
   }
 
-  private async findLatestLoanForMember(
+  async findAuthoritativeSavingsLoanForMember(
     borrowerId: string,
+    manager?: EntityManager,
   ): Promise<Loan | null> {
-    return this.loanRepository.findOne({
-      where: { borrower: { id: borrowerId } },
-      order: { createdAt: 'DESC' },
+    const repository = manager?.getRepository(Loan) ?? this.loanRepository;
+    const activeLoans = await repository.find({
+      where: { borrower: { id: borrowerId }, status: 'active' },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: 2,
     });
+
+    if (activeLoans.length > 1) {
+      throw new ConflictException(
+        'Authoritative savings balance is ambiguous because the member has multiple active loans',
+      );
+    }
+    if (activeLoans.length === 1) {
+      return activeLoans[0];
+    }
+
+    const latestLoans = await repository.find({
+      where: { borrower: { id: borrowerId } },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: 2,
+    });
+
+    if (latestLoans.length === 0) {
+      return null;
+    }
+    if (
+      latestLoans.length > 1 &&
+      latestLoans[0].createdAt.getTime() === latestLoans[1].createdAt.getTime()
+    ) {
+      throw new ConflictException(
+        'Authoritative savings balance is ambiguous because the latest loans have the same creation time',
+      );
+    }
+
+    return latestLoans[0];
   }
 
   async create(createLoanDto: CreateLoanDto): Promise<Loan> {
@@ -120,16 +153,14 @@ export class LoansService {
       throw new NotFoundException(`Member #${borrowerId} not found`);
     }
 
-    // Check if borrower has active loan
-    const activeLoan = await this.loanRepository.findOne({
-      where: { borrower: { id: borrowerId }, status: 'active' },
-    });
-    if (activeLoan) {
+    const latestLoan = await this.findAuthoritativeSavingsLoanForMember(
+      String(borrowerId),
+    );
+    if (latestLoan?.status === 'active') {
       throw new BadRequestException('Member already has an active loan');
     }
 
     // Determine if this is the borrower's first loan (no prior loans at all)
-    const latestLoan = await this.findLatestLoanForMember(borrowerId);
     const isFirstLoan = !latestLoan;
 
     // Validate savings per business rule
@@ -731,10 +762,14 @@ export class LoansService {
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.loanRepository.delete(id);
-    if (result.affected === 0) {
+    const loan = await this.loanRepository.findOne({ where: { id } });
+    if (!loan) {
       throw new NotFoundException(`Loan #${id} not found`);
     }
+
+    throw new ConflictException(
+      'Loan cannot be deleted because persisted loans are financial history',
+    );
   }
 
   // Check if member is eligible for reloan
