@@ -5,11 +5,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
-import { Savings } from './savings.entity';
+import { Savings, SavingsEventType } from './savings.entity';
 import { Member } from '../members/entities/member.entity';
 import { Loan } from '../loans/loan.entity';
 import { DepositSavingsDto } from './dto/deposit-savings.dto';
 import { WithdrawSavingsDto } from './dto/withdraw-savings.dto';
+import { getFinancialBusinessDate } from '../common/financial-business-date';
 
 @Injectable()
 export class SavingsService {
@@ -22,7 +23,7 @@ export class SavingsService {
     private readonly loanRepository: Repository<Loan>,
   ) {}
 
-  async deposit(dto: DepositSavingsDto) {
+  async deposit(dto: DepositSavingsDto, actorId?: string) {
     const { memberId, loanId, amount, remarks } = dto;
     const numericAmount = Number(amount);
 
@@ -31,6 +32,7 @@ export class SavingsService {
     }
 
     return this.loanRepository.manager.transaction(async (manager) => {
+      const businessDate = getFinancialBusinessDate();
       const member = await this.findMember(manager, memberId);
       const loan = await this.findLockedActiveLoan(
         manager,
@@ -47,6 +49,15 @@ export class SavingsService {
         loan,
         amount: numericAmount,
         remarks,
+        eventType: SavingsEventType.MANUAL_DEPOSIT,
+        balanceBefore: currentSavings,
+        balanceAfter: updatedSavings,
+        businessDate,
+        referenceType: null,
+        referenceId: null,
+        idempotencyKey: null,
+        performedById: actorId ?? null,
+        reversalOfId: null,
       });
       const savedEntry = await savingsRepository.save(savingsEntry);
 
@@ -63,7 +74,7 @@ export class SavingsService {
     });
   }
 
-  async withdraw(dto: WithdrawSavingsDto) {
+  async withdraw(dto: WithdrawSavingsDto, actorId?: string) {
     const { memberId, loanId, amount, remarks } = dto;
     const numericAmount = Number(amount);
 
@@ -72,6 +83,7 @@ export class SavingsService {
     }
 
     return this.loanRepository.manager.transaction(async (manager) => {
+      const businessDate = getFinancialBusinessDate();
       const member = await this.findMember(manager, memberId);
       const loan = await this.findLockedActiveLoan(
         manager,
@@ -88,14 +100,23 @@ export class SavingsService {
 
       const savingsRepository = manager.getRepository(Savings);
       const loanRepository = manager.getRepository(Loan);
+      const updatedSavings = currentSavings - numericAmount;
       const savingsEntry = savingsRepository.create({
         borrower: member,
         loan,
         amount: -numericAmount,
         remarks,
+        eventType: SavingsEventType.MANUAL_WITHDRAWAL,
+        balanceBefore: currentSavings,
+        balanceAfter: updatedSavings,
+        businessDate,
+        referenceType: null,
+        referenceId: null,
+        idempotencyKey: null,
+        performedById: actorId ?? null,
+        reversalOfId: null,
       });
       const savedEntry = await savingsRepository.save(savingsEntry);
-      const updatedSavings = currentSavings - numericAmount;
 
       loan.savings = updatedSavings;
       await loanRepository.save(loan);

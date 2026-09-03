@@ -18,9 +18,29 @@ import {
   LoanRepaymentSchedule,
   LoanRepaymentStatus,
 } from '../repayments/entities/loan-repayment-schedule.entity';
-import { Savings } from '../savings/savings.entity';
+import { Savings, SavingsEventType } from '../savings/savings.entity';
 import { buildLoanRepaymentBreakdown } from '../repayments/loan-repayment-schedule.utils';
 import { LoanWaiver } from './entities/loan-waiver.entity';
+import { getFinancialBusinessDate } from '../common/financial-business-date';
+import {
+  loanContributionIdempotencyKey,
+  repaymentSavingsDebitIdempotencyKey,
+  SAVINGS_REFERENCE_TYPE,
+} from '../savings/savings-ledger.utils';
+
+type LoanCreationOrigin = 'origination' | 'reloan';
+
+interface LoanCreationContext {
+  origin: LoanCreationOrigin;
+  actorId?: string;
+  businessDate: string;
+}
+
+interface RepaymentSavingsLedgerContext {
+  repaymentId: string;
+  actorId?: string;
+  businessDate: string;
+}
 
 @Injectable()
 export class LoansService {
@@ -133,7 +153,25 @@ export class LoansService {
     return latestLoans[0];
   }
 
-  async create(createLoanDto: CreateLoanDto): Promise<Loan> {
+  async create(createLoanDto: CreateLoanDto, actorId?: string): Promise<Loan> {
+    return this.loanRepository.manager.transaction((manager) =>
+      this.createLoanWithinTransaction(
+        createLoanDto,
+        {
+          origin: 'origination',
+          actorId,
+          businessDate: getFinancialBusinessDate(),
+        },
+        manager,
+      ),
+    );
+  }
+
+  private async createLoanWithinTransaction(
+    createLoanDto: CreateLoanDto,
+    context: LoanCreationContext,
+    manager: EntityManager,
+  ): Promise<Loan> {
     const {
       borrowerId,
       principalAmount,
@@ -143,10 +181,15 @@ export class LoansService {
       notarialFee,
       loanCreatedDate,
       monthlyInterestRate,
-    } = createLoanDto as any;
+    } = createLoanDto;
 
     // Check if borrower exists
-    const borrower = await this.memberRepository.findOne({
+    const memberRepository = manager.getRepository(Member);
+    const loanRepository = manager.getRepository(Loan);
+    const collectionRepository = manager.getRepository(Collection);
+    const savingsRepository = manager.getRepository(Savings);
+
+    const borrower = await memberRepository.findOne({
       where: { id: borrowerId },
     });
     if (!borrower) {
@@ -155,6 +198,7 @@ export class LoansService {
 
     const latestLoan = await this.findAuthoritativeSavingsLoanForMember(
       String(borrowerId),
+      manager,
     );
     if (latestLoan?.status === 'active') {
       throw new BadRequestException('Member already has an active loan');
@@ -210,7 +254,7 @@ export class LoansService {
       );
 
     // Create loan
-    const loan = this.loanRepository.create({
+    const loan = loanRepository.create({
       borrower,
       principalAmount,
       termWeeks,
@@ -234,12 +278,38 @@ export class LoansService {
     const savingsForCalc = newSavingsContribution;
     const net = Number(principalAmount) - fee - legalFee - savingsForCalc;
     const netCashReleased = net > 0 ? net : 0;
-    (loan as any).netCashReleased = netCashReleased;
+    loan.netCashReleased = netCashReleased;
 
-    const savedLoan = await this.loanRepository.save(loan);
+    const savedLoan = await loanRepository.save(loan);
+
+    if (newSavingsContribution > 0) {
+      const eventType =
+        context.origin === 'reloan'
+          ? SavingsEventType.RELOAN_CONTRIBUTION
+          : SavingsEventType.LOAN_ORIGINATION_CONTRIBUTION;
+      const savingsEntry = savingsRepository.create({
+        borrower,
+        loan: savedLoan,
+        eventType,
+        amount: newSavingsContribution,
+        balanceBefore: previousSavingsTotal,
+        balanceAfter: totalSavingsForValidation,
+        businessDate: context.businessDate,
+        referenceType: SAVINGS_REFERENCE_TYPE.LOAN,
+        referenceId: savedLoan.id,
+        idempotencyKey: loanContributionIdempotencyKey(savedLoan.id, eventType),
+        performedById: context.actorId ?? null,
+        reversalOfId: null,
+        remarks:
+          context.origin === 'reloan'
+            ? 'Savings contribution on reloan'
+            : 'Savings contribution on loan origination',
+      });
+      await savingsRepository.save(savingsEntry);
+    }
 
     // Reset any existing collections' paymentReceived to 0 for this member
-    await this.collectionRepository.update(
+    await collectionRepository.update(
       { memberId: borrowerId },
       { paymentReceived: 0 },
     );
@@ -256,6 +326,7 @@ export class LoansService {
     amount: number,
     useSavings: boolean = false,
     manager?: EntityManager,
+    ledgerContext?: RepaymentSavingsLedgerContext,
   ): Promise<Loan> {
     if (
       amount === undefined ||
@@ -278,7 +349,13 @@ export class LoansService {
 
     if (!manager) {
       return this.loanRepository.manager.transaction((transactionManager) =>
-        this.applyRepayment(loanId, amount, useSavings, transactionManager),
+        this.applyRepayment(
+          loanId,
+          amount,
+          useSavings,
+          transactionManager,
+          ledgerContext,
+        ),
       );
     }
 
@@ -345,11 +422,27 @@ export class LoansService {
 
     // Record savings deduction as a savings withdrawal transaction entry
     if (savingsUsed > 0) {
+      if (!ledgerContext) {
+        throw new Error(
+          'Repayment savings ledger context is required for a savings debit',
+        );
+      }
       const savingsEntry = savingsRepository.create({
         borrower: loan.borrower,
         loan,
         amount: -Math.abs(savingsUsed),
         remarks: 'Applied to repayment',
+        eventType: SavingsEventType.REPAYMENT_DEBIT,
+        balanceBefore: availableSavings,
+        balanceAfter: Number(savedLoan.savings),
+        businessDate: ledgerContext.businessDate,
+        referenceType: SAVINGS_REFERENCE_TYPE.REPAYMENT,
+        referenceId: ledgerContext.repaymentId,
+        idempotencyKey: repaymentSavingsDebitIdempotencyKey(
+          ledgerContext.repaymentId,
+        ),
+        performedById: ledgerContext.actorId ?? null,
+        reversalOfId: null,
       });
       await savingsRepository.save(savingsEntry);
     }
@@ -539,8 +632,10 @@ export class LoansService {
    */
   async eligibilityByLoan(loanId: string) {
     const loan = await this.findOne(loanId);
+    return this.getReloanEligibility(loan);
+  }
 
-    // Updated eligibility requirements
+  private getReloanEligibility(loan: Loan) {
     let minWeeks: number;
     switch (loan.termWeeks) {
       case 4:
@@ -570,7 +665,25 @@ export class LoansService {
    * - payoff: client pays old balance in cash; new principal - serviceCharge - notarialFee is released
    * - netoff: old balance is deducted from new loan principal; released = new principal - old balance - serviceCharge - notarialFee
    */
-  async reloan(loanId: string, dto: ReloanDto) {
+  async reloan(loanId: string, dto: ReloanDto, actorId?: string) {
+    return this.loanRepository.manager.transaction((manager) =>
+      this.reloanWithinTransaction(
+        loanId,
+        dto,
+        actorId,
+        getFinancialBusinessDate(),
+        manager,
+      ),
+    );
+  }
+
+  private async reloanWithinTransaction(
+    loanId: string,
+    dto: ReloanDto,
+    actorId: string | undefined,
+    businessDate: string,
+    manager: EntityManager,
+  ) {
     const {
       newPrincipalAmount,
       newTermWeeks,
@@ -594,11 +707,24 @@ export class LoansService {
       monthlyInterestRate,
     );
 
-    const loan = await this.findOne(loanId);
+    const loanRepository = manager.getRepository(Loan);
+    const collectionRepository = manager.getRepository(Collection);
+    await loanRepository
+      .createQueryBuilder('loan')
+      .setLock('pessimistic_write')
+      .where('loan.id = :loanId', { loanId })
+      .getOne();
+    const loan = await loanRepository.findOne({
+      where: { id: loanId },
+      relations: ['borrower'],
+    });
+    if (!loan) {
+      throw new NotFoundException(`Loan #${loanId} not found`);
+    }
     if (loan.status !== 'active')
       throw new BadRequestException('Only active loans can be reloaned');
 
-    const { eligible, minWeeksRequired } = await this.eligibilityByLoan(loanId);
+    const { eligible, minWeeksRequired } = this.getReloanEligibility(loan);
     if (!eligible)
       throw new BadRequestException(
         `Not eligible for reloan. Requires >= ${minWeeksRequired} weeks paid.`,
@@ -636,7 +762,7 @@ export class LoansService {
     loan.status = mode === 'payoff' ? 'payoff' : 'netoff';
     loan.balance = 0;
     loan.advancePaymentBuffer = 0;
-    await this.loanRepository.save(loan);
+    await loanRepository.save(loan);
 
     // Create the new loan
     const borrowerId = loan.borrower.id;
@@ -648,11 +774,19 @@ export class LoansService {
       serviceCharge: fee,
       notarialFee: legalFee,
       monthlyInterestRate,
-    } as any;
-    const newLoan = await this.create(tempCreate);
+    };
+    const newLoan = await this.createLoanWithinTransaction(
+      tempCreate,
+      {
+        origin: 'reloan',
+        actorId,
+        businessDate,
+      },
+      manager,
+    );
 
     // Reset any existing collections' paymentReceived to 0 for this member (already done in create, but being explicit)
-    await this.collectionRepository.update(
+    await collectionRepository.update(
       { memberId: borrowerId },
       { paymentReceived: 0 },
     );
@@ -675,13 +809,11 @@ export class LoansService {
     }
 
     // Persist net cash released on the newly created loan
-    try {
-      await this.loanRepository.update(newLoan.id, {
-        netCashReleased: Number(netCashReleased) || 0,
-      } as any);
-      // reflect in object returned
-      (newLoan as any).netCashReleased = Number(netCashReleased) || 0;
-    } catch (e) {}
+    await loanRepository.update(newLoan.id, {
+      netCashReleased: Number(netCashReleased) || 0,
+    });
+    // reflect in object returned
+    newLoan.netCashReleased = Number(netCashReleased) || 0;
 
     return {
       oldLoanId: loanId,
@@ -702,6 +834,7 @@ export class LoansService {
   }
 
   async update(id: string, updateLoanDto: UpdateLoanDto): Promise<Loan> {
+    void updateLoanDto;
     const loan = await this.findOne(id);
 
     // Currently no updatable fields
@@ -864,7 +997,7 @@ export class LoansService {
       loan.loanCreatedDate ?? loan.createdAt ?? new Date(),
     );
     const collectionDay =
-      center?.collectionDay ?? (member as any)?.center?.collectionDay ?? null;
+      center?.collectionDay ?? member.center?.collectionDay ?? null;
     const targetIndex = this.getWeekdayIndex(collectionDay);
     if (targetIndex < 0) {
       return baseDate;
@@ -913,7 +1046,7 @@ export class LoansService {
       return;
     }
 
-    const center = (member as any)?.center ?? null;
+    const center = member.center ?? null;
     const firstDueDate = this.computeFirstDueDate(loan, member, center);
     const schedules: LoanRepaymentSchedule[] = [];
     const breakdown = buildLoanRepaymentBreakdown(loan);

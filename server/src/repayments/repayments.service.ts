@@ -26,11 +26,17 @@ import {
 import { LoanRepaymentAllocation } from './entities/loan-repayment-allocation.entity';
 import { buildLoanRepaymentBreakdown } from './loan-repayment-schedule.utils';
 import { getRealizedAllocationSplit } from './loan-repayment-allocation.utils';
-import { Savings } from '../savings/savings.entity';
+import { Savings, SavingsEventType } from '../savings/savings.entity';
 import {
   CollectionBatch,
   CollectionBatchStatus,
 } from './entities/collection-batch.entity';
+import { getFinancialBusinessDate } from '../common/financial-business-date';
+import {
+  repaymentSavingsDebitIdempotencyKey,
+  repaymentSavingsReversalIdempotencyKey,
+  SAVINGS_REFERENCE_TYPE,
+} from '../savings/savings-ledger.utils';
 
 export interface PendingRepaymentCollectionGroup {
   batchId: string | null;
@@ -1106,6 +1112,7 @@ export class RepaymentsService implements OnModuleInit {
     }
 
     return this.repaymentRepo.manager.transaction(async (manager) => {
+      const businessDate = getFinancialBusinessDate();
       const loanRepository = manager.getRepository(Loan);
       const repaymentRepository = manager.getRepository(Repayment);
       await loanRepository
@@ -1140,10 +1147,22 @@ export class RepaymentsService implements OnModuleInit {
       }
 
       if (repayment.operationType === RepaymentOperationType.REVERSAL) {
-        return this.approveReversalRepayment(repayment, loan, manager, actorId);
+        return this.approveReversalRepayment(
+          repayment,
+          loan,
+          manager,
+          businessDate,
+          actorId,
+        );
       }
 
-      return this.approvePaymentRepayment(repayment, loan, manager, actorId);
+      return this.approvePaymentRepayment(
+        repayment,
+        loan,
+        manager,
+        businessDate,
+        actorId,
+      );
     });
   }
 
@@ -1151,6 +1170,7 @@ export class RepaymentsService implements OnModuleInit {
     repayment: Repayment,
     loan: Loan,
     manager: EntityManager,
+    businessDate: string,
     actorId?: string,
   ): Promise<Repayment> {
     const member = repayment.member;
@@ -1165,6 +1185,11 @@ export class RepaymentsService implements OnModuleInit {
       Number(repayment.amount),
       Boolean(repayment.useSavings),
       manager,
+      {
+        repaymentId: repayment.id,
+        actorId,
+        businessDate,
+      },
     );
 
     const updatedLoan = await manager.getRepository(Loan).findOne({
@@ -1227,6 +1252,7 @@ export class RepaymentsService implements OnModuleInit {
     reversal: Repayment,
     loan: Loan,
     manager: EntityManager,
+    businessDate: string,
     actorId?: string,
   ): Promise<Repayment> {
     const originalRepaymentId = reversal.relatedRepaymentId;
@@ -1297,6 +1323,17 @@ export class RepaymentsService implements OnModuleInit {
       (sum, allocation) => sum + Number(allocation.savingsPortion || 0),
       0,
     );
+    const originalSavingsDebit =
+      savingsUsed > 0
+        ? await savingsRepository.findOne({
+            where: {
+              eventType: SavingsEventType.REPAYMENT_DEBIT,
+              idempotencyKey: repaymentSavingsDebitIdempotencyKey(original.id),
+            },
+          })
+        : null;
+    // Pre-ledger debit rows have no deterministic repayment provenance. Leave
+    // reversalOfId null for those rows instead of fabricating a historical link.
 
     const paymentDate = this.parseDate(
       reversal.collectionDate ??
@@ -1349,9 +1386,11 @@ export class RepaymentsService implements OnModuleInit {
     loan.balance = Number(
       Math.max(0, Number(loan.totalAmount || 0) - updatedAmountPaid).toFixed(2),
     );
-    loan.savings = Number(
-      (Number(loan.savings || 0) + Number(savingsUsed || 0)).toFixed(2),
+    const savingsBalanceBefore = Number(loan.savings || 0);
+    const savingsBalanceAfter = Number(
+      (savingsBalanceBefore + Number(savingsUsed || 0)).toFixed(2),
     );
+    loan.savings = savingsBalanceAfter;
     if (loan.balance === 0) {
       loan.status = 'paid';
     } else if (loan.status === 'paid') {
@@ -1365,6 +1404,15 @@ export class RepaymentsService implements OnModuleInit {
         loan,
         amount: Number(savingsUsed.toFixed(2)),
         remarks: `Reversal credit for repayment ${original.id}`,
+        eventType: SavingsEventType.REPAYMENT_REVERSAL_CREDIT,
+        balanceBefore: savingsBalanceBefore,
+        balanceAfter: savingsBalanceAfter,
+        businessDate,
+        referenceType: SAVINGS_REFERENCE_TYPE.REPAYMENT_REVERSAL,
+        referenceId: reversal.id,
+        idempotencyKey: repaymentSavingsReversalIdempotencyKey(reversal.id),
+        performedById: actorId ?? null,
+        reversalOfId: originalSavingsDebit?.id ?? null,
       });
       await savingsRepository.save(savingsEntry);
     }

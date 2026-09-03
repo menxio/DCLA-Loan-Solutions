@@ -155,7 +155,10 @@ describeWithPostgres('Savings ledger migration against real PostgreSQL', () => {
 
   it('preserves existing rows and accepts legacy-style entity inserts', async () => {
     const legacyResult: unknown = await queryRunner.query(
-      `SELECT * FROM "savings" WHERE "id" = $1`,
+      `SELECT *,
+        to_char("createdAt", 'YYYY-MM-DD HH24:MI:SS') AS "createdAtText",
+        to_char("updatedAt", 'YYYY-MM-DD HH24:MI:SS') AS "updatedAtText"
+       FROM "savings" WHERE "id" = $1`,
       [legacyId],
     );
     const [legacy] = legacyResult as Array<
@@ -179,8 +182,8 @@ describeWithPostgres('Savings ledger migration against real PostgreSQL', () => {
         reversalOfId: null,
       }),
     );
-    expect(legacy.createdAt).toEqual(new Date('2025-01-02T03:04:05.000Z'));
-    expect(legacy.updatedAt).toEqual(new Date('2025-01-02T03:04:05.000Z'));
+    expect(legacy.createdAtText).toBe('2025-01-02 03:04:05');
+    expect(legacy.updatedAtText).toBe('2025-01-02 03:04:05');
 
     const inserted = await savingsRepository.save(createSavings());
     const persisted = await savingsRepository.findOneByOrFail({

@@ -14,7 +14,7 @@ import {
   RepaymentStatus,
 } from '../src/repayments/repayment.entity';
 import { RepaymentsService } from '../src/repayments/repayments.service';
-import { Savings } from '../src/savings/savings.entity';
+import { Savings, SavingsEventType } from '../src/savings/savings.entity';
 import { SavingsService } from '../src/savings/savings.service';
 import { Role } from '../src/roles/role.entity';
 import { User } from '../src/users/user.entity';
@@ -61,6 +61,7 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
   let collectionRepository: Repository<Collection>;
   let savingsService: SavingsService;
   let repaymentsService: RepaymentsService;
+  let loansService: LoansService;
 
   const table = (name: string) => `"${schema}"."${name}"`;
 
@@ -103,7 +104,7 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
     scheduleRepository = dataSource.getRepository(LoanRepaymentSchedule);
     collectionRepository = dataSource.getRepository(Collection);
 
-    const loansService = new LoansService(
+    loansService = new LoansService(
       loanRepository,
       dataSource.getRepository(Member),
       collectionRepository,
@@ -128,7 +129,7 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
       dataSource.getRepository(CollectionBatch),
       loansService,
     );
-  });
+  }, 90_000);
 
   afterAll(async () => {
     if (dataSource?.isInitialized) {
@@ -153,7 +154,37 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
     );
   });
 
+  afterEach(async () => {
+    const violations: unknown = await dataSource.query(`
+      SELECT "id"
+      FROM ${table('savings')}
+      WHERE "balanceBefore" IS NOT NULL
+        AND "balanceAfter" IS NOT NULL
+        AND "balanceAfter" <> "balanceBefore" + "amount"
+    `);
+
+    expect(violations).toEqual([]);
+  });
+
   async function createFixture(initialSavings = 5000) {
+    const role = await dataSource.getRepository(Role).save(
+      dataSource.getRepository(Role).create({
+        name: `manager-${Math.random()}`,
+      }),
+    );
+    const actor = await dataSource.getRepository(User).save(
+      dataSource.getRepository(User).create({
+        email: `manager-${Math.random()}@example.test`,
+        password: 'not-used',
+        firstName: 'Ledger',
+        middleName: null,
+        lastName: 'Actor',
+        role,
+        isActive: true,
+        mustChangePassword: false,
+        hashedRefreshToken: null,
+      }),
+    );
     const center = await dataSource.getRepository(Center).save(
       dataSource.getRepository(Center).create({
         name: `Center ${Math.random()}`,
@@ -200,7 +231,7 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
         loanCreatedDate: new Date('2026-08-01T00:00:00.000Z'),
       }),
     );
-    return { center, member, loan };
+    return { actor, center, member, loan };
   }
 
   async function createPendingPayment(
@@ -272,16 +303,22 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
   it('A. serializes two withdrawals', async () => {
     const fixture = await createFixture();
     const results = await Promise.allSettled([
-      savingsService.withdraw({
-        memberId: fixture.member.id,
-        loanId: fixture.loan.id,
-        amount: 4000,
-      }),
-      savingsService.withdraw({
-        memberId: fixture.member.id,
-        loanId: fixture.loan.id,
-        amount: 4000,
-      }),
+      savingsService.withdraw(
+        {
+          memberId: fixture.member.id,
+          loanId: fixture.loan.id,
+          amount: 4000,
+        },
+        fixture.actor.id,
+      ),
+      savingsService.withdraw(
+        {
+          memberId: fixture.member.id,
+          loanId: fixture.loan.id,
+          amount: 4000,
+        },
+        fixture.actor.id,
+      ),
     ]);
     const persisted = await persistedSavings(fixture.loan.id);
 
@@ -295,21 +332,35 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
     expect(persisted.entries.map((entry) => Number(entry.amount))).toEqual([
       -4000,
     ]);
+    expect(persisted.entries[0]).toMatchObject({
+      eventType: SavingsEventType.MANUAL_WITHDRAWAL,
+      balanceBefore: '5000.00',
+      balanceAfter: '1000.00',
+      performedById: fixture.actor.id,
+      idempotencyKey: null,
+    });
+    expect(persisted.entries[0].businessDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it('B. preserves two concurrent deposits', async () => {
     const fixture = await createFixture();
     await Promise.all([
-      savingsService.deposit({
-        memberId: fixture.member.id,
-        loanId: fixture.loan.id,
-        amount: 1000,
-      }),
-      savingsService.deposit({
-        memberId: fixture.member.id,
-        loanId: fixture.loan.id,
-        amount: 2000,
-      }),
+      savingsService.deposit(
+        {
+          memberId: fixture.member.id,
+          loanId: fixture.loan.id,
+          amount: 1000,
+        },
+        fixture.actor.id,
+      ),
+      savingsService.deposit(
+        {
+          memberId: fixture.member.id,
+          loanId: fixture.loan.id,
+          amount: 2000,
+        },
+        fixture.actor.id,
+      ),
     ]);
     const persisted = await persistedSavings(fixture.loan.id);
 
@@ -317,21 +368,37 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
     expect(
       persisted.entries.map((entry) => Number(entry.amount)).sort(),
     ).toEqual([1000, 2000]);
+    expect(
+      persisted.entries.every(
+        (entry) =>
+          entry.eventType === SavingsEventType.MANUAL_DEPOSIT &&
+          entry.performedById === fixture.actor.id &&
+          entry.idempotencyKey === null &&
+          Number(entry.balanceAfter) ===
+            Number(entry.balanceBefore) + Number(entry.amount),
+      ),
+    ).toBe(true);
   });
 
   it('C. preserves a concurrent deposit and withdrawal', async () => {
     const fixture = await createFixture();
     await Promise.all([
-      savingsService.deposit({
-        memberId: fixture.member.id,
-        loanId: fixture.loan.id,
-        amount: 1000,
-      }),
-      savingsService.withdraw({
-        memberId: fixture.member.id,
-        loanId: fixture.loan.id,
-        amount: 2000,
-      }),
+      savingsService.deposit(
+        {
+          memberId: fixture.member.id,
+          loanId: fixture.loan.id,
+          amount: 1000,
+        },
+        fixture.actor.id,
+      ),
+      savingsService.withdraw(
+        {
+          memberId: fixture.member.id,
+          loanId: fixture.loan.id,
+          amount: 2000,
+        },
+        fixture.actor.id,
+      ),
     ]);
     const persisted = await persistedSavings(fixture.loan.id);
 
@@ -339,18 +406,31 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
     expect(
       persisted.entries.map((entry) => Number(entry.amount)).sort(),
     ).toEqual([-2000, 1000]);
+    expect(
+      persisted.entries.every(
+        (entry) =>
+          Boolean(entry.eventType) &&
+          Boolean(entry.businessDate) &&
+          entry.performedById === fixture.actor.id &&
+          Number(entry.balanceAfter) ===
+            Number(entry.balanceBefore) + Number(entry.amount),
+      ),
+    ).toBe(true);
   });
 
   it('D. serializes repayment savings usage with withdrawal', async () => {
     const fixture = await createFixture();
     const repayment = await createPendingPayment(fixture);
     const results = await Promise.allSettled([
-      repaymentsService.approveRepayment(repayment.id),
-      savingsService.withdraw({
-        memberId: fixture.member.id,
-        loanId: fixture.loan.id,
-        amount: 4000,
-      }),
+      repaymentsService.approveRepayment(repayment.id, fixture.actor.id),
+      savingsService.withdraw(
+        {
+          memberId: fixture.member.id,
+          loanId: fixture.loan.id,
+          amount: 4000,
+        },
+        fixture.actor.id,
+      ),
     ]);
     const persisted = await persistedSavings(fixture.loan.id);
     const approved = await repaymentRepository.findOneByOrFail({
@@ -368,6 +448,9 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
       0,
     );
     const withdrawalSucceeded = results[1].status === 'fulfilled';
+    const repaymentDebit = persisted.entries.find(
+      (entry) => entry.eventType === SavingsEventType.REPAYMENT_DEBIT,
+    );
 
     expect(results[0].status).toBe('fulfilled');
     expect(approved.status).toBe(RepaymentStatus.APPROVED);
@@ -377,6 +460,17 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
       true,
     );
     expect(allocatedSavings).toBe(Number(persisted.loan.amountPaid));
+    expect(repaymentDebit).toMatchObject({
+      referenceType: 'repayment',
+      referenceId: repayment.id,
+      idempotencyKey: `repayment:v1:${repayment.id}:savings-debit`,
+      performedById: fixture.actor.id,
+      reversalOfId: null,
+    });
+    expect(Number(repaymentDebit?.amount)).toBe(-allocatedSavings);
+    expect(Number(repaymentDebit?.balanceAfter)).toBe(
+      Number(repaymentDebit?.balanceBefore) + Number(repaymentDebit?.amount),
+    );
     if (withdrawalSucceeded) {
       expect(Number(persisted.loan.savings)).toBe(0);
       expect(Number(persisted.loan.amountPaid)).toBe(1000);
@@ -391,13 +485,13 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
   it('E. restores repayment savings exactly once under double reversal', async () => {
     const fixture = await createFixture();
     const payment = await createPendingPayment(fixture);
-    await repaymentsService.approveRepayment(payment.id);
+    await repaymentsService.approveRepayment(payment.id, fixture.actor.id);
     const reversalA = await createPendingReversal(payment, fixture);
     const reversalB = await createPendingReversal(payment, fixture);
 
     const results = await Promise.allSettled([
-      repaymentsService.approveRepayment(reversalA.id),
-      repaymentsService.approveRepayment(reversalB.id),
+      repaymentsService.approveRepayment(reversalA.id, fixture.actor.id),
+      repaymentsService.approveRepayment(reversalB.id, fixture.actor.id),
     ]);
     const persisted = await persistedSavings(fixture.loan.id);
     const reversals = await repaymentRepository.find({
@@ -411,6 +505,15 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
       centerId: fixture.center.id,
       collectionDate: '2026-09-02',
     });
+    const repaymentDebit = persisted.entries.find(
+      (entry) => entry.eventType === SavingsEventType.REPAYMENT_DEBIT,
+    );
+    const reversalCredit = persisted.entries.find(
+      (entry) => entry.eventType === SavingsEventType.REPAYMENT_REVERSAL_CREDIT,
+    );
+    const approvedReversal = reversals.find(
+      (entry) => entry.status === RepaymentStatus.APPROVED,
+    );
 
     expect(
       results.filter((result) => result.status === 'fulfilled'),
@@ -436,6 +539,176 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
       await allocationRepository.countBy({ repaymentId: payment.id }),
     ).toBe(0);
     expect(Number(collection.paymentReceived)).toBe(0);
+    expect(repaymentDebit).toBeDefined();
+    expect(reversalCredit).toMatchObject({
+      amount: '3000.00',
+      balanceBefore: '2000.00',
+      balanceAfter: '5000.00',
+      referenceType: 'repayment_reversal',
+      referenceId: approvedReversal?.id,
+      idempotencyKey: `repayment:v1:${approvedReversal?.id}:savings-reversal-credit`,
+      performedById: fixture.actor.id,
+      reversalOfId: repaymentDebit?.id,
+    });
+  });
+
+  it('F. records only positive normal-loan contributions across carry-forward', async () => {
+    const fixture = await createFixture();
+    const member = await dataSource.getRepository(Member).save(
+      dataSource.getRepository(Member).create({
+        firstName: 'Normal',
+        middleName: 'Loan',
+        lastName: 'Ledger',
+        contactNumber: '09171234568',
+        address: 'Test address',
+        birthDate: new Date('1991-01-01T00:00:00.000Z'),
+        center: fixture.center,
+        centerId: fixture.center.id,
+      }),
+    );
+
+    const first = await loansService.create(
+      {
+        borrowerId: member.id,
+        principalAmount: 10_000,
+        termWeeks: 8,
+        savings: 500,
+      },
+      fixture.actor.id,
+    );
+    first.status = 'paid';
+    first.createdAt = new Date('2026-09-01T00:00:00.000Z');
+    await loanRepository.save(first);
+    const second = await loansService.create(
+      {
+        borrowerId: member.id,
+        principalAmount: 12_000,
+        termWeeks: 8,
+        savings: 300,
+      },
+      fixture.actor.id,
+    );
+    second.status = 'paid';
+    second.createdAt = new Date('2026-09-02T00:00:00.000Z');
+    await loanRepository.save(second);
+    const third = await loansService.create(
+      {
+        borrowerId: member.id,
+        principalAmount: 14_000,
+        termWeeks: 8,
+        savings: 0,
+      },
+      fixture.actor.id,
+    );
+    const entries = await savingsRepository.find({
+      where: { borrower: { id: member.id } },
+      order: { createdAt: 'ASC' },
+    });
+
+    expect(Number(first.savings)).toBe(500);
+    expect(Number(second.savings)).toBe(800);
+    expect(Number(third.savings)).toBe(800);
+    expect(entries).toHaveLength(2);
+    expect(
+      entries.map((entry) => [
+        entry.eventType,
+        Number(entry.amount),
+        Number(entry.balanceBefore),
+        Number(entry.balanceAfter),
+      ]),
+    ).toEqual([
+      [SavingsEventType.LOAN_ORIGINATION_CONTRIBUTION, 500, 0, 500],
+      [SavingsEventType.LOAN_ORIGINATION_CONTRIBUTION, 300, 500, 800],
+    ]);
+    expect(
+      entries.every((entry) => entry.performedById === fixture.actor.id),
+    ).toBe(true);
+  });
+
+  it('G. records each repeated reloan contribution once and excludes carry-forward', async () => {
+    const fixture = await createFixture(2000);
+    fixture.loan.termWeeks = 12;
+    fixture.loan.weeksPaid = 8;
+    fixture.loan.balance = 4000;
+    await loanRepository.save(fixture.loan);
+
+    const first = await loansService.reloan(
+      fixture.loan.id,
+      {
+        newPrincipalAmount: 12_000,
+        newTermWeeks: 12,
+        mode: 'netoff',
+        serviceCharge: 100,
+        notarialFee: 50,
+        savings: 300,
+      },
+      fixture.actor.id,
+    );
+    first.newLoan.weeksPaid = 8;
+    await loanRepository.save(first.newLoan);
+    const second = await loansService.reloan(
+      first.newLoan.id,
+      {
+        newPrincipalAmount: 14_000,
+        newTermWeeks: 12,
+        mode: 'netoff',
+        serviceCharge: 100,
+        notarialFee: 50,
+        savings: 200,
+      },
+      fixture.actor.id,
+    );
+    second.newLoan.weeksPaid = 8;
+    await loanRepository.save(second.newLoan);
+    const third = await loansService.reloan(
+      second.newLoan.id,
+      {
+        newPrincipalAmount: 16_000,
+        newTermWeeks: 12,
+        mode: 'payoff',
+        serviceCharge: 100,
+        notarialFee: 50,
+        savings: 0,
+      },
+      fixture.actor.id,
+    );
+    const entries = await savingsRepository.find({
+      where: { borrower: { id: fixture.member.id } },
+      order: { createdAt: 'ASC' },
+    });
+
+    expect(Number(first.newLoan.savings)).toBe(2300);
+    expect(Number(second.newLoan.savings)).toBe(2500);
+    expect(Number(third.newLoan.savings)).toBe(2500);
+    expect(
+      entries.map((entry) => [entry.eventType, Number(entry.amount)]),
+    ).toEqual([
+      [SavingsEventType.RELOAN_CONTRIBUTION, 300],
+      [SavingsEventType.RELOAN_CONTRIBUTION, 200],
+    ]);
+    expect(
+      entries.every(
+        (entry) =>
+          Number(entry.balanceAfter) ===
+          Number(entry.balanceBefore) + Number(entry.amount),
+      ),
+    ).toBe(true);
+  });
+
+  it('H. prevents a repayment approval retry from duplicating its savings debit', async () => {
+    const fixture = await createFixture();
+    const repayment = await createPendingPayment(fixture);
+
+    await repaymentsService.approveRepayment(repayment.id, fixture.actor.id);
+    await expect(
+      repaymentsService.approveRepayment(repayment.id, fixture.actor.id),
+    ).rejects.toThrow('Only pending repayments can be approved');
+
+    expect(
+      await savingsRepository.countBy({
+        idempotencyKey: `repayment:v1:${repayment.id}:savings-debit`,
+      }),
+    ).toBe(1);
   });
 
   async function installLoanSavingsFailureTrigger() {
@@ -470,11 +743,14 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
       await installLoanSavingsFailureTrigger();
       try {
         await expect(
-          savingsService[operation]({
-            memberId: fixture.member.id,
-            loanId: fixture.loan.id,
-            amount: 1000,
-          }),
+          savingsService[operation](
+            {
+              memberId: fixture.member.id,
+              loanId: fixture.loan.id,
+              amount: 1000,
+            },
+            fixture.actor.id,
+          ),
         ).rejects.toThrow('forced loan savings update failure');
       } finally {
         await dropLoanSavingsFailureTrigger();
@@ -503,7 +779,7 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
     `);
     try {
       await expect(
-        repaymentsService.approveRepayment(repayment.id),
+        repaymentsService.approveRepayment(repayment.id, fixture.actor.id),
       ).rejects.toThrow('forced collection write failure');
     } finally {
       await dataSource.query(
@@ -530,7 +806,7 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
   it('rolls back reversal posting after the savings restoration', async () => {
     const fixture = await createFixture();
     const payment = await createPendingPayment(fixture);
-    await repaymentsService.approveRepayment(payment.id);
+    await repaymentsService.approveRepayment(payment.id, fixture.actor.id);
     const reversal = await createPendingReversal(payment, fixture);
     await dataSource.query(`
       CREATE OR REPLACE FUNCTION "${schema}"."fail_collection_update"()
@@ -547,7 +823,7 @@ describeWithPostgres('Savings correctness against real PostgreSQL', () => {
     `);
     try {
       await expect(
-        repaymentsService.approveRepayment(reversal.id),
+        repaymentsService.approveRepayment(reversal.id, fixture.actor.id),
       ).rejects.toThrow('forced collection update failure');
     } finally {
       await dataSource.query(

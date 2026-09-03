@@ -3,8 +3,9 @@ import { BadRequestException } from '@nestjs/common';
 import { EntityManager, Repository } from 'typeorm';
 import { Loan } from '../loans/loan.entity';
 import { Member } from '../members/entities/member.entity';
-import { Savings } from './savings.entity';
+import { Savings, SavingsEventType } from './savings.entity';
 import { SavingsService } from './savings.service';
+import { DepositSavingsDto } from './dto/deposit-savings.dto';
 
 interface HarnessState {
   loan: Loan;
@@ -112,35 +113,78 @@ function createHarness(initialSavings = 5000) {
 }
 
 describe('SavingsService', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-03T16:30:00.000Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('atomically deposits a positive entry and updates loan.savings', async () => {
     const harness = createHarness();
 
-    const result = await harness.service.deposit({
+    const spoofedDto: DepositSavingsDto & { performedById: string } = {
       memberId: 'member-1',
       loanId: 'loan-1',
       amount: 1000,
       remarks: 'Manual deposit',
-    });
+      performedById: 'spoofed-actor',
+    };
+    const result = await harness.service.deposit(
+      spoofedDto,
+      'authenticated-actor',
+    );
 
     expect(result.loan.savings).toBe(6000);
+    expect(result.entry).toMatchObject({
+      borrowerId: 'member-1',
+      loanId: 'loan-1',
+      amount: 1000,
+      remarks: 'Manual deposit',
+    });
+    expect(result.entry).not.toHaveProperty('eventType');
+    expect(result.entry).not.toHaveProperty('balanceBefore');
+    expect(result.entry).not.toHaveProperty('performedById');
     expect(harness.getState().loan.savings).toBe(6000);
     expect(harness.getState().entries).toHaveLength(1);
-    expect(harness.getState().entries[0].amount).toBe(1000);
+    expect(harness.getState().entries[0]).toMatchObject({
+      eventType: SavingsEventType.MANUAL_DEPOSIT,
+      amount: 1000,
+      balanceBefore: 5000,
+      balanceAfter: 6000,
+      businessDate: '2026-09-04',
+      performedById: 'authenticated-actor',
+      idempotencyKey: null,
+      reversalOfId: null,
+    });
     expect(harness.lockModes).toEqual(['pessimistic_write']);
   });
 
   it('atomically withdraws a negative entry and updates loan.savings', async () => {
     const harness = createHarness();
 
-    const result = await harness.service.withdraw({
-      memberId: 'member-1',
-      loanId: 'loan-1',
-      amount: 2000,
-      remarks: 'Manual withdrawal',
-    });
+    const result = await harness.service.withdraw(
+      {
+        memberId: 'member-1',
+        loanId: 'loan-1',
+        amount: 2000,
+        remarks: 'Manual withdrawal',
+      },
+      'authenticated-actor',
+    );
 
     expect(result.loan.savings).toBe(3000);
-    expect(harness.getState().entries[0].amount).toBe(-2000);
+    expect(harness.getState().entries[0]).toMatchObject({
+      eventType: SavingsEventType.MANUAL_WITHDRAWAL,
+      amount: -2000,
+      balanceBefore: 5000,
+      balanceAfter: 3000,
+      businessDate: '2026-09-04',
+      performedById: 'authenticated-actor',
+      idempotencyKey: null,
+      reversalOfId: null,
+    });
   });
 
   it('retains the existing insufficient-savings behavior', async () => {
@@ -190,14 +234,17 @@ describe('SavingsService', () => {
       harness.service.deposit({
         memberId: 'member-1',
         loanId: 'loan-1',
-        amount: 2000,
+        amount: 1000,
       }),
     ]);
 
-    expect(harness.getState().loan.savings).toBe(8000);
+    expect(harness.getState().loan.savings).toBe(7000);
     expect(harness.getState().entries.map((entry) => entry.amount)).toEqual([
-      1000, 2000,
+      1000, 1000,
     ]);
+    expect(
+      harness.getState().entries.every((entry) => !entry.idempotencyKey),
+    ).toBe(true);
   });
 
   it('serializes withdrawals so only one can spend the same balance', async () => {

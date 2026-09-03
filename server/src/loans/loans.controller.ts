@@ -27,8 +27,11 @@ export class LoansController {
 
   @Roles(ROLE.LoanProcessor)
   @Post()
-  create(@Body() createLoanDto: CreateLoanDto) {
-    return this.loansService.create(createLoanDto);
+  create(
+    @Body() createLoanDto: CreateLoanDto,
+    @Req() req: { user?: { userId?: string } },
+  ) {
+    return this.loansService.create(createLoanDto, req.user?.userId);
   }
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
@@ -84,8 +87,12 @@ export class LoansController {
   // Create a reloan for an existing loan (net off or pay off)
   @Roles(ROLE.LoanProcessor)
   @Post(':id/reloan')
-  reloan(@Param('id') id: string, @Body() body: ReloanDto) {
-    return this.loansService.reloan(id, body);
+  reloan(
+    @Param('id') id: string,
+    @Body() body: ReloanDto,
+    @Req() req: { user?: { userId?: string } },
+  ) {
+    return this.loansService.reloan(id, body, req.user?.userId);
   }
 
   @Roles(ROLE.LoanProcessor)
@@ -96,10 +103,7 @@ export class LoansController {
 
   @Roles(ROLE.LoanProcessor)
   @Patch(':id/term')
-  updateTerm(
-    @Param('id') id: string,
-    @Body() body: UpdateLoanTermDto,
-  ) {
+  updateTerm(@Param('id') id: string, @Body() body: UpdateLoanTermDto) {
     return this.loansService.updateTermWeeks(
       id,
       body.termWeeks,

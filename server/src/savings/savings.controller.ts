@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import { SavingsService } from './savings.service';
 import { DepositSavingsDto } from './dto/deposit-savings.dto';
 import { WithdrawSavingsDto } from './dto/withdraw-savings.dto';
@@ -11,14 +11,20 @@ export class SavingsController {
 
   @Roles(ROLE.Cashier)
   @Post('deposit')
-  deposit(@Body() dto: DepositSavingsDto) {
-    return this.savingsService.deposit(dto);
+  deposit(
+    @Body() dto: DepositSavingsDto,
+    @Req() req: { user?: { userId?: string } },
+  ) {
+    return this.savingsService.deposit(dto, req.user?.userId);
   }
 
   @Roles(ROLE.Cashier)
   @Post('withdraw')
-  withdraw(@Body() dto: WithdrawSavingsDto) {
-    return this.savingsService.withdraw(dto);
+  withdraw(
+    @Body() dto: WithdrawSavingsDto,
+    @Req() req: { user?: { userId?: string } },
+  ) {
+    return this.savingsService.withdraw(dto, req.user?.userId);
   }
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
