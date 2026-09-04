@@ -7,16 +7,20 @@ import { theme } from "./theme/theme";
 import "./index.css";
 import AuthBootstrap from "./features/auth/AuthBootstrap";
 import AppRouter from "./routes/index";
+import { QueryClientProvider } from "react-query";
+import { queryClient } from "./queryClient";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BrowserRouter>
-        <AuthBootstrap>
-          <AppRouter />
-        </AuthBootstrap>
-      </BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthBootstrap>
+            <AppRouter />
+          </AuthBootstrap>
+        </BrowserRouter>
+      </QueryClientProvider>
     </ThemeProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

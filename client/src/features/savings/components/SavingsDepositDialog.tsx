@@ -16,10 +16,15 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from "@mui/material";
-import { Savings } from "@mui/icons-material";
+import ArrowForward from "@mui/icons-material/ArrowForward";
+import History from "@mui/icons-material/History";
+import Savings from "@mui/icons-material/Savings";
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useQueryClient } from "react-query";
 import savingsService from "@features/savings/api";
+import { savingsHistoryKeys } from "@features/savings/hooks/useSavingsHistory";
+import SavingsHistoryDialog from "./SavingsHistoryDialog";
 
 interface MemberLite {
   id: string;
@@ -59,6 +64,7 @@ export function SavingsDepositDialog({
   onSuccess,
   formatCurrency,
 }: SavingsDepositDialogProps) {
+  const queryClient = useQueryClient();
   const [amount, setAmount] = useState("");
   const [mode, setMode] = useState<"deposit" | "withdraw">("deposit");
   const [processing, setProcessing] = useState(false);
@@ -67,6 +73,7 @@ export function SavingsDepositDialog({
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const previewAmount = Number.parseFloat(amount || "0");
   const currentSavings = summary?.activeLoanSavings ?? 0;
@@ -84,6 +91,7 @@ export function SavingsDepositDialog({
 
   useEffect(() => {
     if (!open || !member) {
+      setHistoryOpen(false);
       setSummary(null);
       setSummaryError(null);
       setAmount("");
@@ -109,12 +117,14 @@ export function SavingsDepositDialog({
       })
       .catch((err: unknown) => {
         const message = axios.isAxiosError<{ message?: string | string[] }>(err)
-          ? err.response?.data?.message ?? err.message ?? "Unable to load savings information."
+          ? (err.response?.data?.message ??
+            err.message ??
+            "Unable to load savings information.")
           : err instanceof Error
             ? err.message
             : "Unable to load savings information.";
         setSummaryError(
-          Array.isArray(message) ? (message[0] as string) : String(message)
+          Array.isArray(message) ? (message[0] as string) : String(message),
         );
         setSummary({
           activeLoanId: null,
@@ -158,17 +168,18 @@ export function SavingsDepositDialog({
         amount: numericAmount,
       };
 
-      const response = (isWithdraw
-        ? await savingsService.withdraw(payload)
-        : await savingsService.deposit(payload)) as SavingsTransactionResponse;
+      const response = (
+        isWithdraw
+          ? await savingsService.withdraw(payload)
+          : await savingsService.deposit(payload)
+      ) as SavingsTransactionResponse;
 
       const updatedSavings =
         response?.loan?.savings ??
         (isWithdraw
           ? Math.max(currentSavings - numericAmount, 0)
           : currentSavings + numericAmount);
-      const updatedLoanId =
-        response?.loan?.id ?? summary.activeLoanId ?? null;
+      const updatedLoanId = response?.loan?.id ?? summary.activeLoanId ?? null;
 
       setSummary({
         activeLoanId: updatedLoanId,
@@ -177,20 +188,21 @@ export function SavingsDepositDialog({
       setSuccessMessage(
         isWithdraw
           ? "Savings withdrawal recorded successfully."
-          : "Savings deposit recorded successfully."
+          : "Savings deposit recorded successfully.",
       );
       setAmount("");
+      await queryClient.invalidateQueries(savingsHistoryKeys.member(member.id));
       onSuccess();
     } catch (err: unknown) {
       const message = axios.isAxiosError<{ message?: string | string[] }>(err)
-        ? err.response?.data?.message ??
+        ? (err.response?.data?.message ??
           err.message ??
-          `Unable to record savings ${isWithdraw ? "withdrawal" : "deposit"}. Please try again.`
+          `Unable to record savings ${isWithdraw ? "withdrawal" : "deposit"}. Please try again.`)
         : err instanceof Error
           ? err.message
           : `Unable to record savings ${isWithdraw ? "withdrawal" : "deposit"}. Please try again.`;
       setError(
-        Array.isArray(message) ? (message[0] as string) : String(message)
+        Array.isArray(message) ? (message[0] as string) : String(message),
       );
     } finally {
       setProcessing(false);
@@ -218,11 +230,20 @@ export function SavingsDepositDialog({
         onClose={handleSuccessClose}
         anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
-        <Alert onClose={handleSuccessClose} severity="success" sx={{ width: "100%" }}>
+        <Alert
+          onClose={handleSuccessClose}
+          severity="success"
+          sx={{ width: "100%" }}
+        >
           {successMessage}
         </Alert>
       </Snackbar>
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <Dialog
+        open={open && !historyOpen}
+        onClose={onClose}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Savings sx={{ color: "#f59e0b" }} />
           Manage Savings
@@ -288,6 +309,18 @@ export function SavingsDepositDialog({
                     {formatCurrency(currentSavings)}
                   </Typography>
                 )}
+                <Divider sx={{ my: 1.5, borderColor: "warning.light" }} />
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<History />}
+                  endIcon={<ArrowForward />}
+                  onClick={() => setHistoryOpen(true)}
+                  disabled={summaryLoading || !member}
+                  sx={{ px: 0, color: "primary.main" }}
+                >
+                  View Savings History
+                </Button>
               </CardContent>
             </Card>
 
@@ -347,8 +380,11 @@ export function SavingsDepositDialog({
             onClick={handleSubmit}
             variant="contained"
             size="large"
+            aria-label={isWithdraw ? "Record withdrawal" : "Record deposit"}
             disabled={disableSubmit}
-            startIcon={processing ? <CircularProgress size={18} /> : <Savings />}
+            startIcon={
+              processing ? <CircularProgress size={18} /> : <Savings />
+            }
             sx={{
               background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
               "&:hover": {
@@ -364,6 +400,13 @@ export function SavingsDepositDialog({
           </Button>
         </DialogActions>
       </Dialog>
+      <SavingsHistoryDialog
+        open={open && historyOpen}
+        member={member}
+        currentSavings={currentSavings}
+        formatCurrency={formatCurrency}
+        onClose={() => setHistoryOpen(false)}
+      />
     </>
   );
 }
