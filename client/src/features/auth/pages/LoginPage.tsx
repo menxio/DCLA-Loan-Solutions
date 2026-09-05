@@ -3,7 +3,6 @@ import { useState } from "react";
 import {
   TextField,
   Button,
-  Container,
   Typography,
   Box,
   Paper,
@@ -12,7 +11,7 @@ import {
   InputAdornment,
   IconButton,
 } from "@mui/material";
-import { Visibility, VisibilityOff, Email, Lock } from "@mui/icons-material";
+import { Visibility, VisibilityOff, AccountBalance } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { authService } from "../api";
@@ -89,7 +88,9 @@ export default function LoginPage() {
           mustChangePassword: user.mustChangePassword,
         });
       } else {
-        const decoded = JSON.parse(atob(access_token.split(".")[1])) as JwtPayload;
+        const decoded = JSON.parse(
+          atob(access_token.split(".")[1]),
+        ) as JwtPayload;
         setSession(access_token, refresh_token, {
           id: decoded.sub ?? "",
           email: decoded.email ?? "",
@@ -101,7 +102,7 @@ export default function LoginPage() {
       navigate(getDefaultRouteForRole(user?.role), { replace: true });
     } catch (err: unknown) {
       const errorMessage = axios.isAxiosError<{ message?: string }>(err)
-        ? err.response?.data?.message ?? "Invalid credentials"
+        ? (err.response?.data?.message ?? "Invalid credentials")
         : "Invalid credentials";
       setError(errorMessage);
     } finally {
@@ -115,38 +116,60 @@ export default function LoginPage() {
 
   return (
     <Box
+      component="main"
       sx={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%)",
+        minHeight: "100dvh",
+        background: (theme) =>
+          `linear-gradient(145deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 65%, #2563eb 100%)`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        p: 2,
+        px: 2,
+        py: 4,
       }}
     >
-      <Container maxWidth="sm">
+      <Box sx={{ width: "100%", maxWidth: 420, minWidth: 0 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 1.5,
+            mb: 3.5,
+            color: "common.white",
+          }}
+        >
+          <AccountBalance sx={{ fontSize: 32 }} />
+          <Typography component="div" sx={{ fontSize: 22, fontWeight: 700 }}>
+            DCLA Loan Solutions
+          </Typography>
+        </Box>
         <Paper
           elevation={0}
           sx={{
-            p: { xs: 3, sm: 5 },
-            borderRadius: 3,
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            boxShadow: "0 25px 50px rgba(0, 0, 0, 0.1)",
+            p: { xs: 3, sm: 4 },
+            borderRadius: "12px",
+            bgcolor: "background.paper",
+            border: "1px solid rgba(255, 255, 255, 0.6)",
+            boxShadow: "0 20px 60px rgba(15, 23, 42, 0.22)",
+            "& .MuiOutlinedInput-root": { minHeight: 54 },
+            "& .MuiOutlinedInput-root.Mui-focused": {
+              boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.16)",
+            },
+            "& .Mui-focusVisible": {
+              outline: "3px solid #3b82f6",
+              outlineOffset: 3,
+            },
           }}
         >
-          <Box sx={{ textAlign: "center", mb: 4 }}>
+          <Box sx={{ textAlign: "left", mb: 3 }}>
             <Typography
               variant="h3"
               component="h1"
               gutterBottom
               sx={{
-                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                backgroundClip: "text",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
+                color: "text.primary",
+                fontSize: 28,
                 fontWeight: 700,
                 mb: 1,
               }}
@@ -156,9 +179,9 @@ export default function LoginPage() {
             <Typography
               variant="body1"
               color="text.secondary"
-              sx={{ fontSize: "1.1rem" }}
+              sx={{ fontSize: 14 }}
             >
-              Sign in to your DCLA Loan Solutions account
+              Sign in to your account to continue.
             </Typography>
           </Box>
 
@@ -182,17 +205,12 @@ export default function LoginPage() {
               fullWidth
               label="Email Address"
               type="email"
+              name="email"
+              autoComplete="username"
               margin="normal"
               value={formData.email}
               onChange={handleInputChange("email")}
               disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Email sx={{ color: "#64748b" }} />
-                  </InputAdornment>
-                ),
-              }}
               sx={{
                 mb: 2,
                 "& .MuiInputLabel-root": {
@@ -204,24 +222,24 @@ export default function LoginPage() {
             <TextField
               fullWidth
               label="Password"
+              name="password"
+              autoComplete="current-password"
               type={showPassword ? "text" : "password"}
               margin="normal"
               value={formData.password}
               onChange={handleInputChange("password")}
               disabled={loading}
               InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Lock sx={{ color: "#64748b" }} />
-                  </InputAdornment>
-                ),
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton
-                      aria-label="toggle password visibility"
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                      aria-pressed={showPassword}
                       onClick={togglePasswordVisibility}
                       edge="end"
-                      sx={{ color: "#64748b" }}
+                      sx={{ color: "text.secondary", width: 44, height: 44 }}
                     >
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
@@ -229,7 +247,7 @@ export default function LoginPage() {
                 ),
               }}
               sx={{
-                mb: 4,
+                mb: 3,
                 "& .MuiInputLabel-root": {
                   fontWeight: 500,
                 },
@@ -243,18 +261,18 @@ export default function LoginPage() {
               size="large"
               disabled={loading}
               sx={{
-                py: 1.8,
-                fontSize: "1.1rem",
+                minHeight: 52,
+                py: 1.5,
+                fontSize: 16,
                 fontWeight: 600,
-                borderRadius: 2,
-                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                boxShadow: "0 4px 15px rgba(30, 58, 138, 0.3)",
+                borderRadius: "8px",
+                background: (theme) => theme.palette.primary.main,
+                boxShadow: "0 3px 8px rgba(30, 58, 138, 0.16)",
                 "&:hover": {
-                  background:
-                    "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                  boxShadow: "0 6px 20px rgba(30, 58, 138, 0.4)",
-                  transform: "translateY(-1px)",
+                  background: (theme) => theme.palette.primary.dark,
+                  boxShadow: "0 4px 12px rgba(30, 58, 138, 0.22)",
                 },
+                "&:active": { boxShadow: "none" },
                 "&:disabled": {
                   background: "#94a3b8",
                   boxShadow: "none",
@@ -263,14 +281,28 @@ export default function LoginPage() {
               }}
             >
               {loading ? (
-                <CircularProgress size={24} sx={{ color: "white" }} />
+                <CircularProgress
+                  size={24}
+                  aria-label="Signing in"
+                  sx={{ color: "white" }}
+                />
               ) : (
                 "Sign In"
               )}
             </Button>
           </Box>
         </Paper>
-      </Container>
+        <Typography
+          sx={{
+            mt: 3,
+            textAlign: "center",
+            color: "common.white",
+            fontSize: 12,
+          }}
+        >
+          Internal Lending Management System
+        </Typography>
+      </Box>
     </Box>
   );
 }
