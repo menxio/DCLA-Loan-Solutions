@@ -109,7 +109,7 @@ export default function CenterModal({
       if (submitError) {
         setSubmitError(null);
       }
-  };
+    };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,8 +297,8 @@ export default function CenterModal({
             {loading
               ? "Saving..."
               : isEditing
-              ? "Update Center"
-              : "Create Center"}
+                ? "Update Center"
+                : "Create Center"}
           </Button>
         </DialogActions>
       </form>

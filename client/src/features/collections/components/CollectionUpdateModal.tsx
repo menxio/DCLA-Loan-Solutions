@@ -29,7 +29,7 @@ interface CollectionUpdateModalProps {
   onClose: () => void;
   onSubmit: (
     id: string,
-    data: { paymentReceived: number; notes?: string }
+    data: { paymentReceived: number; notes?: string },
   ) => Promise<void>;
   loading?: boolean;
 }
@@ -228,9 +228,14 @@ export default function CollectionUpdateModal({
                   type="number"
                   value={formData.paymentReceived}
                   onChange={handleInputChange("paymentReceived")}
-                  
                   disabled={loading}
-                  inputProps={{ inputMode: "numeric", pattern: "[0-9]*", min: 0, max: collection.amount, step: 0.01 }}
+                  inputProps={{
+                    inputMode: "numeric",
+                    pattern: "[0-9]*",
+                    min: 0,
+                    max: collection.amount,
+                    step: 0.01,
+                  }}
                   sx={{
                     "& .MuiInputLabel-root": {
                       fontWeight: 500,

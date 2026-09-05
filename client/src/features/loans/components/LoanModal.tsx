@@ -45,7 +45,10 @@ import type {
 import type { Member } from "@features/member/types";
 import { LoansAPI } from "../api";
 import LoanForm from "./LoanForm";
-import { calculateLoanDetails, formatCurrency } from "../utils/loanCalculations";
+import {
+  calculateLoanDetails,
+  formatCurrency,
+} from "../utils/loanCalculations";
 import { generateLoanPassbookPDF } from "@components/export/loanPassbookPDF";
 import {
   transactionHistoryQueryKey,
@@ -88,14 +91,20 @@ export default function LoanModal({
   const [memberLoanCount, setMemberLoanCount] = useState(0);
   const [termDialogOpen, setTermDialogOpen] = useState(false);
   const [termValue, setTermValue] = useState<4 | 8 | 12 | 24>(4);
-  const [monthlyInterestRate, setMonthlyInterestRate] = useState<number | undefined>();
+  const [monthlyInterestRate, setMonthlyInterestRate] = useState<
+    number | undefined
+  >();
   const [termUpdating, setTermUpdating] = useState(false);
   const [termMessage, setTermMessage] = useState<string | null>(null);
   const [termError, setTermError] = useState<string | null>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyLoan, setHistoryLoan] = useState<Loan | null>(null);
-  const [historySchedule, setHistorySchedule] = useState<LoanRepaymentScheduleRow[]>([]);
-  const [historyTransactions, setHistoryTransactions] = useState<TransactionHistoryItem[]>([]);
+  const [historySchedule, setHistorySchedule] = useState<
+    LoanRepaymentScheduleRow[]
+  >([]);
+  const [historyTransactions, setHistoryTransactions] = useState<
+    TransactionHistoryItem[]
+  >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
@@ -112,7 +121,7 @@ export default function LoanModal({
         page: number;
         totalPages: number;
       }
-    >()
+    >(),
   );
   const memberLoanCountRef = useRef<number | null>(null);
   const activeLoanRef = useRef<Loan | null | undefined>(undefined);
@@ -150,8 +159,12 @@ export default function LoanModal({
       });
 
       const requests: Promise<unknown>[] = [historyPromise];
-      let activePromise: Promise<Awaited<ReturnType<typeof LoansAPI.getByMember>>> | null = null;
-      let summaryPromise: Promise<Awaited<ReturnType<typeof LoansAPI.getByMember>>> | null = null;
+      let activePromise: Promise<
+        Awaited<ReturnType<typeof LoansAPI.getByMember>>
+      > | null = null;
+      let summaryPromise: Promise<
+        Awaited<ReturnType<typeof LoansAPI.getByMember>>
+      > | null = null;
 
       if (activeLoanRef.current === undefined) {
         activePromise = LoansAPI.getByMember(member.id, {
@@ -207,8 +220,7 @@ export default function LoanModal({
 
   // Get the active loan (should be only one)
   const hasActiveLoan = Boolean(activeLoan);
-  const canEditTerm =
-    hasActiveLoan && Number(activeLoan?.weeksPaid || 0) === 0;
+  const canEditTerm = hasActiveLoan && Number(activeLoan?.weeksPaid || 0) === 0;
   const termPreview = useMemo(() => {
     if (!activeLoan) return null;
     const calc = calculateLoanDetails(
@@ -221,7 +233,8 @@ export default function LoanModal({
   const isSameTerm = activeLoan
     ? termValue === (activeLoan.termWeeks as 4 | 8 | 12 | 24) &&
       (termValue !== 24 ||
-        Number(monthlyInterestRate) * 6 === Number(activeLoan.interestRate) * 100)
+        Number(monthlyInterestRate) * 6 ===
+          Number(activeLoan.interestRate) * 100)
     : true;
 
   // Load member's loans when modal opens
@@ -274,47 +287,43 @@ export default function LoanModal({
     setTermError(null);
   };
 
-  const loadLoanHistory = useCallback(
-    async (loan: Loan, pageNumber = 1) => {
-      const requestId = ++historyRequestIdRef.current;
-      try {
-        setHistoryLoading(true);
-        setHistoryError(null);
+  const loadLoanHistory = useCallback(async (loan: Loan, pageNumber = 1) => {
+    const requestId = ++historyRequestIdRef.current;
+    try {
+      setHistoryLoading(true);
+      setHistoryError(null);
 
-        const transactionQuery = {
-          loanId: loan.id,
-          page: pageNumber,
-          limit: historyPageSize,
-        };
+      const transactionQuery = {
+        loanId: loan.id,
+        page: pageNumber,
+        limit: historyPageSize,
+      };
 
-        const [schedule, transactions] = await Promise.all([
-          LoansAPI.getRepaymentSchedule(loan.id),
-          queryClient.fetchQuery<TransactionHistoryResponse>(
-            transactionHistoryQueryKey(transactionQuery),
-            ({ signal }) =>
-              TransactionsAPI.getHistory(transactionQuery, signal),
-            { staleTime: 45_000 },
-          ),
-        ]);
+      const [schedule, transactions] = await Promise.all([
+        LoansAPI.getRepaymentSchedule(loan.id),
+        queryClient.fetchQuery<TransactionHistoryResponse>(
+          transactionHistoryQueryKey(transactionQuery),
+          ({ signal }) => TransactionsAPI.getHistory(transactionQuery, signal),
+          { staleTime: 45_000 },
+        ),
+      ]);
 
-        if (requestId !== historyRequestIdRef.current) return;
-        setHistorySchedule(schedule);
-        setHistoryTransactions(transactions.items);
-        setHistoryPage(transactions.page);
-        setHistoryTotalPages(transactions.totalPages);
-        setHistoryTotal(transactions.total);
-      } catch (err) {
-        if (requestId !== historyRequestIdRef.current) return;
-        setHistoryError("Failed to load loan history.");
-        console.error("Error loading loan history:", err);
-      } finally {
-        if (requestId === historyRequestIdRef.current) {
-          setHistoryLoading(false);
-        }
+      if (requestId !== historyRequestIdRef.current) return;
+      setHistorySchedule(schedule);
+      setHistoryTransactions(transactions.items);
+      setHistoryPage(transactions.page);
+      setHistoryTotalPages(transactions.totalPages);
+      setHistoryTotal(transactions.total);
+    } catch (err) {
+      if (requestId !== historyRequestIdRef.current) return;
+      setHistoryError("Failed to load loan history.");
+      console.error("Error loading loan history:", err);
+    } finally {
+      if (requestId === historyRequestIdRef.current) {
+        setHistoryLoading(false);
       }
-    },
-    []
-  );
+    }
+  }, []);
 
   const handleUpdateTerm = async () => {
     if (!activeLoan) return;
@@ -332,12 +341,14 @@ export default function LoanModal({
       await loadLoans();
     } catch (err: unknown) {
       const message = axios.isAxiosError<{ message?: string | string[] }>(err)
-        ? err.response?.data?.message ?? err.message ?? "Unable to update term weeks."
+        ? (err.response?.data?.message ??
+          err.message ??
+          "Unable to update term weeks.")
         : err instanceof Error
           ? err.message
           : "Unable to update term weeks.";
       setTermError(
-        Array.isArray(message) ? (message[0] as string) : String(message)
+        Array.isArray(message) ? (message[0] as string) : String(message),
       );
     } finally {
       setTermUpdating(false);
@@ -366,7 +377,7 @@ export default function LoanModal({
 
   const handleHistoryPageChange = async (
     _: React.ChangeEvent<unknown>,
-    pageNumber: number
+    pageNumber: number,
   ) => {
     if (!historyLoan || pageNumber === historyPage) return;
     await loadLoanHistory(historyLoan, pageNumber);
@@ -386,7 +397,9 @@ export default function LoanModal({
       setCreatingLoan(false);
       onLoanCreated?.();
       try {
-        const eligibility = await smsNotificationsApi.getLoanEligibility(createdLoan.id);
+        const eligibility = await smsNotificationsApi.getLoanEligibility(
+          createdLoan.id,
+        );
         setSmsCandidates([eligibility]);
         setSmsDialogOpen(true);
       } catch {
@@ -430,9 +443,9 @@ export default function LoanModal({
     const memberData = {
       firstName: member.firstName,
       lastName: member.lastName,
-      middleName: member.middleName || '',
+      middleName: member.middleName || "",
       contactNumber: member.contactNumber,
-      centerLeader: member.center?.leader || '',
+      centerLeader: member.center?.leader || "",
     };
 
     const loanData = {
@@ -456,7 +469,7 @@ export default function LoanModal({
         loanData,
         schedule,
         false,
-        collectionDay || undefined
+        collectionDay || undefined,
       );
     } catch (err) {
       console.error("Failed to export passbook:", err);
@@ -498,7 +511,7 @@ export default function LoanModal({
   };
 
   const getScheduleStatusColor = (
-    status: LoanRepaymentScheduleRow["status"]
+    status: LoanRepaymentScheduleRow["status"],
   ): "default" | "warning" | "success" | "info" => {
     switch (status) {
       case "paid":
@@ -527,7 +540,7 @@ export default function LoanModal({
 
   const handleLoanFilterChange = (
     _: React.MouseEvent<HTMLElement>,
-    nextFilter: MemberLoanStatusFilter | null
+    nextFilter: MemberLoanStatusFilter | null,
   ) => {
     if (!nextFilter || nextFilter === loanListFilter) return;
     setLoanListFilter(nextFilter);
@@ -543,724 +556,897 @@ export default function LoanModal({
 
   return (
     <>
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      fullWidth
-      maxWidth="md"
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-        },
-      }}
-    >
-      <DialogTitle
-        sx={{
-          fontWeight: 600,
-          color: "#1e293b",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          pb: 1,
+      <Dialog
+        open={open}
+        onClose={handleClose}
+        fullWidth
+        maxWidth="md"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+          },
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <AccountBalance sx={{ color: "#3b82f6" }} />
-          <Typography variant="h6" fontWeight={600}>
-            {creatingLoan ? "Create Loan" : "Loan"} - {member.firstName} {member.lastName}
-          </Typography>
-        </Box>
-        <IconButton
-          aria-label="Close loan management"
-          onClick={handleClose}
-          disabled={loading}
-          size="small"
+        <DialogTitle
+          sx={{
+            fontWeight: 600,
+            color: "#1e293b",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            pb: 1,
+          }}
         >
-          <Close />
-        </IconButton>
-      </DialogTitle>
-
-      <DialogContent>
-        {error && (
-          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        {showBlockingLoanLoader ? (
-          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-            <CircularProgress />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <AccountBalance sx={{ color: "#3b82f6" }} />
+            <Typography variant="h6" fontWeight={600}>
+              {creatingLoan ? "Create Loan" : "Loan"} - {member.firstName}{" "}
+              {member.lastName}
+            </Typography>
           </Box>
-        ) : creatingLoan ? (
-          <LoanForm
-            memberId={member.id}
-            memberName={`${member.firstName} ${member.lastName}`}
-            onSubmit={handleCreateLoan}
-            onCancel={() => setCreatingLoan(false)}
-            loading={loading}
-            isFirstLoan={memberLoanCount === 0}
-          />
-        ) : !activeLoan ? (
-          // No active loan - show create loan option
-          <Box>
-            <Paper
-              sx={{
-                p: 4,
-                textAlign: "center",
-                background: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
-                border: "2px dashed #cbd5e1",
-                mb: 4,
-              }}
-            >
-              <AccountBalance sx={{ fontSize: 64, color: "#64748b", mb: 2 }} />
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No Active Loan
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                This member doesn't have an active loan. Create a new loan to get started.
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<Add />}
-                onClick={() => setCreatingLoan(true)}
+          <IconButton
+            aria-label="Close loan management"
+            onClick={handleClose}
+            disabled={loading}
+            size="small"
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent>
+          {error && (
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {showBlockingLoanLoader ? (
+            <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : creatingLoan ? (
+            <LoanForm
+              memberId={member.id}
+              memberName={`${member.firstName} ${member.lastName}`}
+              onSubmit={handleCreateLoan}
+              onCancel={() => setCreatingLoan(false)}
+              loading={loading}
+              isFirstLoan={memberLoanCount === 0}
+            />
+          ) : !activeLoan ? (
+            // No active loan - show create loan option
+            <Box>
+              <Paper
                 sx={{
-                  background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                  "&:hover": {
-                    background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                  },
-                  px: 3,
-                  py: 1.5,
-                  fontWeight: 600,
+                  p: 4,
+                  textAlign: "center",
+                  background:
+                    "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+                  border: "2px dashed #cbd5e1",
+                  mb: 4,
                 }}
               >
-                Create New Loan
-              </Button>
-            </Paper>
-          </Box>
-        ) : (
-          // Show active loan
-          <Box>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                Current Loan
-              </Typography>
-              <Chip
-                label={getStatusLabel(activeLoan!.status)}
-                color={getStatusColor(activeLoan!.status)}
-                size="small"
-              />
+                <AccountBalance
+                  sx={{ fontSize: 64, color: "#64748b", mb: 2 }}
+                />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No Active Loan
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 3 }}
+                >
+                  This member doesn't have an active loan. Create a new loan to
+                  get started.
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() => setCreatingLoan(true)}
+                  sx={{
+                    background:
+                      "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                    "&:hover": {
+                      background:
+                        "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
+                    },
+                    px: 3,
+                    py: 1.5,
+                    fontWeight: 600,
+                  }}
+                >
+                  Create New Loan
+                </Button>
+              </Paper>
             </Box>
-
-            <Paper
-              sx={{
-                p: 3,
-                background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-                border: "1px solid #e2e8f0",
-                "&:hover": {
-                  borderColor: "#3b82f6",
-                  boxShadow: "0 4px 12px rgba(59, 130, 246, 0.1)",
-                },
-              }}
-            >
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                  Loan #{activeLoan!.id.slice(0, 8)}...
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Loan Created: {activeLoan.loanCreatedDate
-                    ? new Date(activeLoan.loanCreatedDate).toLocaleDateString()
-                    : new Date(activeLoan!.createdAt).toLocaleDateString()}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
-                  Record Created: {new Date(activeLoan!.createdAt).toLocaleDateString()}
-                </Typography>
-              </Box>
-
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={4}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                    <TrendingUp sx={{ fontSize: 16, color: "#64748b" }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Principal
-                    </Typography>
-                  </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                    {formatCurrency(activeLoan!.principalAmount)}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                    <AccountBalance sx={{ fontSize: 16, color: "#64748b" }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Total Amount
-                    </Typography>
-                  </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                    {formatCurrency(activeLoan!.totalAmount)}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                    <Schedule sx={{ fontSize: 16, color: "#64748b" }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Weekly Payment
-                    </Typography>
-                  </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                    {formatCurrency(activeLoan!.weeklyPaymentAmount)}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                    <Schedule sx={{ fontSize: 16, color: "#64748b" }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Progress
-                    </Typography>
-                  </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                    {activeLoan!.weeksPaid}/{activeLoan!.termWeeks} weeks
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                    <Savings sx={{ fontSize: 16, color: "#64748b" }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Savings
-                    </Typography>
-                  </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                    {formatCurrency(Number(activeLoan!.savings || 0))}
-                  </Typography>
-                </Grid>
-
-                {typeof activeLoan.netCashReleased !== "undefined" && (
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                      <Savings sx={{ fontSize: 16, color: "#64748b" }} />
-                      <Typography variant="body2" color="text.secondary">
-                        Net Cash Released
-                      </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                      {formatCurrency(activeLoan.netCashReleased || 0)}
-                    </Typography>
-                  </Grid>
-                )}
-              </Grid>
-
-
-            </Paper>
-
-          </Box>
-        )}
-
-        {/* Show loan history if there are any loans (active or past) */}
-        {memberLoanCount > 0 && (
-          <Box sx={{ mt: 4 }}>
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 2,
-                mb: 2,
-                flexWrap: "wrap",
-              }}
-            >
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                  Loan History
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {loanListTotal} result{loanListTotal === 1 ? "" : "s"} for {loanListFilter}
-                </Typography>
-              </Box>
-              <ToggleButtonGroup
-                size="small"
-                color="primary"
-                exclusive
-                value={loanListFilter}
-                onChange={handleLoanFilterChange}
+          ) : (
+            // Show active loan
+            <Box>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mb: 3,
+                }}
               >
-                <ToggleButton value="all" disabled={loanListLoading}>All</ToggleButton>
-                <ToggleButton value="active" disabled={loanListLoading}>Active</ToggleButton>
-                <ToggleButton value="paid" disabled={loanListLoading}>Paid</ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-            {loanListLoading && (
-              <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
-                <CircularProgress size={24} />
-              </Box>
-            )}
-            <Grid container spacing={2}>
-              {loans.map((loan) => (
-                <Grid item xs={12} key={loan.id}>
-                  <Paper
-                    onClick={() => void handleOpenHistoryDialog(loan)}
-                    sx={{
-                      p: 2,
-                      cursor: "pointer",
-                      background: loan.status === 'active' 
-                        ? "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)" 
-                        : "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
-                      border: loan.status === 'active' 
-                        ? "1px solid #3b82f6" 
-                        : "1px solid #cbd5e1",
-                      transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                      "&:hover": {
-                        transform: "translateY(-1px)",
-                        boxShadow: "0 8px 20px rgba(15, 23, 42, 0.08)",
-                      },
-                    }}
-                  >
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Box>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                          Loan #{loan.id.slice(0, 8)}... - {getStatusLabel(loan.status)}
-                          {loan.status === 'active' && (
-                            <Chip 
-                              label="CURRENT" 
-                              size="small" 
-                              sx={{ 
-                                ml: 1, 
-                                backgroundColor: "#3b82f6", 
-                                color: "white",
-                                fontSize: "0.7rem",
-                                height: 20
-                              }} 
-                            />
-                          )}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {formatCurrency(loan.principalAmount)} • {loan.termWeeks} weeks • 
-                          {loan.loanCreatedDate
-                            ? new Date(loan.loanCreatedDate).toLocaleDateString()
-                            : new Date(loan.createdAt).toLocaleDateString()}
-                        </Typography>
-                        <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
-                          Click to view repayment history
-                        </Typography>
-                      </Box>
-                      <Chip
-                        label={getStatusLabel(loan.status)}
-                        color={getStatusColor(loan.status)}
-                        size="small"
-                      />
-                    </Box>
-                  </Paper>
-                </Grid>
-              ))}
-              {!loanListLoading && loans.length === 0 && (
-                <Grid item xs={12}>
-                  <Paper
-                    sx={{
-                      p: 3,
-                      textAlign: "center",
-                      border: "1px solid #e2e8f0",
-                      background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-                    }}
-                  >
-                    <Typography variant="body2" color="text.secondary">
-                      No {loanListFilter === "all" ? "" : loanListFilter + " "}loans found on this page.
-                    </Typography>
-                  </Paper>
-                </Grid>
-              )}
-            </Grid>
-            {loanListTotalPages > 1 && (
-              <Box sx={{ display: "flex", justifyContent: "center", mt: 2.5 }}>
-                <Pagination
-                  count={loanListTotalPages}
-                  page={loanListPage}
-                  color="primary"
-                  onChange={(_, pageNumber) => setLoanListPage(pageNumber)}
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 600, color: "#1e293b" }}
+                >
+                  Current Loan
+                </Typography>
+                <Chip
+                  label={getStatusLabel(activeLoan!.status)}
+                  color={getStatusColor(activeLoan!.status)}
+                  size="small"
                 />
               </Box>
-            )}
-          </Box>
-        )}
-      </DialogContent>
-      {!creatingLoan && hasActiveLoan && (
-        <DialogActions>
-          <Button onClick={handleClose} sx={{ color: "#64748b" }}>
-            Close
-          </Button>
-          {canEditTerm && (
-            <Button
-              variant="outlined"
-              onClick={handleOpenTermDialog}
-              sx={{
-                borderColor: "#3b82f6",
-                color: "#3b82f6",
-                "&:hover": {
-                  borderColor: "#2563eb",
-                  backgroundColor: "#dbeafe",
-                },
-              }}
-            >
-              Adjust Term
-            </Button>
-          )}
-          <Button variant="contained" onClick={handleExportPassbook}>
-            Download Passbook
-          </Button>
-        </DialogActions>
-      )}
-    </Dialog>
-    <Dialog
-      open={historyDialogOpen}
-      onClose={handleCloseHistoryDialog}
-      fullWidth
-      maxWidth="lg"
-    >
-      <DialogTitle
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 2,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <History color="primary" />
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              {historyLoan ? `Loan History - ${historyLoan.id.slice(0, 8)}...` : "Loan History"}
-            </Typography>
-            {historyLoan && (
-              <Typography variant="body2" color="text.secondary">
-                {member.firstName} {member.lastName} | {getStatusLabel(historyLoan.status)}
-              </Typography>
-            )}
-          </Box>
-        </Box>
-        <IconButton
-          aria-label="Close loan history"
-          onClick={handleCloseHistoryDialog}
-          disabled={historyLoading}
-          size="small"
-        >
-          <Close />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent dividers>
-        {historyError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {historyError}
-          </Alert>
-        )}
 
-        {historyLoan && (
-          <Paper
-            sx={{
-              p: 2.5,
-              mb: 3,
-              borderRadius: 2,
-              border: "1px solid #e2e8f0",
-              background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-            }}
-          >
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Typography variant="caption" color="text.secondary">
-                  Principal
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                  {formatCurrency(historyLoan.principalAmount)}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Typography variant="caption" color="text.secondary">
-                  Weekly Payment
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                  {formatCurrency(historyLoan.weeklyPaymentAmount)}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Typography variant="caption" color="text.secondary">
-                  Amount Paid
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                  {formatCurrency(historyLoan.amountPaid)}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Typography variant="caption" color="text.secondary">
-                  Remaining Balance
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                  {formatCurrency(historyLoan.balance)}
-                </Typography>
-              </Grid>
-            </Grid>
-          </Paper>
-        )}
-
-        {historyLoading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={7}>
-              <Paper sx={{ borderRadius: 2, border: "1px solid #e2e8f0" }}>
-                <Box sx={{ p: 2.5 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                    Repayment Schedule
+              <Paper
+                sx={{
+                  p: 3,
+                  background:
+                    "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                  border: "1px solid #e2e8f0",
+                  "&:hover": {
+                    borderColor: "#3b82f6",
+                    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.1)",
+                  },
+                }}
+              >
+                <Box sx={{ mb: 2 }}>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 600, color: "#1e293b" }}
+                  >
+                    Loan #{activeLoan!.id.slice(0, 8)}...
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Fixed schedule for this loan only.
+                    Loan Created:{" "}
+                    {activeLoan.loanCreatedDate
+                      ? new Date(
+                          activeLoan.loanCreatedDate,
+                        ).toLocaleDateString()
+                      : new Date(activeLoan!.createdAt).toLocaleDateString()}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ fontSize: "0.75rem" }}
+                  >
+                    Record Created:{" "}
+                    {new Date(activeLoan!.createdAt).toLocaleDateString()}
                   </Typography>
                 </Box>
-                <Divider />
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Week</TableCell>
-                        <TableCell>Due Date</TableCell>
-                        <TableCell align="right">Due</TableCell>
-                        <TableCell align="right">Paid</TableCell>
-                        <TableCell>Status</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {historySchedule.map((row) => (
-                        <TableRow key={row.id} hover>
-                          <TableCell>{row.weekNumber}</TableCell>
-                          <TableCell>{new Date(row.dueDate).toLocaleDateString()}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.amountDue)}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.amountPaid)}</TableCell>
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={row.status.toUpperCase()}
-                              color={getScheduleStatusColor(row.status)}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {historySchedule.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center">
-                            <Typography variant="body2" color="text.secondary">
-                              No repayment schedule found for this loan.
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
-            </Grid>
 
-            <Grid item xs={12} md={5}>
-              <Paper sx={{ borderRadius: 2, border: "1px solid #e2e8f0" }}>
-                <Box sx={{ p: 2.5 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                    Loan Transactions
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Queried by `loanId` and paged {historyPageSize} at a time.
-                  </Typography>
-                </Box>
-                <Divider />
-                <Box sx={{ p: 2.5 }}>
-                  {historyTransactions.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">
-                      No transactions found for this loan.
-                    </Typography>
-                  ) : (
-                    <Box sx={{ display: "grid", gap: 1.5 }}>
-                      {historyTransactions.map((transaction) => (
-                        <Paper
-                          key={transaction.id}
-                          variant="outlined"
-                          sx={{ p: 1.5, borderRadius: 2, backgroundColor: "#fff" }}
-                        >
-                          <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-                            <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                {getTransactionTypeLabel(transaction.type)}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                Recorded:{" "}
-                                {formatRecordedTimestamp(transaction.createdAt)}
-                              </Typography>
-                              {transaction.collectionDate && (
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                  display="block"
-                                >
-                                  Collection date: {new Date(
-                                    `${transaction.collectionDate}T00:00:00`
-                                  ).toLocaleDateString()}
-                                </Typography>
-                              )}
-                              <Typography variant="body2" color="text.secondary">
-                                {transaction.notes || "No notes"}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ textAlign: "right" }}>
-                              <Chip
-                                size="small"
-                                color={transaction.direction === "credit" ? "success" : "error"}
-                                label={transaction.direction.toUpperCase()}
-                                sx={{ mb: 1 }}
-                              />
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                {formatCurrency(transaction.amount)}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </Paper>
-                      ))}
-                    </Box>
-                  )}
-
-                  {historyTotalPages > 1 && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={4}>
                     <Box
                       sx={{
                         display: "flex",
-                        justifyContent: "space-between",
                         alignItems: "center",
-                        mt: 2,
-                        gap: 2,
+                        gap: 1,
+                        mb: 1,
                       }}
                     >
-                      <Typography variant="caption" color="text.secondary">
-                        {historyTotal} transaction{historyTotal === 1 ? "" : "s"}
+                      <TrendingUp sx={{ fontSize: 16, color: "#64748b" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Principal
                       </Typography>
-                      <Pagination
-                        count={historyTotalPages}
-                        page={historyPage}
-                        size="small"
-                        color="primary"
-                        onChange={handleHistoryPageChange}
-                      />
                     </Box>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontWeight: 600, color: "#1e293b" }}
+                    >
+                      {formatCurrency(activeLoan!.principalAmount)}
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} md={4}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        mb: 1,
+                      }}
+                    >
+                      <AccountBalance sx={{ fontSize: 16, color: "#64748b" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Total Amount
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontWeight: 600, color: "#1e293b" }}
+                    >
+                      {formatCurrency(activeLoan!.totalAmount)}
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} md={4}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        mb: 1,
+                      }}
+                    >
+                      <Schedule sx={{ fontSize: 16, color: "#64748b" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Weekly Payment
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontWeight: 600, color: "#1e293b" }}
+                    >
+                      {formatCurrency(activeLoan!.weeklyPaymentAmount)}
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} md={4}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        mb: 1,
+                      }}
+                    >
+                      <Schedule sx={{ fontSize: 16, color: "#64748b" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Progress
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontWeight: 600, color: "#1e293b" }}
+                    >
+                      {activeLoan!.weeksPaid}/{activeLoan!.termWeeks} weeks
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} md={4}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        mb: 1,
+                      }}
+                    >
+                      <Savings sx={{ fontSize: 16, color: "#64748b" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Savings
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontWeight: 600, color: "#1e293b" }}
+                    >
+                      {formatCurrency(Number(activeLoan!.savings || 0))}
+                    </Typography>
+                  </Grid>
+
+                  {typeof activeLoan.netCashReleased !== "undefined" && (
+                    <Grid item xs={12} sm={6} md={4}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          mb: 1,
+                        }}
+                      >
+                        <Savings sx={{ fontSize: 16, color: "#64748b" }} />
+                        <Typography variant="body2" color="text.secondary">
+                          Net Cash Released
+                        </Typography>
+                      </Box>
+                      <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                        {formatCurrency(activeLoan.netCashReleased || 0)}
+                      </Typography>
+                    </Grid>
                   )}
-                </Box>
+                </Grid>
               </Paper>
-            </Grid>
-          </Grid>
+            </Box>
+          )}
+
+          {/* Show loan history if there are any loans (active or past) */}
+          {memberLoanCount > 0 && (
+            <Box sx={{ mt: 4 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 2,
+                  mb: 2,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Box>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 600, color: "#1e293b" }}
+                  >
+                    Loan History
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {loanListTotal} result{loanListTotal === 1 ? "" : "s"} for{" "}
+                    {loanListFilter}
+                  </Typography>
+                </Box>
+                <ToggleButtonGroup
+                  size="small"
+                  color="primary"
+                  exclusive
+                  value={loanListFilter}
+                  onChange={handleLoanFilterChange}
+                >
+                  <ToggleButton value="all" disabled={loanListLoading}>
+                    All
+                  </ToggleButton>
+                  <ToggleButton value="active" disabled={loanListLoading}>
+                    Active
+                  </ToggleButton>
+                  <ToggleButton value="paid" disabled={loanListLoading}>
+                    Paid
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              {loanListLoading && (
+                <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+                  <CircularProgress size={24} />
+                </Box>
+              )}
+              <Grid container spacing={2}>
+                {loans.map((loan) => (
+                  <Grid item xs={12} key={loan.id}>
+                    <Paper
+                      onClick={() => void handleOpenHistoryDialog(loan)}
+                      sx={{
+                        p: 2,
+                        cursor: "pointer",
+                        background:
+                          loan.status === "active"
+                            ? "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)"
+                            : "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+                        border:
+                          loan.status === "active"
+                            ? "1px solid #3b82f6"
+                            : "1px solid #cbd5e1",
+                        transition:
+                          "transform 0.15s ease, box-shadow 0.15s ease",
+                        "&:hover": {
+                          transform: "translateY(-1px)",
+                          boxShadow: "0 8px 20px rgba(15, 23, 42, 0.08)",
+                        },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Box>
+                          <Typography
+                            variant="body1"
+                            sx={{ fontWeight: 600, color: "#1e293b" }}
+                          >
+                            Loan #{loan.id.slice(0, 8)}... -{" "}
+                            {getStatusLabel(loan.status)}
+                            {loan.status === "active" && (
+                              <Chip
+                                label="CURRENT"
+                                size="small"
+                                sx={{
+                                  ml: 1,
+                                  backgroundColor: "#3b82f6",
+                                  color: "white",
+                                  fontSize: "0.7rem",
+                                  height: 20,
+                                }}
+                              />
+                            )}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {formatCurrency(loan.principalAmount)} •{" "}
+                            {loan.termWeeks} weeks •
+                            {loan.loanCreatedDate
+                              ? new Date(
+                                  loan.loanCreatedDate,
+                                ).toLocaleDateString()
+                              : new Date(loan.createdAt).toLocaleDateString()}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color="primary.main"
+                            sx={{ fontWeight: 600 }}
+                          >
+                            Click to view repayment history
+                          </Typography>
+                        </Box>
+                        <Chip
+                          label={getStatusLabel(loan.status)}
+                          color={getStatusColor(loan.status)}
+                          size="small"
+                        />
+                      </Box>
+                    </Paper>
+                  </Grid>
+                ))}
+                {!loanListLoading && loans.length === 0 && (
+                  <Grid item xs={12}>
+                    <Paper
+                      sx={{
+                        p: 3,
+                        textAlign: "center",
+                        border: "1px solid #e2e8f0",
+                        background:
+                          "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        No{" "}
+                        {loanListFilter === "all" ? "" : loanListFilter + " "}
+                        loans found on this page.
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                )}
+              </Grid>
+              {loanListTotalPages > 1 && (
+                <Box
+                  sx={{ display: "flex", justifyContent: "center", mt: 2.5 }}
+                >
+                  <Pagination
+                    count={loanListTotalPages}
+                    page={loanListPage}
+                    color="primary"
+                    onChange={(_, pageNumber) => setLoanListPage(pageNumber)}
+                  />
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        {!creatingLoan && hasActiveLoan && (
+          <DialogActions>
+            <Button onClick={handleClose} sx={{ color: "#64748b" }}>
+              Close
+            </Button>
+            {canEditTerm && (
+              <Button
+                variant="outlined"
+                onClick={handleOpenTermDialog}
+                sx={{
+                  borderColor: "#3b82f6",
+                  color: "#3b82f6",
+                  "&:hover": {
+                    borderColor: "#2563eb",
+                    backgroundColor: "#dbeafe",
+                  },
+                }}
+              >
+                Adjust Term
+              </Button>
+            )}
+            <Button variant="contained" onClick={handleExportPassbook}>
+              Download Passbook
+            </Button>
+          </DialogActions>
         )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleCloseHistoryDialog}>Close</Button>
-      </DialogActions>
-    </Dialog>
-    <Dialog
-      open={termDialogOpen}
-      onClose={handleCloseTermDialog}
-      maxWidth="xs"
-      fullWidth
-    >
-      <DialogTitle>Adjust Term Weeks</DialogTitle>
-      <DialogContent dividers>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          This action is only available before the first repayment is recorded.
-        </Typography>
-        {termError && (
-          <Alert
-            severity="error"
-            sx={{ mb: 2 }}
-            onClose={() => setTermError(null)}
-          >
-            {termError}
-          </Alert>
-        )}
-        <ToggleButtonGroup
-          color="primary"
-          value={termValue}
-          exclusive
-          onChange={(_, value) => {
-            if (!value) return;
-            setTermValue(value);
-            if (value !== 24) setMonthlyInterestRate(undefined);
-          }}
-          sx={{ mb: 2, display: "flex", justifyContent: "center" }}
-        >
-          {[4, 8, 12, 24].map((term) => (
-            <ToggleButton key={term} value={term}>
-              {term} Weeks
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-        {termValue === 24 && (
-          <TextField
-            fullWidth
-            required
-            label="Monthly Interest Rate (%)"
-            type="number"
-            value={monthlyInterestRate ?? ""}
-            onChange={(event) => {
-              const value = event.target.value;
-              setMonthlyInterestRate(value === "" ? undefined : Number(value));
-            }}
-            inputProps={{ min: 3.33, max: 10, step: 0.01 }}
-            helperText="Enter 3.33% to 10% per month"
-            sx={{ mb: 2 }}
-          />
-        )}
-        {termPreview !== null && (
-          <Box sx={{ textAlign: "center" }}>
-            <Typography variant="body2" color="text.secondary">
-              Weekly Payment Preview
-            </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              {formatCurrency(termPreview)}
-            </Typography>
-          </Box>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleCloseTermDialog}>Cancel</Button>
-        <Button
-          variant="contained"
-          onClick={handleUpdateTerm}
-          disabled={
-            termUpdating ||
-            isSameTerm ||
-            (termValue === 24 &&
-              (!monthlyInterestRate ||
-                monthlyInterestRate < 3.33 ||
-                monthlyInterestRate > 10))
-          }
-        >
-          {termUpdating ? "Updating..." : "Save"}
-        </Button>
-      </DialogActions>
-    </Dialog>
-    <Snackbar
-      open={Boolean(termMessage)}
-      autoHideDuration={3000}
-      onClose={handleCloseTermMessage}
-      anchorOrigin={{ vertical: "top", horizontal: "center" }}
-    >
-      <Alert
-        onClose={handleCloseTermMessage}
-        severity="success"
-        sx={{ width: "100%" }}
+      </Dialog>
+      <Dialog
+        open={historyDialogOpen}
+        onClose={handleCloseHistoryDialog}
+        fullWidth
+        maxWidth="lg"
       >
-        {termMessage}
-      </Alert>
-    </Snackbar>
-    <SendSmsConfirmationDialog
-      open={smsDialogOpen}
-      eventType="loan_created"
-      title="Loan Created Successfully"
-      candidates={smsCandidates}
-      onClose={() => setSmsDialogOpen(false)}
-    />
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <History color="primary" />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {historyLoan
+                  ? `Loan History - ${historyLoan.id.slice(0, 8)}...`
+                  : "Loan History"}
+              </Typography>
+              {historyLoan && (
+                <Typography variant="body2" color="text.secondary">
+                  {member.firstName} {member.lastName} |{" "}
+                  {getStatusLabel(historyLoan.status)}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+          <IconButton
+            aria-label="Close loan history"
+            onClick={handleCloseHistoryDialog}
+            disabled={historyLoading}
+            size="small"
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {historyError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {historyError}
+            </Alert>
+          )}
+
+          {historyLoan && (
+            <Paper
+              sx={{
+                p: 2.5,
+                mb: 3,
+                borderRadius: 2,
+                border: "1px solid #e2e8f0",
+                background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+              }}
+            >
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="caption" color="text.secondary">
+                    Principal
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                    {formatCurrency(historyLoan.principalAmount)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="caption" color="text.secondary">
+                    Weekly Payment
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                    {formatCurrency(historyLoan.weeklyPaymentAmount)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="caption" color="text.secondary">
+                    Amount Paid
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                    {formatCurrency(historyLoan.amountPaid)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="caption" color="text.secondary">
+                    Remaining Balance
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                    {formatCurrency(historyLoan.balance)}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+          )}
+
+          {historyLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={7}>
+                <Paper sx={{ borderRadius: 2, border: "1px solid #e2e8f0" }}>
+                  <Box sx={{ p: 2.5 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: "#1e293b" }}
+                    >
+                      Repayment Schedule
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Fixed schedule for this loan only.
+                    </Typography>
+                  </Box>
+                  <Divider />
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Week</TableCell>
+                          <TableCell>Due Date</TableCell>
+                          <TableCell align="right">Due</TableCell>
+                          <TableCell align="right">Paid</TableCell>
+                          <TableCell>Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {historySchedule.map((row) => (
+                          <TableRow key={row.id} hover>
+                            <TableCell>{row.weekNumber}</TableCell>
+                            <TableCell>
+                              {new Date(row.dueDate).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell align="right">
+                              {formatCurrency(row.amountDue)}
+                            </TableCell>
+                            <TableCell align="right">
+                              {formatCurrency(row.amountPaid)}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={row.status.toUpperCase()}
+                                color={getScheduleStatusColor(row.status)}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {historySchedule.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5} align="center">
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                No repayment schedule found for this loan.
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              </Grid>
+
+              <Grid item xs={12} md={5}>
+                <Paper sx={{ borderRadius: 2, border: "1px solid #e2e8f0" }}>
+                  <Box sx={{ p: 2.5 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: "#1e293b" }}
+                    >
+                      Loan Transactions
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Queried by `loanId` and paged {historyPageSize} at a time.
+                    </Typography>
+                  </Box>
+                  <Divider />
+                  <Box sx={{ p: 2.5 }}>
+                    {historyTransactions.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No transactions found for this loan.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: "grid", gap: 1.5 }}>
+                        {historyTransactions.map((transaction) => (
+                          <Paper
+                            key={transaction.id}
+                            variant="outlined"
+                            sx={{
+                              p: 1.5,
+                              borderRadius: 2,
+                              backgroundColor: "#fff",
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                gap: 2,
+                              }}
+                            >
+                              <Box>
+                                <Typography
+                                  variant="body2"
+                                  sx={{ fontWeight: 700 }}
+                                >
+                                  {getTransactionTypeLabel(transaction.type)}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  Recorded:{" "}
+                                  {formatRecordedTimestamp(
+                                    transaction.createdAt,
+                                  )}
+                                </Typography>
+                                {transaction.collectionDate && (
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    display="block"
+                                  >
+                                    Collection date:{" "}
+                                    {new Date(
+                                      `${transaction.collectionDate}T00:00:00`,
+                                    ).toLocaleDateString()}
+                                  </Typography>
+                                )}
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                >
+                                  {transaction.notes || "No notes"}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ textAlign: "right" }}>
+                                <Chip
+                                  size="small"
+                                  color={
+                                    transaction.direction === "credit"
+                                      ? "success"
+                                      : "error"
+                                  }
+                                  label={transaction.direction.toUpperCase()}
+                                  sx={{ mb: 1 }}
+                                />
+                                <Typography
+                                  variant="body2"
+                                  sx={{ fontWeight: 700 }}
+                                >
+                                  {formatCurrency(transaction.amount)}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Paper>
+                        ))}
+                      </Box>
+                    )}
+
+                    {historyTotalPages > 1 && (
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          mt: 2,
+                          gap: 2,
+                        }}
+                      >
+                        <Typography variant="caption" color="text.secondary">
+                          {historyTotal} transaction
+                          {historyTotal === 1 ? "" : "s"}
+                        </Typography>
+                        <Pagination
+                          count={historyTotalPages}
+                          page={historyPage}
+                          size="small"
+                          color="primary"
+                          onChange={handleHistoryPageChange}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                </Paper>
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseHistoryDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={termDialogOpen}
+        onClose={handleCloseTermDialog}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Adjust Term Weeks</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            This action is only available before the first repayment is
+            recorded.
+          </Typography>
+          {termError && (
+            <Alert
+              severity="error"
+              sx={{ mb: 2 }}
+              onClose={() => setTermError(null)}
+            >
+              {termError}
+            </Alert>
+          )}
+          <ToggleButtonGroup
+            color="primary"
+            value={termValue}
+            exclusive
+            onChange={(_, value) => {
+              if (!value) return;
+              setTermValue(value);
+              if (value !== 24) setMonthlyInterestRate(undefined);
+            }}
+            sx={{ mb: 2, display: "flex", justifyContent: "center" }}
+          >
+            {[4, 8, 12, 24].map((term) => (
+              <ToggleButton key={term} value={term}>
+                {term} Weeks
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          {termValue === 24 && (
+            <TextField
+              fullWidth
+              required
+              label="Monthly Interest Rate (%)"
+              type="number"
+              value={monthlyInterestRate ?? ""}
+              onChange={(event) => {
+                const value = event.target.value;
+                setMonthlyInterestRate(
+                  value === "" ? undefined : Number(value),
+                );
+              }}
+              inputProps={{ min: 3.33, max: 10, step: 0.01 }}
+              helperText="Enter 3.33% to 10% per month"
+              sx={{ mb: 2 }}
+            />
+          )}
+          {termPreview !== null && (
+            <Box sx={{ textAlign: "center" }}>
+              <Typography variant="body2" color="text.secondary">
+                Weekly Payment Preview
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {formatCurrency(termPreview)}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseTermDialog}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleUpdateTerm}
+            disabled={
+              termUpdating ||
+              isSameTerm ||
+              (termValue === 24 &&
+                (!monthlyInterestRate ||
+                  monthlyInterestRate < 3.33 ||
+                  monthlyInterestRate > 10))
+            }
+          >
+            {termUpdating ? "Updating..." : "Save"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Snackbar
+        open={Boolean(termMessage)}
+        autoHideDuration={3000}
+        onClose={handleCloseTermMessage}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert
+          onClose={handleCloseTermMessage}
+          severity="success"
+          sx={{ width: "100%" }}
+        >
+          {termMessage}
+        </Alert>
+      </Snackbar>
+      <SendSmsConfirmationDialog
+        open={smsDialogOpen}
+        eventType="loan_created"
+        title="Loan Created Successfully"
+        candidates={smsCandidates}
+        onClose={() => setSmsDialogOpen(false)}
+      />
     </>
   );
-} 
+}

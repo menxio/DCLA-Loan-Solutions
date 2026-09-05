@@ -43,8 +43,9 @@ export default function ProjectedIncomeView() {
 
     setExporting(true);
     try {
-      const { exportProjectedIncomeToExcel } =
-        await import("../utils/exportUtils");
+      const { exportProjectedIncomeToExcel } = await import(
+        "../utils/exportUtils"
+      );
       await exportProjectedIncomeToExcel(data);
     } catch (error) {
       console.error("Export failed:", error);

@@ -102,14 +102,14 @@ export default function TransactionHistoryPage() {
         withdrawals: 0,
         totalCredits: 0,
         totalDebits: 0,
-      }
+      },
     );
     return totals;
   }, [transactions]);
 
   const showSnackbar = (
     message: string,
-    severity: "success" | "error" = "success"
+    severity: "success" | "error" = "success",
   ) => {
     setSnackbar({ open: true, message, severity });
   };
@@ -138,12 +138,12 @@ export default function TransactionHistoryPage() {
     try {
       await repaymentsService.requestReversal(
         reversalDialog.repaymentId,
-        reversalDialog.reason.trim() || undefined
+        reversalDialog.reason.trim() || undefined,
       );
       showSnackbar(
         isOperationalAdmin
           ? "Payment reversed successfully."
-          : "Reversal request submitted for manager approval."
+          : "Reversal request submitted for manager approval.",
       );
       handleCloseReversalDialog();
       await refresh();
@@ -152,7 +152,7 @@ export default function TransactionHistoryPage() {
         isOperationalAdmin
           ? "Failed to reverse payment."
           : "Failed to submit reversal request.",
-        "error"
+        "error",
       );
     } finally {
       setSubmittingReversal(false);
@@ -188,7 +188,10 @@ export default function TransactionHistoryPage() {
           <Box display="flex" alignItems="center" gap={2}>
             <History sx={{ fontSize: 40, color: "#1e3a8a" }} />
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 700, color: "#0f172a" }}>
+              <Typography
+                variant="h5"
+                sx={{ fontWeight: 700, color: "#0f172a" }}
+              >
                 Transaction History
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -359,66 +362,74 @@ export default function TransactionHistoryPage() {
                 {transactions.map((transaction) => {
                   const savingsAppliedToRepayment =
                     transaction.type === "savings_withdrawal" &&
-                    (transaction.notes || "").toLowerCase().includes("applied to repayment");
+                    (transaction.notes || "")
+                      .toLowerCase()
+                      .includes("applied to repayment");
                   const isRepaymentPayment =
                     transaction.type === "repayment" &&
                     transaction.direction === "credit" &&
-                    (transaction.repaymentOperationType ?? "payment") === "payment";
-                  const showReversalAction = canRequestReversal && isRepaymentPayment;
+                    (transaction.repaymentOperationType ?? "payment") ===
+                      "payment";
+                  const showReversalAction =
+                    canRequestReversal && isRepaymentPayment;
                   return (
-                  <TableRow key={transaction.id} hover>
-                    <TableCell>
-                      {formatRecordedTimestamp(transaction.createdAt)}
-                    </TableCell>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 600 }}>
-                        {transaction.member.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {transaction.loan?.id ? `Loan #${transaction.loan.id}` : "—"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {transaction.member.center?.name ?? "No center"}
-                    </TableCell>
-                    <TableCell sx={{ textTransform: "capitalize" }}>
-                      {transaction.type.replace("_", " ")}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={transaction.direction.toUpperCase()}
-                        color={directionColors[transaction.direction]}
-                        size="small"
-                        sx={{ fontWeight: 600 }}
-                      />
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>
-                      {formatCurrency(transaction.amount)}
-                      {savingsAppliedToRepayment && (
-                        <Typography variant="body2" color="text.secondary">
-                          Used for repayment
+                    <TableRow key={transaction.id} hover>
+                      <TableCell>
+                        {formatRecordedTimestamp(transaction.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 600 }}>
+                          {transaction.member.name}
                         </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {transaction.notes || "—"}
-                    </TableCell>
-                    <TableCell align="right">
-                      {showReversalAction ? (
-                        <Button
+                        <Typography variant="body2" color="text.secondary">
+                          {transaction.loan?.id
+                            ? `Loan #${transaction.loan.id}`
+                            : "—"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        {transaction.member.center?.name ?? "No center"}
+                      </TableCell>
+                      <TableCell sx={{ textTransform: "capitalize" }}>
+                        {transaction.type.replace("_", " ")}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={transaction.direction.toUpperCase()}
+                          color={directionColors[transaction.direction]}
                           size="small"
-                          variant="outlined"
-                          color="error"
-                          onClick={() => handleOpenReversalDialog(transaction.id)}
-                          sx={{ textTransform: "none", fontWeight: 600 }}
-                        >
-                          {isOperationalAdmin ? "Reverse Payment" : "Request Reversal"}
-                        </Button>
-                      ) : (
-                        "---"
-                      )}
-                    </TableCell>
-                  </TableRow>
+                          sx={{ fontWeight: 600 }}
+                        />
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>
+                        {formatCurrency(transaction.amount)}
+                        {savingsAppliedToRepayment && (
+                          <Typography variant="body2" color="text.secondary">
+                            Used for repayment
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{transaction.notes || "—"}</TableCell>
+                      <TableCell align="right">
+                        {showReversalAction ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            onClick={() =>
+                              handleOpenReversalDialog(transaction.id)
+                            }
+                            sx={{ textTransform: "none", fontWeight: 600 }}
+                          >
+                            {isOperationalAdmin
+                              ? "Reverse Payment"
+                              : "Request Reversal"}
+                          </Button>
+                        ) : (
+                          "---"
+                        )}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
                 {!loading && transactions.length === 0 && (
@@ -475,7 +486,9 @@ export default function TransactionHistoryPage() {
 
         <Dialog open={reversalDialog.open} onClose={handleCloseReversalDialog}>
           <DialogTitle>
-            {isOperationalAdmin ? "Reverse repayment" : "Request repayment reversal"}
+            {isOperationalAdmin
+              ? "Reverse repayment"
+              : "Request repayment reversal"}
           </DialogTitle>
           <DialogContent>
             <DialogContentText sx={{ mb: 2 }}>

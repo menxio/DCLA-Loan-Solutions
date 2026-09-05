@@ -542,8 +542,9 @@ export default function CollectionDetailsModal({
         return sum + Number(metrics?.due || 0);
       }, 0);
 
-      const { exportCollectorPdf } =
-        await import("../utils/exportCollectorPdf");
+      const { exportCollectorPdf } = await import(
+        "../utils/exportCollectorPdf"
+      );
       await exportCollectorPdf({
         centerName: collectionGroup.centerName,
         collectionDate: collectionGroup.collectionDate,

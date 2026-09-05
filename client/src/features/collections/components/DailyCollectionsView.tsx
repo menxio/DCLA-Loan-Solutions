@@ -346,8 +346,9 @@ export default function DailyCollectionsView({
         "_",
       )}`;
 
-      const { exportAllCollectionsToExcel } =
-        await import("../utils/exportUtils");
+      const { exportAllCollectionsToExcel } = await import(
+        "../utils/exportUtils"
+      );
       await exportAllCollectionsToExcel(validBundles, fileName);
 
       // Show success feedback
