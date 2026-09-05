@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class TransactionsQueryDto {
@@ -22,7 +22,12 @@ export class TransactionsQueryDto {
     'savings_withdrawal',
     'all',
   ])
-  type?: 'repayment' | 'savings' | 'savings_deposit' | 'savings_withdrawal' | 'all';
+  type?:
+    | 'repayment'
+    | 'savings'
+    | 'savings_deposit'
+    | 'savings_withdrawal'
+    | 'all';
 
   @IsOptional()
   @IsString()
@@ -45,6 +50,7 @@ export class TransactionsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   @IsOptional()
   limit = 25;
 }

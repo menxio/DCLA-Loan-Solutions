@@ -38,6 +38,44 @@ export interface TransactionHistoryItem {
   repaymentOperationType?: 'payment' | 'reversal' | null;
 }
 
+interface TransactionSourceResult {
+  items: TransactionHistoryItem[];
+  total: number;
+}
+
+interface RepaymentHistoryRow {
+  id: string;
+  amount: string | number;
+  notes: string | null;
+  collectionDate: string | null;
+  paymentDate: string | null;
+  operationType: RepaymentOperationType;
+  createdAt: Date | string;
+  memberId: string | null;
+  memberFirstName: string | null;
+  memberLastName: string | null;
+  memberCenterId: string | null;
+  memberCenterName: string | null;
+  repaymentCenterId: string | null;
+  repaymentCenterName: string | null;
+  loanId: string | null;
+  loanStatus: string | null;
+}
+
+interface SavingsHistoryRow {
+  id: string;
+  amount: string | number;
+  remarks: string | null;
+  createdAt: Date | string;
+  memberId: string | null;
+  memberFirstName: string | null;
+  memberLastName: string | null;
+  centerId: string | null;
+  centerName: string | null;
+  loanId: string | null;
+  loanStatus: string | null;
+}
+
 @Injectable()
 export class TransactionsService {
   constructor(
@@ -67,6 +105,8 @@ export class TransactionsService {
         loanId,
         startDate,
         endDate,
+        search,
+        fetchLimit: Math.min(page * limit, 2_147_483_647),
         include: type === 'all' || type === 'repayment',
       }),
       this.fetchSavings({
@@ -75,6 +115,8 @@ export class TransactionsService {
         loanId,
         startDate,
         endDate,
+        search,
+        fetchLimit: Math.min(page * limit, 2_147_483_647),
         include:
           type === 'all' ||
           type === 'savings' ||
@@ -84,28 +126,21 @@ export class TransactionsService {
       }),
     ]);
 
-    const combined = [...repayments, ...savingsEntries];
+    const combined = [...repayments.items, ...savingsEntries.items];
+    combined.sort((a, b) => {
+      const timestampDifference =
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (timestampDifference !== 0) return timestampDifference;
 
-    const normalizedSearch = search?.trim().toLowerCase();
-    const filtered = combined.filter((entry) => {
-      if (!normalizedSearch) return true;
-      const memberName = entry.member.name.toLowerCase();
-      const centerName = entry.member.center?.name?.toLowerCase() ?? '';
-      return (
-        memberName.includes(normalizedSearch) ||
-        centerName.includes(normalizedSearch)
-      );
+      const idDifference = b.id.localeCompare(a.id);
+      return idDifference !== 0
+        ? idDifference
+        : b.source.localeCompare(a.source);
     });
 
-    filtered.sort((a, b) => {
-      return (
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    });
-
-    const total = filtered.length;
+    const total = repayments.total + savingsEntries.total;
     const startIndex = (page - 1) * limit;
-    const items = filtered.slice(startIndex, startIndex + limit);
+    const items = combined.slice(startIndex, startIndex + limit);
     const totalPages = Math.ceil(total / limit) || 1;
 
     return {
@@ -123,19 +158,30 @@ export class TransactionsService {
     loanId?: string;
     startDate?: string;
     endDate?: string;
+    search?: string;
+    fetchLimit: number;
     include: boolean;
-  }): Promise<TransactionHistoryItem[]> {
-    const { include, memberId, centerId, loanId, startDate, endDate } = params;
+  }): Promise<TransactionSourceResult> {
+    const {
+      include,
+      memberId,
+      centerId,
+      loanId,
+      startDate,
+      endDate,
+      search,
+      fetchLimit,
+    } = params;
     if (!include) {
-      return [];
+      return { items: [], total: 0 };
     }
 
     const qb = this.repaymentRepo
       .createQueryBuilder('repayment')
-      .leftJoinAndSelect('repayment.member', 'member')
-      .leftJoinAndSelect('member.center', 'center')
-      .leftJoinAndSelect('repayment.loan', 'loan')
-      .leftJoinAndSelect('repayment.center', 'repaymentCenter');
+      .leftJoin('repayment.member', 'member')
+      .leftJoin('member.center', 'center')
+      .leftJoin('repayment.loan', 'loan')
+      .leftJoin('repayment.center', 'repaymentCenter');
 
     qb.andWhere('repayment.status = :status', {
       status: RepaymentStatus.APPROVED,
@@ -146,10 +192,9 @@ export class TransactionsService {
     }
 
     if (centerId) {
-      qb.andWhere(
-        '(center.id = :centerId OR repaymentCenter.id = :centerId)',
-        { centerId },
-      );
+      qb.andWhere('(center.id = :centerId OR repaymentCenter.id = :centerId)', {
+        centerId,
+      });
     }
 
     if (loanId) {
@@ -174,8 +219,43 @@ export class TransactionsService {
       }
     }
 
-    const rows = await qb.getMany();
-    return rows.map((row) => this.mapRepayment(row));
+    const searchPattern = this.toSearchPattern(search);
+    if (searchPattern) {
+      qb.andWhere(
+        `(LOWER(CONCAT(COALESCE(member.lastName, ''), ', ', COALESCE(member.firstName, ''))) LIKE :search ESCAPE E'\\\\'
+          OR LOWER(COALESCE(center.name, repaymentCenter.name, '')) LIKE :search ESCAPE E'\\\\')`,
+        { search: searchPattern },
+      );
+    }
+
+    const countQuery = qb.clone();
+    const [rows, total] = await Promise.all([
+      qb
+        .select([
+          'repayment.id AS "id"',
+          'repayment.amount AS "amount"',
+          'repayment.notes AS "notes"',
+          'repayment.collectionDate AS "collectionDate"',
+          'repayment.paymentDate AS "paymentDate"',
+          'repayment.operationType AS "operationType"',
+          'repayment.createdAt AS "createdAt"',
+          'member.id AS "memberId"',
+          'member.firstName AS "memberFirstName"',
+          'member.lastName AS "memberLastName"',
+          'center.id AS "memberCenterId"',
+          'center.name AS "memberCenterName"',
+          'loan.id AS "loanId"',
+          'loan.status AS "loanStatus"',
+          'repaymentCenter.id AS "repaymentCenterId"',
+          'repaymentCenter.name AS "repaymentCenterName"',
+        ])
+        .orderBy('repayment.createdAt', 'DESC')
+        .addOrderBy('repayment.id', 'DESC')
+        .limit(fetchLimit)
+        .getRawMany<RepaymentHistoryRow>(),
+      countQuery.getCount(),
+    ]);
+    return { items: rows.map((row) => this.mapRepayment(row)), total };
   }
 
   private async fetchSavings(params: {
@@ -184,9 +264,11 @@ export class TransactionsService {
     loanId?: string;
     startDate?: string;
     endDate?: string;
+    search?: string;
+    fetchLimit: number;
     include: boolean;
     savingsFilter?: string;
-  }): Promise<TransactionHistoryItem[]> {
+  }): Promise<TransactionSourceResult> {
     const {
       include,
       memberId,
@@ -194,17 +276,19 @@ export class TransactionsService {
       loanId,
       startDate,
       endDate,
+      search,
+      fetchLimit,
       savingsFilter,
     } = params;
     if (!include) {
-      return [];
+      return { items: [], total: 0 };
     }
 
     const qb = this.savingsRepo
       .createQueryBuilder('savings')
-      .leftJoinAndSelect('savings.borrower', 'member')
-      .leftJoinAndSelect('member.center', 'center')
-      .leftJoinAndSelect('savings.loan', 'loan');
+      .leftJoin('savings.borrower', 'member')
+      .leftJoin('member.center', 'center')
+      .leftJoin('savings.loan', 'loan');
 
     if (memberId) {
       qb.andWhere('member.id = :memberId', { memberId });
@@ -221,7 +305,9 @@ export class TransactionsService {
     if (startDate) {
       const normalized = this.normalizeDate(startDate);
       if (normalized) {
-        qb.andWhere('savings.createdAt >= :startDate', { startDate: normalized });
+        qb.andWhere('savings.createdAt >= :startDate', {
+          startDate: normalized,
+        });
       }
     }
 
@@ -238,23 +324,53 @@ export class TransactionsService {
       qb.andWhere('savings.amount < 0');
     }
 
-    const rows = await qb.getMany();
-    return rows.map((row) => this.mapSavings(row));
+    const searchPattern = this.toSearchPattern(search);
+    if (searchPattern) {
+      qb.andWhere(
+        `(LOWER(CONCAT(COALESCE(member.lastName, ''), ', ', COALESCE(member.firstName, ''))) LIKE :search ESCAPE E'\\\\'
+          OR LOWER(COALESCE(center.name, '')) LIKE :search ESCAPE E'\\\\')`,
+        { search: searchPattern },
+      );
+    }
+
+    const countQuery = qb.clone();
+    const [rows, total] = await Promise.all([
+      qb
+        .select([
+          'savings.id AS "id"',
+          'savings.amount AS "amount"',
+          'savings.remarks AS "remarks"',
+          'savings.createdAt AS "createdAt"',
+          'member.id AS "memberId"',
+          'member.firstName AS "memberFirstName"',
+          'member.lastName AS "memberLastName"',
+          'center.id AS "centerId"',
+          'center.name AS "centerName"',
+          'loan.id AS "loanId"',
+          'loan.status AS "loanStatus"',
+        ])
+        .orderBy('savings.createdAt', 'DESC')
+        .addOrderBy('savings.id', 'DESC')
+        .limit(fetchLimit)
+        .getRawMany<SavingsHistoryRow>(),
+      countQuery.getCount(),
+    ]);
+    return { items: rows.map((row) => this.mapSavings(row)), total };
   }
 
-  private mapRepayment(repayment: Repayment): TransactionHistoryItem {
+  private mapRepayment(repayment: RepaymentHistoryRow): TransactionHistoryItem {
     const amount = this.toNumber(repayment.amount);
     const collectionDate =
       repayment.collectionDate ??
       repayment.paymentDate ??
-      repayment.createdAt?.toISOString().slice(0, 10) ??
+      this.toIsoString(repayment.createdAt).slice(0, 10) ??
       null;
     const operationType =
       repayment.operationType === RepaymentOperationType.REVERSAL
         ? 'reversal'
         : 'payment';
-    const memberName = `${repayment.member?.lastName ?? ''}, ${
-      repayment.member?.firstName ?? ''
+    const memberName = `${repayment.memberLastName ?? ''}, ${
+      repayment.memberFirstName ?? ''
     }`.trim();
     return {
       id: repayment.id,
@@ -262,35 +378,33 @@ export class TransactionsService {
       amount,
       direction: operationType === 'reversal' ? 'debit' : 'credit',
       member: {
-        id: repayment.member?.id ?? null,
+        id: repayment.memberId ?? null,
         name: memberName || 'Unknown Member',
         center: {
-          id:
-            repayment.member?.center?.id ?? repayment.center?.id ?? null,
+          id: repayment.memberCenterId ?? repayment.repaymentCenterId ?? null,
           name:
-            repayment.member?.center?.name ?? repayment.center?.name ?? null,
+            repayment.memberCenterName ?? repayment.repaymentCenterName ?? null,
         },
       },
       loan: {
-        id: repayment.loan?.id ?? null,
-        status: repayment.loan?.status ?? null,
+        id: repayment.loanId ?? null,
+        status: repayment.loanStatus ?? null,
       },
       notes: repayment.notes ?? null,
-      createdAt: repayment.createdAt?.toISOString() ?? new Date().toISOString(),
+      createdAt: this.toIsoString(repayment.createdAt),
       collectionDate,
       source: 'repayment',
       repaymentOperationType: operationType,
     };
   }
 
-  private mapSavings(savings: Savings): TransactionHistoryItem {
-    const amount = this.toNumber(Math.abs(savings.amount));
+  private mapSavings(savings: SavingsHistoryRow): TransactionHistoryItem {
+    const signedAmount = this.toNumber(savings.amount);
+    const amount = Math.abs(signedAmount);
     const type: TransactionType =
-      this.toNumber(savings.amount) >= 0
-        ? 'savings_deposit'
-        : 'savings_withdrawal';
-    const memberName = `${savings.borrower?.lastName ?? ''}, ${
-      savings.borrower?.firstName ?? ''
+      signedAmount >= 0 ? 'savings_deposit' : 'savings_withdrawal';
+    const memberName = `${savings.memberLastName ?? ''}, ${
+      savings.memberFirstName ?? ''
     }`.trim();
 
     return {
@@ -299,19 +413,19 @@ export class TransactionsService {
       amount,
       direction: type === 'savings_deposit' ? 'credit' : 'debit',
       member: {
-        id: savings.borrower?.id ?? null,
+        id: savings.memberId ?? null,
         name: memberName || 'Unknown Member',
         center: {
-          id: savings.borrower?.center?.id ?? null,
-          name: savings.borrower?.center?.name ?? null,
+          id: savings.centerId ?? null,
+          name: savings.centerName ?? null,
         },
       },
       loan: {
-        id: savings.loan?.id ?? null,
-        status: savings.loan?.status ?? null,
+        id: savings.loanId ?? null,
+        status: savings.loanStatus ?? null,
       },
       notes: savings.remarks ?? null,
-      createdAt: savings.createdAt?.toISOString() ?? new Date().toISOString(),
+      createdAt: this.toIsoString(savings.createdAt),
       source: 'savings',
     };
   }
@@ -326,6 +440,20 @@ export class TransactionsService {
       parsed.setHours(23, 59, 59, 999);
     }
     return parsed.toISOString();
+  }
+
+  private toSearchPattern(value?: string): string | undefined {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) return undefined;
+
+    return `%${normalized.replace(/[\\%_]/g, '\\$&')}%`;
+  }
+
+  private toIsoString(value: Date | string): string {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime())
+      ? new Date().toISOString()
+      : date.toISOString();
   }
 
   private toNumber(value: unknown): number {

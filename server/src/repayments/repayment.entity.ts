@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   OneToMany,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Loan } from '../loans/loan.entity';
 import { Member } from '../members/entities/member.entity';
@@ -24,6 +25,9 @@ export enum RepaymentOperationType {
   REVERSAL = 'reversal',
 }
 @Entity()
+@Index('IDX_repayment_transactions_approved_created', ['createdAt', 'id'], {
+  where: `"status" = 'approved'`,
+})
 export class Repayment {
   @PrimaryGeneratedColumn('uuid')
   id: string;

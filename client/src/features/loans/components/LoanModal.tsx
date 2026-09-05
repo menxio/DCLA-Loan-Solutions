@@ -47,11 +47,18 @@ import { LoansAPI } from "../api";
 import LoanForm from "./LoanForm";
 import { calculateLoanDetails, formatCurrency } from "../utils/loanCalculations";
 import { generateLoanPassbookPDF } from "@components/export/loanPassbookPDF";
-import { TransactionsAPI } from "@features/transactions/api";
-import type { TransactionHistoryItem } from "@features/transactions/types";
+import {
+  transactionHistoryQueryKey,
+  TransactionsAPI,
+} from "@features/transactions/api";
+import type {
+  TransactionHistoryItem,
+  TransactionHistoryResponse,
+} from "@features/transactions/types";
 import { smsNotificationsApi } from "@features/notifications/api";
 import SendSmsConfirmationDialog from "@features/notifications/components/SendSmsConfirmationDialog";
 import type { SmsEligibilityItem } from "@features/notifications/types";
+import { queryClient } from "../../../queryClient";
 
 interface LoanModalProps {
   open: boolean;
@@ -108,6 +115,7 @@ export default function LoanModal({
   );
   const memberLoanCountRef = useRef<number | null>(null);
   const activeLoanRef = useRef<Loan | null | undefined>(undefined);
+  const historyRequestIdRef = useRef(0);
 
   const historyPageSize = 10;
   const loanHistoryPageSize = 2;
@@ -267,29 +275,41 @@ export default function LoanModal({
 
   const loadLoanHistory = useCallback(
     async (loan: Loan, pageNumber = 1) => {
+      const requestId = ++historyRequestIdRef.current;
       try {
         setHistoryLoading(true);
         setHistoryError(null);
 
+        const transactionQuery = {
+          loanId: loan.id,
+          page: pageNumber,
+          limit: historyPageSize,
+        };
+
         const [schedule, transactions] = await Promise.all([
           LoansAPI.getRepaymentSchedule(loan.id),
-          TransactionsAPI.getHistory({
-            loanId: loan.id,
-            page: pageNumber,
-            limit: historyPageSize,
-          }),
+          queryClient.fetchQuery<TransactionHistoryResponse>(
+            transactionHistoryQueryKey(transactionQuery),
+            ({ signal }) =>
+              TransactionsAPI.getHistory(transactionQuery, signal),
+            { staleTime: 45_000 },
+          ),
         ]);
 
+        if (requestId !== historyRequestIdRef.current) return;
         setHistorySchedule(schedule);
         setHistoryTransactions(transactions.items);
         setHistoryPage(transactions.page);
         setHistoryTotalPages(transactions.totalPages);
         setHistoryTotal(transactions.total);
       } catch (err) {
+        if (requestId !== historyRequestIdRef.current) return;
         setHistoryError("Failed to load loan history.");
         console.error("Error loading loan history:", err);
       } finally {
-        setHistoryLoading(false);
+        if (requestId === historyRequestIdRef.current) {
+          setHistoryLoading(false);
+        }
       }
     },
     []

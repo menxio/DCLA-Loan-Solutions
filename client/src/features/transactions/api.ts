@@ -16,11 +16,25 @@ export type TransactionHistoryQuery = {
   search?: string;
 };
 
+export const transactionHistoryQueryKey = (query: TransactionHistoryQuery) => [
+  "transactions",
+  query.page ?? 1,
+  query.limit ?? 25,
+  query.search ?? "",
+  query.type ?? "all",
+  query.memberId ?? "",
+  query.centerId ?? "",
+  query.loanId ?? "",
+  query.startDate ?? "",
+  query.endDate ?? "",
+];
+
 export const TransactionsAPI = {
   async getHistory(
-    params: TransactionHistoryQuery = {}
+    params: TransactionHistoryQuery = {},
+    signal?: AbortSignal,
   ): Promise<TransactionHistoryResponse> {
-    const response = await api.get("/transactions", { params });
+    const response = await api.get("/transactions", { params, signal });
     return response.data;
   },
 };

@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { TransactionsAPI, type TransactionHistoryQuery } from "../api";
+import { useQuery } from "react-query";
+import {
+  transactionHistoryQueryKey,
+  TransactionsAPI,
+  type TransactionHistoryQuery,
+} from "../api";
 import type {
   TransactionFilterType,
   TransactionHistoryItem,
@@ -35,34 +40,26 @@ const DEFAULT_FILTERS: TransactionFiltersState = {
   endDate: "",
 };
 
+const EMPTY_TRANSACTIONS: TransactionHistoryItem[] = [];
+
 export function useTransactionHistory(
-  initialLimit = 25
+  initialLimit = 25,
 ): UseTransactionHistoryReturn {
-  const [transactions, setTransactions] = useState<TransactionHistoryItem[]>(
-    []
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(initialLimit);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] =
     useState<TransactionFiltersState>(DEFAULT_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      setPage(1);
       setDebouncedSearch(filters.search.trim());
     }, 300);
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [filters.type, filters.startDate, filters.endDate, debouncedSearch]);
-
-  const buildQuery = useCallback((): TransactionHistoryQuery => {
+  const queryParams = useMemo((): TransactionHistoryQuery => {
     const query: TransactionHistoryQuery = {
       page,
       limit,
@@ -82,36 +79,52 @@ export function useTransactionHistory(
     }
 
     return query;
-  }, [page, limit, filters.type, filters.startDate, filters.endDate, debouncedSearch]);
+  }, [
+    page,
+    limit,
+    filters.type,
+    filters.startDate,
+    filters.endDate,
+    debouncedSearch,
+  ]);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      setError(null);
-      const response: TransactionHistoryResponse =
-        await TransactionsAPI.getHistory(buildQuery());
-      setTransactions(response.items);
-      setTotal(response.total);
-      setTotalPages(response.totalPages);
-    } catch (err) {
-      console.error("Failed to load transactions:", err);
-      setError("Failed to load transactions");
-    } finally {
-      setLoading(false);
-    }
-  }, [buildQuery]);
-
-  useEffect(() => {
-     
-    fetchData();
-  }, [fetchData]);
+  const query = useQuery<TransactionHistoryResponse, Error>(
+    transactionHistoryQueryKey(queryParams),
+    ({ signal }) => TransactionsAPI.getHistory(queryParams, signal),
+    {
+      keepPreviousData: true,
+      staleTime: 45_000,
+    },
+  );
 
   const updateFilters = useCallback(
     (changes: Partial<TransactionFiltersState>) => {
       setFilters((prev) => ({ ...prev, ...changes }));
+      if (
+        changes.type !== undefined ||
+        changes.startDate !== undefined ||
+        changes.endDate !== undefined
+      ) {
+        setPage(1);
+      }
     },
-    []
+    [],
   );
+
+  const updateLimit = useCallback((nextLimit: number) => {
+    setLimit(nextLimit);
+    setPage(1);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    await query.refetch();
+  }, [query]);
+
+  const transactions = query.data?.items ?? EMPTY_TRANSACTIONS;
+  const total = query.data?.total ?? 0;
+  const totalPages = query.data?.totalPages ?? 1;
+  const loading = query.isLoading || query.isFetching;
+  const error = query.isError ? "Failed to load transactions" : null;
 
   return useMemo(
     () => ({
@@ -124,9 +137,9 @@ export function useTransactionHistory(
       totalPages,
       filters,
       setPage,
-      setLimit,
+      setLimit: updateLimit,
       updateFilters,
-      refresh: fetchData,
+      refresh,
     }),
     [
       transactions,
@@ -137,8 +150,9 @@ export function useTransactionHistory(
       total,
       totalPages,
       filters,
-      fetchData,
+      refresh,
       updateFilters,
-    ]
+      updateLimit,
+    ],
   );
 }
