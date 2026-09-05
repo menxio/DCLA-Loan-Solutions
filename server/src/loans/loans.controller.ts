@@ -10,6 +10,7 @@ import {
   HttpStatus,
   Req,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
 import { CreateLoanDto } from './dto/create-loan.dto';
@@ -43,7 +44,7 @@ export class LoansController {
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('member/:id')
   findByMember(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Query() query: FindMemberLoansQueryDto,
   ) {
     return this.loansService.findByMember(id, query);
@@ -57,14 +58,14 @@ export class LoansController {
 
   @Roles(ROLE.Manager)
   @Get(':id/waivers')
-  getWaiversByLoan(@Param('id') id: string) {
+  getWaiversByLoan(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.loansService.getWaiversByLoan(id);
   }
 
   @Roles(ROLE.Manager)
   @Post(':id/waivers')
   applyWaiver(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: ApplyLoanWaiverDto,
     @Req() req: { user?: { userId?: string } },
   ) {
@@ -73,14 +74,14 @@ export class LoansController {
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.loansService.findOne(id);
   }
 
   // Eligibility by loan id (not just by member)
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get(':id/eligibility')
-  eligibilityByLoan(@Param('id') id: string) {
+  eligibilityByLoan(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.loansService.eligibilityByLoan(id);
   }
 
@@ -88,7 +89,7 @@ export class LoansController {
   @Roles(ROLE.LoanProcessor)
   @Post(':id/reloan')
   reloan(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: ReloanDto,
     @Req() req: { user?: { userId?: string } },
   ) {
@@ -97,13 +98,19 @@ export class LoansController {
 
   @Roles(ROLE.LoanProcessor)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateLoanDto: UpdateLoanDto) {
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() updateLoanDto: UpdateLoanDto,
+  ) {
     return this.loansService.update(id, updateLoanDto);
   }
 
   @Roles(ROLE.LoanProcessor)
   @Patch(':id/term')
-  updateTerm(@Param('id') id: string, @Body() body: UpdateLoanTermDto) {
+  updateTerm(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: UpdateLoanTermDto,
+  ) {
     return this.loansService.updateTermWeeks(
       id,
       body.termWeeks,
@@ -114,13 +121,13 @@ export class LoansController {
   @Roles(ROLE.LoanProcessor)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.loansService.remove(id);
   }
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('member/:id/eligibility')
-  checkEligibility(@Param('id') id: string) {
+  checkEligibility(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.loansService.isEligibleForReloan(id);
   }
 }

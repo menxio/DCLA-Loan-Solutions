@@ -7,6 +7,7 @@ import {
   IsString,
   Min,
   MinLength,
+  IsUUID,
 } from 'class-validator';
 
 export class FindCollectionsQueryDto {
@@ -22,11 +23,11 @@ export class FindCollectionsQueryDto {
   @IsOptional()
   limit?: number = 10;
 
-  @IsString()
+  @IsUUID()
   @IsOptional()
   centerId?: string;
 
-  @IsString()
+  @IsUUID()
   @IsOptional()
   memberId?: string;
 

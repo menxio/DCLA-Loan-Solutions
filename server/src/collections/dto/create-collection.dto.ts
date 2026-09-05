@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsUUID,
 } from 'class-validator';
 import { AdvancePaymentStatus } from '../entities/collection.entity';
 
@@ -43,9 +44,9 @@ export class CreateCollectionDto {
   @IsOptional()
   advancePaymentStatus?: AdvancePaymentStatus;
 
-  @IsString()
+  @IsUUID()
   centerId: string;
 
-  @IsString()
+  @IsUUID()
   memberId: string;
 }

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
@@ -6,6 +14,7 @@ import { RejectRepaymentDto } from './dto/reject-repayment.dto';
 import { RequestRepaymentReversalDto } from './dto/request-repayment-reversal.dto';
 import { ApprovePendingCollectionDto } from './dto/approve-pending-collection.dto';
 import { RejectPendingCollectionDto } from './dto/reject-pending-collection.dto';
+import { CreateRepaymentDto } from './dto/create-repayment.dto';
 
 @Controller('repayments')
 export class RepaymentsController {
@@ -14,16 +23,7 @@ export class RepaymentsController {
   @Roles(ROLE.Cashier)
   @Post()
   create(
-    @Body()
-    body: {
-      loanId: string;
-      memberId: string;
-      centerId: string;
-      amount: number;
-      collectionDate?: string;
-      notes?: string;
-      useSavings?: boolean;
-    },
+    @Body() body: CreateRepaymentDto,
     @Req() req: { user?: { userId?: string; role?: string } },
   ) {
     return this.repaymentsService.create(body, req.user);
@@ -32,7 +32,7 @@ export class RepaymentsController {
   @Roles(ROLE.Cashier)
   @Post(':id/reversal-request')
   requestReversal(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: RequestRepaymentReversalDto,
     @Req() req: { user?: { userId?: string; role?: string } },
   ) {
@@ -54,7 +54,7 @@ export class RepaymentsController {
   @Roles(ROLE.Manager, ROLE.Cashier)
   @Get('pending/collections/:centerId/:collectionDate/repayments')
   findPendingRepaymentsForCollection(
-    @Param('centerId') centerId: string,
+    @Param('centerId', new ParseUUIDPipe()) centerId: string,
     @Param('collectionDate') collectionDate: string,
   ) {
     return this.repaymentsService.findPendingRepaymentsForCollection(
@@ -92,14 +92,17 @@ export class RepaymentsController {
 
   @Roles(ROLE.Manager)
   @Post(':id/approve')
-  approve(@Param('id') id: string, @Req() req: { user?: { userId?: string } }) {
+  approve(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: { user?: { userId?: string } },
+  ) {
     return this.repaymentsService.approveRepayment(id, req.user?.userId);
   }
 
   @Roles(ROLE.Manager)
   @Post(':id/reject')
   reject(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: RejectRepaymentDto,
     @Req() req: { user?: { userId?: string } },
   ) {
@@ -112,7 +115,7 @@ export class RepaymentsController {
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('loan/:id/schedule')
-  getSchedule(@Param('id') id: string) {
+  getSchedule(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.repaymentsService.getScheduleForLoan(id);
   }
 }

@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
+import { TemporaryPasswordGuard } from './auth/temporary-password.guard';
 import { LoansModule } from './loans/loans.module';
 import { SavingsModule } from './savings/savings.module';
 import { CentersModule } from './centers/centers.module';
@@ -52,6 +53,10 @@ import { NotificationsModule } from './notifications/notifications.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TemporaryPasswordGuard,
     },
     {
       provide: APP_GUARD,

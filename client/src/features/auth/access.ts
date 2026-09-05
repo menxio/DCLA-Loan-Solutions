@@ -34,7 +34,7 @@ export function getDefaultRouteForRole(role?: string | null): string {
 
 export function canAccessPath(
   role: string | null | undefined,
-  path: string
+  path: string,
 ): boolean {
   if (!role) {
     return false;
@@ -44,4 +44,8 @@ export function canAccessPath(
     return true;
   }
   return allowedRoles.includes(role as AppRole);
+}
+
+export function canManageSavings(role?: string | null): boolean {
+  return role === "admin" || role === "cashier";
 }

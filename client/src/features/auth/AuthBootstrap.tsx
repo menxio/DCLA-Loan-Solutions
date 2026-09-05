@@ -16,11 +16,7 @@ import {
 import { authService } from "./api";
 import { useAuthStore } from "./authStore";
 
-export default function AuthBootstrap({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function AuthBootstrap({ children }: { children: ReactNode }) {
   const token = useAuthStore((state) => state.token);
   const refreshToken = useAuthStore((state) => state.refreshToken);
   const isInitialized = useAuthStore((state) => state.isInitialized);
@@ -49,43 +45,18 @@ export default function AuthBootstrap({
       }
 
       try {
-        if (!token && refreshToken) {
-          const refreshed = await authService.refresh(refreshToken);
-          if (!isMounted) {
-            return;
-          }
-
-          setSession(
-            refreshed.access_token,
-            refreshed.refresh_token,
-            refreshed.user,
-          );
-        }
-
-        let user;
-
-        try {
-          user = await authService.getProfile();
-        } catch {
-          if (!refreshToken) {
-            throw new Error("No refresh token available");
-          }
-
-          const refreshed = await authService.refresh(refreshToken);
-          if (!isMounted) {
-            return;
-          }
-
-          setSession(
-            refreshed.access_token,
-            refreshed.refresh_token,
-            refreshed.user,
-          );
-          user = await authService.getProfile();
-        }
+        const verifiedUser = await authService.getProfile();
 
         if (isMounted) {
-          setUser(user);
+          const verifiedSession = useAuthStore.getState();
+          if (!verifiedSession.token || !verifiedSession.refreshToken) {
+            throw new Error("Verified session is incomplete");
+          }
+          setSession(
+            verifiedSession.token,
+            verifiedSession.refreshToken,
+            verifiedUser,
+          );
         }
       } catch {
         if (isMounted) {
@@ -103,7 +74,7 @@ export default function AuthBootstrap({
     return () => {
       isMounted = false;
     };
-  }, [logout, refreshToken, setInitialized, setSession, setUser, token]);
+  }, [logout, refreshToken, setInitialized, setSession, token]);
 
   if (!isInitialized) {
     return <FullScreenLoader />;
@@ -148,7 +119,7 @@ export default function AuthBootstrap({
         newPassword: "",
         confirmPassword: "",
       });
-    } catch (error: unknown) {
+    } catch {
       setPasswordError("Failed to change password. Verify current password.");
     } finally {
       setPasswordSubmitting(false);

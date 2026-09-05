@@ -305,24 +305,25 @@ export default function MemberCards({
                      gap: 1,
                    }}
                  >
-                   <Button
-                     variant="outlined"
-                     startIcon={<SavingsIcon />}
-                     onClick={() => onAddSavings?.(member)}
-                     disabled={!onAddSavings}
-                     sx={{
-                       flex: 1,
-                       borderColor: "#3b82f6",
-                       color: "#3b82f6",
-                       "&:hover": {
-                         borderColor: "#2563eb",
-                         backgroundColor: "#dbeafe",
-                       },
-                       fontWeight: 500,
-                     }}
-                   >
-                     Savings
-                   </Button>
+                   {onAddSavings && (
+                     <Button
+                       variant="outlined"
+                       startIcon={<SavingsIcon />}
+                       onClick={() => onAddSavings(member)}
+                       sx={{
+                         flex: 1,
+                         borderColor: "#3b82f6",
+                         color: "#3b82f6",
+                         "&:hover": {
+                           borderColor: "#2563eb",
+                           backgroundColor: "#dbeafe",
+                         },
+                         fontWeight: 500,
+                       }}
+                     >
+                       Savings
+                     </Button>
+                   )}
                    <Button
                      variant="outlined"
                      startIcon={<AccountBalanceIcon />}

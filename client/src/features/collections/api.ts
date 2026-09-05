@@ -1,5 +1,4 @@
-import axios from "axios";
-import api from "../../utils/api";
+import api from "@utils/api";
 import type {
   Collection,
   DailyCollectionGroup,
@@ -11,38 +10,6 @@ import type {
   MemberWithLoans,
 } from "./types";
 import type { Repayment } from "@features/repayments/types";
-import { useAuthStore } from "@features/auth/authStore";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
-
-const collectionsApi = axios.create({
-  baseURL: `${API_BASE_URL}/collection`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-// Add token to requests if available
-collectionsApi.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Add response interceptor for better error handling
-collectionsApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.data?.message) {
-      console.error("API Error:", error.response.data.message);
-    }
-    return Promise.reject(error);
-  }
-);
 
 export type CollectionsQuery = {
   page?: number;
@@ -63,20 +30,6 @@ export type PaginatedCollections = {
   limit: number;
   totalPages: number;
 };
-
-const repaymentsApi = axios.create({
-  baseURL: `${API_BASE_URL}/repayments`,
-  headers: { "Content-Type": "application/json" },
-});
-
-repaymentsApi.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 // Helper function to clean query parameters
 const cleanQuery = (query: CollectionsQuery): CollectionsQuery => {
@@ -102,34 +55,36 @@ const cleanQuery = (query: CollectionsQuery): CollectionsQuery => {
 export const collectionsService = {
   // Get all collections (paginated)
   getAllCollections: async (
-    query: CollectionsQuery = {}
+    query: CollectionsQuery = {},
   ): Promise<PaginatedCollections> => {
     const cleanedQuery = cleanQuery(query);
     console.log("Making API request with cleaned query:", cleanedQuery);
 
-    const response = await collectionsApi.get("/", { params: cleanedQuery });
+    const response = await api.get("/collection", { params: cleanedQuery });
     return response.data;
   },
 
   // Get collection by ID
   getCollectionById: async (id: string): Promise<Collection> => {
-    const response = await collectionsApi.get(`/${id}`);
+    const response = await api.get(`/collection/${id}`);
     return response.data;
   },
 
   // Get today's collections
   getTodayCollections: async (
-    date?: string
+    date?: string,
   ): Promise<DailyCollectionGroup[]> => {
-    const response = await collectionsApi.get("/daily", {
+    const response = await api.get("/collection/daily", {
       params: date ? { date } : undefined,
     });
     return response.data;
   },
 
   // Get all collections grouped by center/date
-  getAllCollectionGroups: async (date?: string): Promise<DailyCollectionGroup[]> => {
-    const response = await collectionsApi.get("/grouped", {
+  getAllCollectionGroups: async (
+    date?: string,
+  ): Promise<DailyCollectionGroup[]> => {
+    const response = await api.get("/collection/grouped", {
       params: date ? { date } : undefined,
     });
     return response.data;
@@ -137,17 +92,17 @@ export const collectionsService = {
 
   // Get collections by date
   getCollectionsByDate: async (date: string): Promise<Collection[]> => {
-    const response = await collectionsApi.get(`/date/${date}`);
+    const response = await api.get(`/collection/date/${date}`);
     return response.data;
   },
 
   // Get collections for a specific center on a specific date
   getCenterCollectionsByDate: async (
     centerId: string,
-    date: string
+    date: string,
   ): Promise<Collection[]> => {
-    const response = await collectionsApi.get(
-      `/center/${centerId}/date/${date}`
+    const response = await api.get(
+      `/collection/center/${centerId}/date/${date}`,
     );
     return response.data;
   },
@@ -160,49 +115,49 @@ export const collectionsService = {
 
   // Create new collection
   createCollection: async (data: CreateCollectionData): Promise<Collection> => {
-    const response = await collectionsApi.post("/", data);
+    const response = await api.post("/collection", data);
     return response.data;
   },
 
   // Update collection
   updateCollection: async (
     id: string,
-    data: UpdateCollectionData
+    data: UpdateCollectionData,
   ): Promise<Collection> => {
-    const response = await collectionsApi.patch(`/${id}`, data);
+    const response = await api.patch(`/collection/${id}`, data);
     return response.data;
   },
 
   // Update collection payment
   updatePayment: async (
     id: string,
-    data: PaymentUpdateData
+    data: PaymentUpdateData,
   ): Promise<Collection> => {
-    const response = await collectionsApi.patch(`/${id}/payment`, data);
+    const response = await api.patch(`/collection/${id}/payment`, data);
     return response.data;
   },
 
   // Delete collection
   deleteCollection: async (id: string): Promise<{ deleted: boolean }> => {
-    const response = await collectionsApi.delete(`/${id}`);
+    const response = await api.delete(`/collection/${id}`);
     return response.data;
   },
 
   // Auto-generate collections for a center and date
   autoGenerateCollections: async (
-    data: AutoGenerateData
+    data: AutoGenerateData,
   ): Promise<Collection[]> => {
-    const response = await collectionsApi.post("/auto-generate", data);
+    const response = await api.post("/collection/auto-generate", data);
     return response.data;
   },
 
   // Get collection statistics
   getCollectionStats: async (
     startDate: string,
-    endDate: string
+    endDate: string,
   ): Promise<CollectionStats> => {
-    const response = await collectionsApi.get(
-      `/stats?startDate=${startDate}&endDate=${endDate}`
+    const response = await api.get(
+      `/collection/stats?startDate=${startDate}&endDate=${endDate}`,
     );
     return response.data;
   },
@@ -217,16 +172,16 @@ export const collectionsService = {
     notes?: string;
     useSavings?: boolean;
   }): Promise<Repayment> => {
-    const response = await repaymentsApi.post("/", data);
+    const response = await api.post("/repayments", data);
     return response.data;
   },
 
   getPendingRepaymentsForCollection: async (
     centerId: string,
-    collectionDate: string
+    collectionDate: string,
   ): Promise<Repayment[]> => {
-    const response = await repaymentsApi.get(
-      `/pending/collections/${centerId}/${collectionDate}/repayments`
+    const response = await api.get(
+      `/repayments/pending/collections/${centerId}/${collectionDate}/repayments`,
     );
     return response.data;
   },
@@ -234,24 +189,9 @@ export const collectionsService = {
 
 export default collectionsService;
 
-// Loans-related lightweight APIs for reloan/eligibility
-const loansApi = axios.create({
-  baseURL: `${API_BASE_URL}/loans`,
-  headers: { "Content-Type": "application/json" },
-});
-
-loansApi.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 export const loansClient = {
   checkEligibilityByLoan: async (loanId: string) => {
-    const res = await loansApi.get(`/${loanId}/eligibility`);
+    const res = await api.get(`/loans/${loanId}/eligibility`);
     return res.data;
   },
   reloan: async (
@@ -264,9 +204,9 @@ export const loansClient = {
       serviceCharge?: number;
       notarialFee?: number;
       savings?: number;
-    }
+    },
   ) => {
-    const res = await loansApi.post(`/${loanId}/reloan`, body);
+    const res = await api.post(`/loans/${loanId}/reloan`, body);
     return res.data;
   },
 };

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -26,7 +27,7 @@ export class NotificationsController {
 
   @Roles(ROLE.LoanProcessor)
   @Get('loans/:loanId/notifications/sms/eligibility')
-  getLoanEligibility(@Param('loanId') loanId: string) {
+  getLoanEligibility(@Param('loanId', new ParseUUIDPipe()) loanId: string) {
     return this.notifications.getLoanEligibility(loanId);
   }
 
@@ -34,7 +35,7 @@ export class NotificationsController {
   @Post('loans/:loanId/notifications/sms')
   @HttpCode(HttpStatus.ACCEPTED)
   requestLoanSms(
-    @Param('loanId') loanId: string,
+    @Param('loanId', new ParseUUIDPipe()) loanId: string,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.notifications.requestLoanSms(loanId, request.user?.userId);
@@ -50,7 +51,7 @@ export class NotificationsController {
   @Post('repayments/:repaymentId/notifications/sms')
   @HttpCode(HttpStatus.ACCEPTED)
   requestRepaymentSms(
-    @Param('repaymentId') repaymentId: string,
+    @Param('repaymentId', new ParseUUIDPipe()) repaymentId: string,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.notifications.requestRepaymentSms(
@@ -80,7 +81,9 @@ export class NotificationsController {
 
   @Roles(ROLE.LoanProcessor, ROLE.Manager)
   @Get('notifications/sms/:notificationId')
-  getStatus(@Param('notificationId') notificationId: string) {
+  getStatus(
+    @Param('notificationId', new ParseUUIDPipe()) notificationId: string,
+  ) {
     return this.notifications.getStatus(notificationId);
   }
 

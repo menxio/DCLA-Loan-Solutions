@@ -3,11 +3,11 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
   Delete,
   Put,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
@@ -34,25 +34,28 @@ export class MembersController {
 
   @Roles(ROLE.Manager, ROLE.LoanProcessor)
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.membersService.findOne(id); // removed +id
   }
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('center/:centerId')
-  getCenterMembers(@Param('centerId') centerId: string) {
+  getCenterMembers(@Param('centerId', new ParseUUIDPipe()) centerId: string) {
     return this.membersService.getCenterMembers(centerId);
   }
 
   @Roles(ROLE.LoanProcessor)
   @Put(':id')
-  update(@Param('id') id: string, @Body() updateMemberDto: UpdateMemberDto) {
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() updateMemberDto: UpdateMemberDto,
+  ) {
     return this.membersService.update(id, updateMemberDto); // removed +id
   }
 
   @Roles(ROLE.LoanProcessor)
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.membersService.remove(id); // removed +id
   }
 }

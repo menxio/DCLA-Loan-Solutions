@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { CentersService } from './centers.service';
 import { CreateCenterDto } from './dto/create-center.dto';
@@ -33,19 +34,22 @@ export class CentersController {
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.centersService.findOne(id);
   }
 
   @Roles(ROLE.LoanProcessor)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCenterDto: UpdateCenterDto) {
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() updateCenterDto: UpdateCenterDto,
+  ) {
     return this.centersService.update(id, updateCenterDto);
   }
 
   @Roles(ROLE.LoanProcessor)
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.centersService.remove(id);
   }
 }

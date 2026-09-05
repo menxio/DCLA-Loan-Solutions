@@ -40,4 +40,19 @@ describe("MemberCards savings entry point", () => {
     fireEvent.click(screen.getByRole("button", { name: "Savings" }));
     expect(onAddSavings).toHaveBeenCalledWith(member);
   });
+
+  it("does not expose Savings when the caller is not authorized", () => {
+    render(
+      <MemberCards
+        members={[member]}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onViewLoan={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Savings" }),
+    ).not.toBeInTheDocument();
+  });
 });

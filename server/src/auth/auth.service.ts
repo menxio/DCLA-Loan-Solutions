@@ -71,13 +71,15 @@ export class AuthService {
     };
   }
 
-  async validateUser(email: string, pass: string): Promise<any> {
+  async validateUser(email: string, pass: string): Promise<User | null> {
     try {
       this.logger.debug(`Attempting to validate user with email: ${email}`);
       const user = await this.usersService.findByEmail(email);
 
       if (!user || !user.isActive) {
-        this.logger.warn(`Validation failed: user with email ${email} not found`);
+        this.logger.warn(
+          `Validation failed: user with email ${email} not found`,
+        );
         return null;
       }
 
@@ -87,8 +89,9 @@ export class AuthService {
       }
       this.logger.warn(`Validation failed: password mismatch for ${email}`);
       return null;
-    } catch (error) {
-      this.logger.error(`Error validating user ${email}`, error.stack);
+    } catch (error: unknown) {
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Error validating user ${email}`, stack);
       throw new InternalServerErrorException('User validation failed');
     }
   }
@@ -115,6 +118,36 @@ export class AuthService {
   }
 
   async refreshTokens(refreshTokenDto: RefreshTokenDto) {
+    const user = await this.validateRefreshToken(refreshTokenDto.refreshToken);
+    return this.buildAuthResponse(user);
+  }
+
+  async logoutWithRefreshToken(refreshToken: string) {
+    const user = await this.validateRefreshToken(refreshToken);
+    await this.usersService.updateRefreshTokenHash(user.id, null);
+    return { success: true };
+  }
+
+  async logoutWithAccessToken(accessToken: string) {
+    let payload: { sub?: string; type?: string };
+
+    try {
+      payload = await this.jwtService.verifyAsync(accessToken, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid access token');
+    }
+
+    if (!payload.sub || payload.type === 'refresh') {
+      throw new UnauthorizedException('Invalid access token');
+    }
+
+    await this.usersService.updateRefreshTokenHash(payload.sub, null);
+    return { success: true };
+  }
+
+  private async validateRefreshToken(refreshToken: string): Promise<User> {
     const refreshSecret =
       this.configService.get<string>('JWT_REFRESH_SECRET') ??
       this.configService.get<string>('JWT_SECRET');
@@ -122,7 +155,7 @@ export class AuthService {
     let payload: { sub: string; type?: string };
 
     try {
-      payload = await this.jwtService.verifyAsync(refreshTokenDto.refreshToken, {
+      payload = await this.jwtService.verifyAsync(refreshToken, {
         secret: refreshSecret,
       });
     } catch {
@@ -140,7 +173,7 @@ export class AuthService {
     }
 
     const refreshTokenMatches = await bcrypt.compare(
-      refreshTokenDto.refreshToken,
+      refreshToken,
       user.hashedRefreshToken,
     );
 
@@ -148,12 +181,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    return this.buildAuthResponse(user);
-  }
-
-  async logout(userId: string) {
-    await this.usersService.updateRefreshTokenHash(userId, null);
-    return { success: true };
+    return user;
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
@@ -163,7 +191,10 @@ export class AuthService {
       throw new UnauthorizedException('User account is inactive or missing');
     }
 
-    const passwordMatch = await bcrypt.compare(dto.currentPassword, user.password);
+    const passwordMatch = await bcrypt.compare(
+      dto.currentPassword,
+      user.password,
+    );
     if (!passwordMatch) {
       throw new UnauthorizedException('Current password is incorrect');
     }

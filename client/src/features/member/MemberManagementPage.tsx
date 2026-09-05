@@ -22,6 +22,8 @@ import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
 import FullScreenLoader from "@components/common/FullScreenLoader";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
+import { useAuthStore } from "@features/auth/authStore";
+import { canManageSavings } from "@features/auth/access";
 
 const MemberModal = lazy(() => import("./components/MemberModal"));
 const LoanModal = lazy(() => import("@features/loans/components/LoanModal"));
@@ -30,6 +32,8 @@ const SavingsDepositDialog = lazy(
 );
 
 export default function MembersPage() {
+  const role = useAuthStore((state) => state.user?.role ?? "");
+  const savingsActionsAllowed = canManageSavings(role);
   const { members, total, page, limit, setPage, loading, error, createMember, updateMember, deleteMember, refetch } = useMembers();
   
   const [modalOpen, setModalOpen] = useState(false);
@@ -305,7 +309,7 @@ export default function MembersPage() {
         onEdit={handleEdit} 
         onDelete={handleDelete} 
         onViewLoan={handleViewLoan}
-        onAddSavings={handleOpenSavingsDialog}
+        onAddSavings={savingsActionsAllowed ? handleOpenSavingsDialog : undefined}
         loading={loading} 
         />
 

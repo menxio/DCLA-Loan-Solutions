@@ -52,7 +52,7 @@ export class SavingsController {
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('member/:memberId')
-  getMemberSavings(@Param('memberId') memberId: string) {
+  getMemberSavings(@Param('memberId', new ParseUUIDPipe()) memberId: string) {
     return this.savingsService.findByMember(memberId);
   }
 }

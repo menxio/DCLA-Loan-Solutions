@@ -9,13 +9,15 @@ import type {
   PasswordChangeData,
 } from "./types";
 import type { User } from "../../types/auth";
+import api from "../../utils/api";
 
 type ChangePasswordResponse = {
   message: string;
   user: User;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 // Create axios instance
 const authApi = axios.create({
@@ -50,7 +52,7 @@ export const authService = {
 
   // Get user profile
   getProfile: async (): Promise<User> => {
-    const response = await authApi.get("/profile");
+    const response = await api.get("/auth/profile");
     return response.data;
   },
 
@@ -67,16 +69,18 @@ export const authService = {
 
   // Change password
   changePassword: async (
-    data: PasswordChangeData
+    data: PasswordChangeData,
   ): Promise<ChangePasswordResponse> => {
-    const response = await authApi.put("/change-password", data);
+    const response = await api.put("/auth/change-password", data);
     return response.data;
   },
 
-  // Logout (client-side only)
   logout: async () => {
+    const refreshToken = useAuthStore.getState().refreshToken;
     try {
-      await authApi.post("/logout");
+      await authApi.post("/logout", refreshToken ? { refreshToken } : {});
+    } catch {
+      // Local session cleanup must not depend on network-side revocation.
     } finally {
       useAuthStore.getState().logout();
     }

@@ -3,7 +3,8 @@ import type { InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@features/auth/authStore";
 import type { User } from "../types/auth";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -38,7 +39,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
           user: User;
         };
 
-        authStore.setSession(access_token, refresh_token, user);
+        authStore.setRefreshedSession(access_token, refresh_token, user);
         return access_token;
       })
       .catch(() => {
@@ -61,7 +62,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 api.interceptors.response.use(
@@ -100,7 +101,7 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

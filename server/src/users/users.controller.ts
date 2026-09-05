@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
@@ -31,13 +32,16 @@ export class UsersController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() payload: UpdateUserDto) {
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() payload: UpdateUserDto,
+  ) {
     return this.usersService.updateUser(id, payload);
   }
 
   @Patch(':id/status')
   updateStatus(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() payload: UpdateUserStatusDto,
     @Req() req: { user?: { userId?: string } },
   ) {
@@ -48,7 +52,7 @@ export class UsersController {
   }
 
   @Post(':id/reset-password')
-  resetPassword(@Param('id') id: string) {
+  resetPassword(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.usersService.resetPassword(id);
   }
 }

@@ -93,4 +93,13 @@ describe('SavingsController', () => {
       ),
     ).not.toBe(true);
   });
+
+  it.each(['deposit', 'withdraw'] as const)(
+    'keeps %s restricted to the existing Cashier role',
+    (operation) => {
+      expect(
+        Reflect.getMetadata(ROLES_KEY, SavingsController.prototype[operation]),
+      ).toEqual([ROLE.Cashier]);
+    },
+  );
 });

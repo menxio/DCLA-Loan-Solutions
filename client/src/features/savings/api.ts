@@ -1,25 +1,5 @@
-import axios from "axios";
-import { useAuthStore } from "@features/auth/authStore";
+import api from "@utils/api";
 import type { SavingsHistoryParams, SavingsHistoryResponse } from "./types";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
-
-const savingsApi = axios.create({
-  baseURL: `${API_BASE_URL}/savings`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-savingsApi.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 export const savingsService = {
   deposit: async (data: {
@@ -28,7 +8,7 @@ export const savingsService = {
     remarks?: string;
     loanId?: string;
   }) => {
-    const response = await savingsApi.post("/deposit", data);
+    const response = await api.post("/savings/deposit", data);
     return response.data;
   },
   withdraw: async (data: {
@@ -37,11 +17,11 @@ export const savingsService = {
     remarks?: string;
     loanId?: string;
   }) => {
-    const response = await savingsApi.post("/withdraw", data);
+    const response = await api.post("/savings/withdraw", data);
     return response.data;
   },
   getByMember: async (memberId: string) => {
-    const response = await savingsApi.get(`/member/${memberId}`);
+    const response = await api.get(`/savings/member/${memberId}`);
     return response.data;
   },
   getHistory: async ({
@@ -50,8 +30,8 @@ export const savingsService = {
     page = 1,
     limit = 25,
   }: SavingsHistoryParams): Promise<SavingsHistoryResponse> => {
-    const response = await savingsApi.get<SavingsHistoryResponse>(
-      `/member/${memberId}/history`,
+    const response = await api.get<SavingsHistoryResponse>(
+      `/savings/member/${memberId}/history`,
       { params: { scope, page, limit } },
     );
     return response.data;

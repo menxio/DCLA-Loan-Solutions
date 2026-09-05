@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { CollectionsService } from './collections.service';
 import { CreateCollectionDto } from './dto/create-collection.dto';
@@ -14,6 +15,8 @@ import { UpdateCollectionDto } from './dto/update-collection.dto';
 import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
 import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
+import { AutoGenerateCollectionsDto } from './dto/auto-generate-collections.dto';
+import { UpdateCollectionPaymentDto } from './dto/update-collection-payment.dto';
 
 @Controller('collection')
 export class CollectionsController {
@@ -52,7 +55,7 @@ export class CollectionsController {
   @Roles(ROLE.Manager, ROLE.Cashier)
   @Get('center/:centerId/date/:date')
   getCenterCollectionsByDate(
-    @Param('centerId') centerId: string,
+    @Param('centerId', new ParseUUIDPipe()) centerId: string,
     @Param('date') date: string,
   ) {
     return this.collectionService.getCenterCollectionsByDate(centerId, date);
@@ -60,7 +63,7 @@ export class CollectionsController {
 
   @Roles(ROLE.LoanProcessor)
   @Post('auto-generate')
-  autoGenerateCollections(@Body() body: { centerId: string; date: string }) {
+  autoGenerateCollections(@Body() body: AutoGenerateCollectionsDto) {
     return this.collectionService.autoGenerateCollections(
       body.centerId,
       body.date,
@@ -79,22 +82,22 @@ export class CollectionsController {
   @Roles(ROLE.Cashier)
   @Patch(':id/payment')
   updatePayment(
-    @Param('id') id: string,
-    @Body() body: { paymentAmount: number; notes?: string },
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: UpdateCollectionPaymentDto,
   ) {
     return this.collectionService.updatePayment(id, body);
   }
 
   @Roles(ROLE.Manager, ROLE.Cashier)
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.collectionService.findOne(id);
   }
 
   @Roles(ROLE.LoanProcessor)
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateCollectionDto: UpdateCollectionDto,
   ) {
     return this.collectionService.update(id, updateCollectionDto);
@@ -102,7 +105,7 @@ export class CollectionsController {
 
   @Roles(ROLE.LoanProcessor)
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.collectionService.remove(id);
   }
 }
