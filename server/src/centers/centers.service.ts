@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Center } from './entities/center.entity';
@@ -41,12 +45,16 @@ export class CentersService {
 
     if (search && search.trim().length > 0) {
       const term = `%${search.trim().toLowerCase()}%`;
-      qb.where('LOWER(center.name) LIKE :term OR LOWER(center.address) LIKE :term', {
-        term,
-      });
+      qb.where(
+        'LOWER(center.name) LIKE :term OR LOWER(center.address) LIKE :term',
+        {
+          term,
+        },
+      );
     }
 
     qb.orderBy('center.name', 'ASC')
+      .addOrderBy('center.id', 'ASC')
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -64,6 +72,13 @@ export class CentersService {
     const center = await this.centerRepository.findOne({ where: { id } });
     if (!center) throw new NotFoundException(`Center #${id} not found`);
     return center;
+  }
+
+  findOptions(): Promise<Center[]> {
+    return this.centerRepository.find({
+      select: ['id', 'name', 'collectionDay', 'address', 'leader'],
+      order: { name: 'ASC' },
+    });
   }
 
   async update(id: string, updateCenterDto: UpdateCenterDto): Promise<Center> {

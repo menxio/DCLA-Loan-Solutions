@@ -22,9 +22,12 @@ import {
 } from "@mui/icons-material";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CollectionStatsCard from "./CollectionStatsCard";
-import { exportAllCollectionsToExcel } from "../utils/exportUtils";
 import collectionsService from "../api";
-import type { DailyCollectionGroup, MemberWithLoans, Collection } from "../types";
+import type {
+  DailyCollectionGroup,
+  MemberWithLoans,
+  Collection,
+} from "../types";
 import {
   evaluateMemberStatus,
   hasActiveLoan,
@@ -53,7 +56,7 @@ export default function DailyCollectionsView({
   const [exportingAll, setExportingAll] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [supportingDataError, setSupportingDataError] = useState<string | null>(
-    null
+    null,
   );
   const [centerMembersMap, setCenterMembersMap] = useState<
     Record<string, MemberWithLoansExtended[]>
@@ -71,6 +74,7 @@ export default function DailyCollectionsView({
   // Fetch members for each center so cards use the same basis as the modal
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const fetchAll = async () => {
       if (!cancelled) {
         setMembersLoading(true);
@@ -83,7 +87,9 @@ export default function DailyCollectionsView({
           data.map(async (group) => {
             try {
               const members = await collectionsService.getCenterMembers(
-                group.centerId
+                group.centerId,
+                group.collectionDate,
+                controller.signal,
               );
               // Attach today's collection to each member for convenience
               const withCollections = members.map((m) =>
@@ -91,16 +97,17 @@ export default function DailyCollectionsView({
                   {
                     ...m,
                     collection: group.collections.find(
-                      (c) => c.memberId === m.id
+                      (c) => c.memberId === m.id,
                     ),
                   } as MemberWithLoans,
-                  group.collectionDate
-                )
+                  group.collectionDate,
+                ),
               );
               const pendingRepayments =
                 await collectionsService.getPendingRepaymentsForCollection(
                   group.centerId,
-                  group.collectionDate
+                  group.collectionDate,
+                  controller.signal,
                 );
               return {
                 centerId: group.centerId,
@@ -121,7 +128,7 @@ export default function DailyCollectionsView({
                 failed: true,
               };
             }
-          })
+          }),
         );
         if (!cancelled) {
           const map: Record<string, MemberWithLoansExtended[]> = {};
@@ -134,7 +141,7 @@ export default function DailyCollectionsView({
             setSupportingDataError(
               results.every((result) => result.failed)
                 ? "Member and pending payment details are temporarily unavailable."
-                : "Some member or pending payment details are temporarily unavailable."
+                : "Some member or pending payment details are temporarily unavailable.",
             );
           }
         }
@@ -143,7 +150,7 @@ export default function DailyCollectionsView({
           setCenterMembersMap({});
           setPendingPaymentMemberIdsMap({});
           setSupportingDataError(
-            "Member and pending payment details are temporarily unavailable."
+            "Member and pending payment details are temporarily unavailable.",
           );
         }
       } finally {
@@ -162,12 +169,13 @@ export default function DailyCollectionsView({
     }
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [data]);
 
   const getMembersFor = useCallback(
     (centerId: string) => centerMembersMap[centerId] || [],
-    [centerMembersMap]
+    [centerMembersMap],
   );
 
   const sumOverallAmount = (group: DailyCollectionGroup) => {
@@ -178,7 +186,7 @@ export default function DailyCollectionsView({
   const sumTotalReceived = (group: DailyCollectionGroup) => {
     return group.collections.reduce(
       (sum, c) => sum + (Number(c.paymentReceived) || 0),
-      0
+      0,
     );
   };
 
@@ -186,7 +194,7 @@ export default function DailyCollectionsView({
     const members = getMembersFor(group.centerId);
     const totalBalance = members.reduce(
       (sum, m) => sum + (Number(m.totalBalance) || 0),
-      0
+      0,
     );
     return totalBalance - sumTotalReceived(group);
   };
@@ -198,10 +206,13 @@ export default function DailyCollectionsView({
         return { paid: 0, partial: 0, pending: 0, unpaid: 0 };
       }
       const pendingMemberIds = new Set(
-        pendingPaymentMemberIdsMap[getGroupKey(group)] ?? []
+        pendingPaymentMemberIdsMap[getGroupKey(group)] ?? [],
       );
       const collectionMap = new Map(
-        group.collections.map((collection) => [collection.memberId, collection])
+        group.collections.map((collection) => [
+          collection.memberId,
+          collection,
+        ]),
       );
       return members.reduce(
         (acc, member) => {
@@ -210,9 +221,8 @@ export default function DailyCollectionsView({
             acc.pending += 1;
             return acc;
           }
-          const collection = (collectionMap.get(member.id) || null) as
-            | Collection
-            | null;
+          const collection = (collectionMap.get(member.id) ||
+            null) as Collection | null;
           const status = evaluateMemberStatus(member, {
             collection,
             referenceDate: group.collectionDate,
@@ -226,10 +236,10 @@ export default function DailyCollectionsView({
           }
           return acc;
         },
-        { paid: 0, partial: 0, pending: 0, unpaid: 0 }
+        { paid: 0, partial: 0, pending: 0, unpaid: 0 },
       );
     },
-    [getMembersFor, pendingPaymentMemberIdsMap]
+    [getMembersFor, pendingPaymentMemberIdsMap],
   );
 
   const getPaidCount = (group: DailyCollectionGroup) =>
@@ -246,7 +256,7 @@ export default function DailyCollectionsView({
     const totalReceived = data.reduce((sum, g) => sum + sumTotalReceived(g), 0);
     const totalRemaining = data.reduce(
       (sum, g) => sum + Math.max(0, sumRemainingBalance(g)),
-      0
+      0,
     );
     const totalReleased = data.reduce((sum, g) => {
       const members = getMembersFor(g.centerId);
@@ -254,9 +264,8 @@ export default function DailyCollectionsView({
         sum +
         members.reduce(
           (s, m) =>
-            s +
-            Number(m.netCashReleasedForDate ?? m.netCashReleased ?? 0),
-          0
+            s + Number(m.netCashReleasedForDate ?? m.netCashReleased ?? 0),
+          0,
         )
       );
     }, 0);
@@ -275,7 +284,8 @@ export default function DailyCollectionsView({
         data.map(async (group) => {
           try {
             const centerMembers = await collectionsService.getCenterMembers(
-              group.centerId
+              group.centerId,
+              group.collectionDate,
             );
 
             // Map the data to include collection information
@@ -284,21 +294,21 @@ export default function DailyCollectionsView({
                 {
                   ...member,
                   collection: group.collections.find(
-                    (c) => c.memberId === member.id
+                    (c) => c.memberId === member.id,
                   ),
                   numberOfPayments:
                     member.numberOfPayments ||
                     member.collection?.numberOfPayments ||
                     0,
                 } as MemberWithLoans,
-                group.collectionDate
-              )
+                group.collectionDate,
+              ),
             );
 
             const typedMembers =
               membersWithCollections as MemberWithLoansExtended[];
             const exportableMembers = typedMembers.filter(
-              (member) => hasActiveLoan(member) && hasLoanAmount(member)
+              (member) => hasActiveLoan(member) && hasLoanAmount(member),
             );
 
             return {
@@ -308,7 +318,7 @@ export default function DailyCollectionsView({
           } catch (error) {
             console.error(
               `Failed to fetch members for center ${group.centerName}:`,
-              error
+              error,
             );
             // Return with empty members array to avoid breaking the export
             return {
@@ -316,12 +326,12 @@ export default function DailyCollectionsView({
               members: [] as MemberWithLoansExtended[],
             };
           }
-        })
+        }),
       );
 
       // Filter out bundles with no members (failed API calls)
       const validBundles = exportBundles.filter(
-        (bundle) => bundle.members.length > 0
+        (bundle) => bundle.members.length > 0,
       );
 
       if (validBundles.length === 0) {
@@ -333,21 +343,23 @@ export default function DailyCollectionsView({
         data[0]?.collectionDate || new Date().toISOString().split("T")[0];
       const fileName = `Daily_Collections_Report_${collectionDate.replace(
         /-/g,
-        "_"
+        "_",
       )}`;
 
+      const { exportAllCollectionsToExcel } =
+        await import("../utils/exportUtils");
       await exportAllCollectionsToExcel(validBundles, fileName);
 
       // Show success feedback
       console.log(
-        `Successfully exported ${validBundles.length} collection reports`
+        `Successfully exported ${validBundles.length} collection reports`,
       );
     } catch (error) {
       console.error("Failed to export all collections:", error);
       setExportError(
         error instanceof Error
           ? error.message
-          : "Failed to export collections. Please try again."
+          : "Failed to export collections. Please try again.",
       );
     } finally {
       setExportingAll(false);
@@ -360,7 +372,7 @@ export default function DailyCollectionsView({
       ? data.filter((g) => (g.centerName || "").toLowerCase().includes(q))
       : data;
     return [...filtered].sort((a, b) =>
-      (a.centerName || "").localeCompare(b.centerName || "")
+      (a.centerName || "").localeCompare(b.centerName || ""),
     );
   }, [data, search]);
 
@@ -406,7 +418,12 @@ export default function DailyCollectionsView({
           <Box sx={{ flex: 1, minWidth: 280 }}>
             <Skeleton variant="text" width="40%" height={36} />
             <Skeleton variant="text" width="30%" height={24} />
-            <Skeleton variant="rounded" width={320} height={40} sx={{ mt: 2 }} />
+            <Skeleton
+              variant="rounded"
+              width={320}
+              height={40}
+              sx={{ mt: 2 }}
+            />
             <Box sx={{ display: "flex", gap: 2, mt: 2, flexWrap: "wrap" }}>
               <Skeleton variant="rounded" width={130} height={56} />
               <Skeleton variant="rounded" width={130} height={56} />
@@ -438,7 +455,9 @@ export default function DailyCollectionsView({
                     <Skeleton variant="text" width="32%" height={24} />
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Box
+                      sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+                    >
                       <Skeleton variant="text" width="70%" height={36} />
                       <Skeleton variant="text" width="55%" height={24} />
                       <Skeleton variant="text" width="55%" height={24} />
@@ -464,7 +483,7 @@ export default function DailyCollectionsView({
                 </Box>
               </CardContent>
             </Card>
-          )
+          ),
         )}
       </Box>
     );
@@ -665,7 +684,7 @@ export default function DailyCollectionsView({
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Received:{" "}
                     {formatCurrency(
-                      sumOverallAmount(group) - sumRemainingBalance(group)
+                      sumOverallAmount(group) - sumRemainingBalance(group),
                     )}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>

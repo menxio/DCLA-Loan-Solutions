@@ -114,9 +114,12 @@ function CollectionsTabSkeleton() {
 }
 
 export default function CollectionsPage() {
+  const [tabValue, setTabValue] = useState<0 | 1>(0);
   const {
     dailyCollections,
     allCollections,
+    dailyHasData,
+    allHasData,
     loading,
     loadingDaily,
     loadingAll,
@@ -128,9 +131,7 @@ export default function CollectionsPage() {
     setSearch,
     allDate,
     setAllDate,
-  } = useCollections();
-  const [tabValue, setTabValue] = useState(0);
-  const [tabSkeleton, setTabSkeleton] = useState<0 | 1 | null>(null);
+  } = useCollections(tabValue);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [selectedCollectionGroup, setSelectedCollectionGroup] = useState<
@@ -160,33 +161,8 @@ export default function CollectionsPage() {
     });
   };
 
-  const handleTabChange = async (
-    event: React.SyntheticEvent,
-    newValue: number,
-  ) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: 0 | 1) => {
     setTabValue(newValue);
-
-    if (newValue === 0 && dailyCollections.length === 0) {
-      setTabSkeleton(0);
-      try {
-        await refetchDaily();
-      } catch (err) {
-        console.error("Failed to refresh daily collections", err);
-      } finally {
-        setTabSkeleton((current) => (current === 0 ? null : current));
-      }
-    }
-
-    if (newValue === 1 && allCollections.length === 0) {
-      setTabSkeleton(1);
-      try {
-        await refetchAll();
-      } catch (err) {
-        console.error("Failed to refresh all collections", err);
-      } finally {
-        setTabSkeleton((current) => (current === 1 ? null : current));
-      }
-    }
   };
 
   const handleViewDetails = (group: DailyCollectionGroup) => {
@@ -476,19 +452,21 @@ export default function CollectionsPage() {
                     <Box display="flex" alignItems="center" gap={1}>
                       <Groups sx={{ fontSize: 20 }} />
                       <span>Daily Collections</span>
-                      <Box
-                        sx={{
-                          backgroundColor: "#2563eb",
-                          color: "white",
-                          borderRadius: "12px",
-                          px: 1,
-                          py: 0.5,
-                          fontSize: "0.75rem",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {dailyCollections.length}
-                      </Box>
+                      {dailyHasData && (
+                        <Box
+                          sx={{
+                            backgroundColor: "#2563eb",
+                            color: "white",
+                            borderRadius: "12px",
+                            px: 1,
+                            py: 0.5,
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {dailyCollections.length}
+                        </Box>
+                      )}
                     </Box>
                   }
                 />
@@ -497,19 +475,21 @@ export default function CollectionsPage() {
                     <Box display="flex" alignItems="center" gap={1}>
                       <AccountBalance sx={{ fontSize: 20 }} />
                       <span>All Collections</span>
-                      <Box
-                        sx={{
-                          backgroundColor: "#2563eb",
-                          color: "white",
-                          borderRadius: "12px",
-                          px: 1,
-                          py: 0.5,
-                          fontSize: "0.75rem",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {allCollections.length}
-                      </Box>
+                      {allHasData && (
+                        <Box
+                          sx={{
+                            backgroundColor: "#2563eb",
+                            color: "white",
+                            borderRadius: "12px",
+                            px: 1,
+                            py: 0.5,
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {allCollections.length}
+                        </Box>
+                      )}
                     </Box>
                   }
                 />
@@ -521,8 +501,7 @@ export default function CollectionsPage() {
               <Box
                 sx={{ p: { xs: 1.5, sm: 3 }, minWidth: 0, maxWidth: "100%" }}
               >
-                {(tabSkeleton === 0 || loadingDaily) &&
-                dailyCollections.length === 0 ? (
+                {loadingDaily && dailyCollections.length === 0 ? (
                   <CollectionsTabSkeleton />
                 ) : dailyCollections?.length === 0 && search ? (
                   <Paper
@@ -561,8 +540,7 @@ export default function CollectionsPage() {
               <Box
                 sx={{ p: { xs: 1.5, sm: 3 }, minWidth: 0, maxWidth: "100%" }}
               >
-                {(tabSkeleton === 1 || loadingAll) &&
-                allCollections.length === 0 ? (
+                {loadingAll && allCollections.length === 0 ? (
                   <CollectionsTabSkeleton />
                 ) : allCollections.length === 0 && search ? (
                   <Paper
@@ -605,8 +583,7 @@ export default function CollectionsPage() {
           onClose={handleCloseDetailsModal}
           onDataChanged={async () => {
             try {
-              await refetchDaily();
-              await refetchAll();
+              await (tabValue === 0 ? refetchDaily() : refetchAll());
             } catch (error) {
               console.warn("Failed to refresh collections", error);
             }

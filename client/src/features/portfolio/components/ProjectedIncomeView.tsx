@@ -29,7 +29,6 @@ import {
   Assessment,
 } from "@mui/icons-material";
 import { useProjectedIncome } from "../hooks/useProjectedIncome";
-import { exportProjectedIncomeToExcel } from "../utils/exportUtils";
 
 export default function ProjectedIncomeView() {
   const { data, loading, error, refetch } = useProjectedIncome();
@@ -44,6 +43,8 @@ export default function ProjectedIncomeView() {
 
     setExporting(true);
     try {
+      const { exportProjectedIncomeToExcel } =
+        await import("../utils/exportUtils");
       await exportProjectedIncomeToExcel(data);
     } catch (error) {
       console.error("Export failed:", error);

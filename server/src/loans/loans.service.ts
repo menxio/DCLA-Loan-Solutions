@@ -463,7 +463,8 @@ export class LoansService {
       .createQueryBuilder('loan')
       .leftJoinAndSelect('loan.borrower', 'borrower')
       .where('borrower.id = :memberId', { memberId })
-      .orderBy('loan.createdAt', 'DESC');
+      .orderBy('loan.createdAt', 'DESC')
+      .addOrderBy('loan.id', 'DESC');
 
     if (status !== 'all') {
       qb.andWhere('loan.status = :status', { status });

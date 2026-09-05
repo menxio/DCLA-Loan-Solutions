@@ -73,9 +73,11 @@ export const collectionsService = {
   // Get today's collections
   getTodayCollections: async (
     date?: string,
+    signal?: AbortSignal,
   ): Promise<DailyCollectionGroup[]> => {
     const response = await api.get("/collection/daily", {
       params: date ? { date } : undefined,
+      signal,
     });
     return response.data;
   },
@@ -83,9 +85,11 @@ export const collectionsService = {
   // Get all collections grouped by center/date
   getAllCollectionGroups: async (
     date?: string,
+    signal?: AbortSignal,
   ): Promise<DailyCollectionGroup[]> => {
     const response = await api.get("/collection/grouped", {
       params: date ? { date } : undefined,
+      signal,
     });
     return response.data;
   },
@@ -100,16 +104,25 @@ export const collectionsService = {
   getCenterCollectionsByDate: async (
     centerId: string,
     date: string,
+    signal?: AbortSignal,
   ): Promise<Collection[]> => {
     const response = await api.get(
       `/collection/center/${centerId}/date/${date}`,
+      { signal },
     );
     return response.data;
   },
 
   // Get center members with loan information
-  getCenterMembers: async (centerId: string): Promise<MemberWithLoans[]> => {
-    const response = await api.get(`/members/center/${centerId}`);
+  getCenterMembers: async (
+    centerId: string,
+    date?: string,
+    signal?: AbortSignal,
+  ): Promise<MemberWithLoans[]> => {
+    const response = await api.get(`/members/center/${centerId}`, {
+      params: date ? { date } : undefined,
+      signal,
+    });
     return response.data;
   },
 
@@ -179,9 +192,11 @@ export const collectionsService = {
   getPendingRepaymentsForCollection: async (
     centerId: string,
     collectionDate: string,
+    signal?: AbortSignal,
   ): Promise<Repayment[]> => {
     const response = await api.get(
       `/repayments/pending/collections/${centerId}/${collectionDate}/repayments`,
+      { signal },
     );
     return response.data;
   },

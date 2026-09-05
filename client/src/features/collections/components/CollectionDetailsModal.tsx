@@ -30,10 +30,12 @@ import {
 } from "@mui/icons-material";
 import { Search } from "@mui/icons-material";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type { DailyCollectionGroup, Collection, MemberWithLoans } from "../types";
+import type {
+  DailyCollectionGroup,
+  Collection,
+  MemberWithLoans,
+} from "../types";
 import collectionsService from "../api";
-import { exportToExcel } from "../utils/exportUtils";
-import { exportCollectorPdf } from "../utils/exportCollectorPdf";
 import { PaymentDialog } from "./PaymentDialog";
 import { ReloanDialog } from "./ReloanDialog";
 import { CollectionSummaryCards } from "./CollectionSummaryCards";
@@ -109,28 +111,27 @@ export default function CollectionDetailsModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supportingDataError, setSupportingDataError] = useState<string | null>(
-    null
+    null,
   );
   const [exporting, setExporting] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [latestCollections, setLatestCollections] = useState<Collection[]>(
-    collectionGroup?.collections ?? []
+    collectionGroup?.collections ?? [],
   );
   const [pendingPaymentMemberIds, setPendingPaymentMemberIds] = useState<
     Set<string>
   >(new Set());
   const [totalCenterMembers, setTotalCenterMembers] = useState(
-    collectionGroup?.totalMembers ?? 0
+    collectionGroup?.totalMembers ?? 0,
   );
 
   // Dialog states
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [reloanDialogOpen, setReloanDialogOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<MemberWithLoansExtended | null>(
-    null
-  );
+  const [selectedMember, setSelectedMember] =
+    useState<MemberWithLoansExtended | null>(null);
   const [toast, setToast] = useState<{
     open: boolean;
     message: string;
@@ -148,7 +149,7 @@ export default function CollectionDetailsModal({
     const source =
       latestCollections && latestCollections.length > 0
         ? latestCollections
-        : collectionGroup?.collections ?? [];
+        : (collectionGroup?.collections ?? []);
     if (source.length) {
       source.forEach((collection) => {
         map.set(collection.memberId, collection);
@@ -160,113 +161,122 @@ export default function CollectionDetailsModal({
   const shouldExportMember = useCallback(
     (member: MemberWithLoansExtended) =>
       hasActiveLoan(member) && hasLoanAmount(member),
-    []
+    [],
   );
 
-  const fetchCenterMembers = useCallback(async () => {
-    if (!collectionGroup) return;
+  const fetchCenterMembers = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!collectionGroup) return;
 
-    setLoading(true);
-    setError(null);
-    setSupportingDataError(null);
+      setLoading(true);
+      setError(null);
+      setSupportingDataError(null);
 
-    try {
-      const centerMembers = await collectionsService.getCenterMembers(
-        collectionGroup.centerId
-      );
-      setTotalCenterMembers(centerMembers.length);
-      let refreshedCollections: Collection[] = collectionGroup.collections ?? [];
       try {
-        refreshedCollections =
-          (await collectionsService.getCenterCollectionsByDate(
-            collectionGroup.centerId,
-            collectionGroup.collectionDate
-          )) ?? refreshedCollections;
-      } catch (innerErr) {
-        console.warn(
-          "Failed to refresh center collections, using existing data:",
-          innerErr
+        const centerMembers = await collectionsService.getCenterMembers(
+          collectionGroup.centerId,
+          collectionGroup.collectionDate,
+          signal,
         );
-        setSupportingDataError(
-          "Current collection details could not be refreshed. Existing collection data is shown."
-        );
-      }
-      const normalisedCollections = refreshedCollections.map((col) => ({
-        ...col,
-        amount: Number(col.amount ?? 0),
-        paymentReceived: Number(col.paymentReceived ?? 0),
-        netRelease: Number(col.netRelease ?? 0),
-        numberOfPayments: Number(col.numberOfPayments ?? 0),
-        advancePaymentAmount: Number(col.advancePaymentAmount ?? 0),
-      }));
-      setLatestCollections(normalisedCollections);
-
-      let pendingRepayments: Repayment[] = [];
-      try {
-        pendingRepayments =
-          await collectionsService.getPendingRepaymentsForCollection(
-            collectionGroup.centerId,
-            collectionGroup.collectionDate
+        setTotalCenterMembers(centerMembers.length);
+        let refreshedCollections: Collection[] =
+          collectionGroup.collections ?? [];
+        try {
+          refreshedCollections =
+            (await collectionsService.getCenterCollectionsByDate(
+              collectionGroup.centerId,
+              collectionGroup.collectionDate,
+              signal,
+            )) ?? refreshedCollections;
+        } catch (innerErr) {
+          if (signal?.aborted) throw innerErr;
+          console.warn(
+            "Failed to refresh center collections, using existing data:",
+            innerErr,
           );
-      } catch (innerErr) {
-        console.warn(
-          "Failed to refresh pending repayments, using empty pending state:",
-          innerErr
-        );
-        setSupportingDataError((current) =>
-          current
-            ? `${current} Pending payment status is also unavailable.`
-            : "Pending payment status is unavailable."
-        );
-      }
-      setPendingPaymentMemberIds(
-        new Set(
-          pendingRepayments
-            .filter((repayment) => repayment.operationType !== "reversal")
-            .map((repayment) => repayment.member?.id)
-            .filter((id): id is string => Boolean(id))
-        )
-      );
+          setSupportingDataError(
+            "Current collection details could not be refreshed. Existing collection data is shown.",
+          );
+        }
+        const normalisedCollections = refreshedCollections.map((col) => ({
+          ...col,
+          amount: Number(col.amount ?? 0),
+          paymentReceived: Number(col.paymentReceived ?? 0),
+          netRelease: Number(col.netRelease ?? 0),
+          numberOfPayments: Number(col.numberOfPayments ?? 0),
+          advancePaymentAmount: Number(col.advancePaymentAmount ?? 0),
+        }));
+        setLatestCollections(normalisedCollections);
 
-      const collectionsMap = new Map(
-        normalisedCollections.map((col) => [col.memberId, col])
-      );
-
-      const membersWithCollections = centerMembers.map((member) => ({
-        ...member,
-        collection:
-          collectionsMap.get(member.id) ??
-          collectionGroup.collections?.find(
-            (c) => c.memberId === member.id
+        let pendingRepayments: Repayment[] = [];
+        try {
+          pendingRepayments =
+            await collectionsService.getPendingRepaymentsForCollection(
+              collectionGroup.centerId,
+              collectionGroup.collectionDate,
+              signal,
+            );
+        } catch (innerErr) {
+          if (signal?.aborted) throw innerErr;
+          console.warn(
+            "Failed to refresh pending repayments, using empty pending state:",
+            innerErr,
+          );
+          setSupportingDataError((current) =>
+            current
+              ? `${current} Pending payment status is also unavailable.`
+              : "Pending payment status is unavailable.",
+          );
+        }
+        setPendingPaymentMemberIds(
+          new Set(
+            pendingRepayments
+              .filter((repayment) => repayment.operationType !== "reversal")
+              .map((repayment) => repayment.member?.id)
+              .filter((id): id is string => Boolean(id)),
           ),
-      })) as MemberWithLoansExtended[];
+        );
 
-      // Alphabetical sort: Last Name, First Name
-      membersWithCollections.sort((a, b) => {
-        const al = `${(a.lastName || "").toLowerCase()} ${(
-          a.firstName || ""
-        ).toLowerCase()}`.trim();
-        const bl = `${(b.lastName || "").toLowerCase()} ${(
-          b.firstName || ""
-        ).toLowerCase()}`.trim();
-        if (al < bl) return -1;
-        if (al > bl) return 1;
-        return 0;
-      });
+        const collectionsMap = new Map(
+          normalisedCollections.map((col) => [col.memberId, col]),
+        );
 
-      const membersWithNetRelease = membersWithCollections.map((member) =>
-        withNetReleaseForDate(member, collectionGroup.collectionDate)
-      );
+        const membersWithCollections = centerMembers.map((member) => ({
+          ...member,
+          collection:
+            collectionsMap.get(member.id) ??
+            collectionGroup.collections?.find((c) => c.memberId === member.id),
+        })) as MemberWithLoansExtended[];
 
-      setMembers(membersWithNetRelease);
-    } catch (error) {
-      console.error("Failed to fetch center members:", error);
-      setError(getApiErrorMessage(error));
-      setMembers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [collectionGroup]);
+        // Alphabetical sort: Last Name, First Name
+        membersWithCollections.sort((a, b) => {
+          const al = `${(a.lastName || "").toLowerCase()} ${(
+            a.firstName || ""
+          ).toLowerCase()}`.trim();
+          const bl = `${(b.lastName || "").toLowerCase()} ${(
+            b.firstName || ""
+          ).toLowerCase()}`.trim();
+          if (al < bl) return -1;
+          if (al > bl) return 1;
+          return 0;
+        });
+
+        const membersWithNetRelease = membersWithCollections.map((member) =>
+          withNetReleaseForDate(member, collectionGroup.collectionDate),
+        );
+
+        setMembers(membersWithNetRelease);
+      } catch (error) {
+        if (signal?.aborted) return;
+        console.error("Failed to fetch center members:", error);
+        setError(getApiErrorMessage(error));
+        setMembers([]);
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [collectionGroup],
+  );
 
   useEffect(() => {
     if (collectionGroup?.collections) {
@@ -278,7 +288,7 @@ export default function CollectionDetailsModal({
           netRelease: Number(col.netRelease ?? 0),
           numberOfPayments: Number(col.numberOfPayments ?? 0),
           advancePaymentAmount: Number(col.advancePaymentAmount ?? 0),
-        }))
+        })),
       );
       setTotalCenterMembers(collectionGroup.totalMembers ?? 0);
     }
@@ -286,7 +296,9 @@ export default function CollectionDetailsModal({
 
   useEffect(() => {
     if (open && collectionGroup) {
-      fetchCenterMembers();
+      const controller = new AbortController();
+      fetchCenterMembers(controller.signal);
+      return () => controller.abort();
     } else if (!open) {
       // Reset state when modal closes
       setMembers([]);
@@ -297,15 +309,21 @@ export default function CollectionDetailsModal({
     }
   }, [open, collectionGroup, fetchCenterMembers]);
 
-  const handleOpenPaymentDialog = useCallback((member: MemberWithLoansExtended) => {
-    setSelectedMember(member);
-    setPaymentDialogOpen(true);
-  }, []);
+  const handleOpenPaymentDialog = useCallback(
+    (member: MemberWithLoansExtended) => {
+      setSelectedMember(member);
+      setPaymentDialogOpen(true);
+    },
+    [],
+  );
 
-  const handleOpenReloanDialog = useCallback((member: MemberWithLoansExtended) => {
-    setSelectedMember(member);
-    setReloanDialogOpen(true);
-  }, []);
+  const handleOpenReloanDialog = useCallback(
+    (member: MemberWithLoansExtended) => {
+      setSelectedMember(member);
+      setReloanDialogOpen(true);
+    },
+    [],
+  );
 
   const handleClosePaymentDialog = useCallback(() => {
     setPaymentDialogOpen(false);
@@ -333,21 +351,22 @@ export default function CollectionDetailsModal({
       handleClosePaymentDialog();
       if (shouldOfferRepaymentSms(repayment)) {
         try {
-          const eligibility = await smsNotificationsApi.getRepaymentEligibility([
-            repayment.id,
-          ]);
+          const eligibility = await smsNotificationsApi.getRepaymentEligibility(
+            [repayment.id],
+          );
           setSmsCandidates(eligibility);
           setSmsDialogOpen(true);
         } catch {
           setToast({
             open: true,
-            message: "Payment recorded successfully. SMS options are temporarily unavailable.",
+            message:
+              "Payment recorded successfully. SMS options are temporarily unavailable.",
             severity: "success",
           });
         }
       }
     },
-    [fetchCenterMembers, handleClosePaymentDialog, onDataChanged]
+    [fetchCenterMembers, handleClosePaymentDialog, onDataChanged],
   );
 
   const handleReloanSuccess = useCallback(async () => {
@@ -374,7 +393,8 @@ export default function CollectionDetailsModal({
       if (pendingPaymentMemberIds.has(member.id)) {
         const statusInfo = evaluateMemberStatus(member, {
           collection,
-          referenceDate: referenceDate ?? collectionGroup?.collectionDate ?? undefined,
+          referenceDate:
+            referenceDate ?? collectionGroup?.collectionDate ?? undefined,
         });
         return {
           ...statusInfo,
@@ -384,7 +404,8 @@ export default function CollectionDetailsModal({
       }
       return evaluateMemberStatus(member, {
         collection,
-        referenceDate: referenceDate ?? collectionGroup?.collectionDate ?? undefined,
+        referenceDate:
+          referenceDate ?? collectionGroup?.collectionDate ?? undefined,
       });
     },
     [
@@ -392,7 +413,7 @@ export default function CollectionDetailsModal({
       pendingPaymentMemberIds,
       referenceDate,
       collectionGroup?.collectionDate,
-    ]
+    ],
   );
 
   const buildExportMembers = useCallback(() => {
@@ -448,13 +469,14 @@ export default function CollectionDetailsModal({
         throw new Error("No members available for export.");
       }
 
+      const { exportToExcel } = await import("../utils/exportUtils");
       await exportToExcel(collectionGroup, exportReadyMembers);
     } catch (error) {
       console.error("Export failed:", error);
       setExportError(
         error instanceof Error
           ? error.message
-          : "Export failed. Please try again."
+          : "Export failed. Please try again.",
       );
     } finally {
       setExporting(false);
@@ -481,16 +503,14 @@ export default function CollectionDetailsModal({
         const paymentInfo = member.__computed?.paymentInfo;
         const statusLabel = member.__computed?.status?.label ?? "";
         const actualPaymentsMade =
-          paymentInfo?.weeksCovered ??
-          member.collection?.numberOfPayments ??
-          0;
+          paymentInfo?.weeksCovered ?? member.collection?.numberOfPayments ?? 0;
         const activeLoan = Array.isArray(member.loans)
           ? member.loans.find(
-              (loan) => (loan?.status || "").toLowerCase() === "active"
+              (loan) => (loan?.status || "").toLowerCase() === "active",
             )
           : undefined;
         const paymentOffset = Number(
-          activeLoan?.paymentCountDisplayOffset ?? 0
+          activeLoan?.paymentCountDisplayOffset ?? 0,
         );
         const paymentsMade = Number(actualPaymentsMade || 0) + paymentOffset;
         const netReleased =
@@ -522,6 +542,8 @@ export default function CollectionDetailsModal({
         return sum + Number(metrics?.due || 0);
       }, 0);
 
+      const { exportCollectorPdf } =
+        await import("../utils/exportCollectorPdf");
       await exportCollectorPdf({
         centerName: collectionGroup.centerName,
         collectionDate: collectionGroup.collectionDate,
@@ -533,7 +555,7 @@ export default function CollectionDetailsModal({
       setExportError(
         error instanceof Error
           ? error.message
-          : "Failed to export collector report. Please try again."
+          : "Failed to export collector report. Please try again.",
       );
     } finally {
       setPdfExporting(false);
@@ -550,7 +572,7 @@ export default function CollectionDetailsModal({
         weeksCovered: statusInfo.weeksCovered,
       };
     },
-    [getMemberStatusInfo]
+    [getMemberStatusInfo],
   );
 
   const getMemberPaymentInfo = useCallback(
@@ -563,23 +585,23 @@ export default function CollectionDetailsModal({
         weeksCovered: statusInfo.weeksCovered,
       };
     },
-    [getMemberStatusInfo]
+    [getMemberStatusInfo],
   );
 
   const getStatusColor = useCallback(
     (
-      member: MemberWithLoansExtended
+      member: MemberWithLoansExtended,
     ): "default" | "success" | "warning" | "error" => {
       return getMemberStatusInfo(member).color;
     },
-    [getMemberStatusInfo]
+    [getMemberStatusInfo],
   );
 
   const getStatusLabel = useCallback(
     (member: MemberWithLoansExtended): string => {
       return getMemberStatusInfo(member).label;
     },
-    [getMemberStatusInfo]
+    [getMemberStatusInfo],
   );
 
   const computedStats = useMemo(() => {
@@ -613,7 +635,7 @@ export default function CollectionDetailsModal({
         unpaidCount: 0,
         totalOverallAmount: 0,
         totalRemainingBalance: 0,
-      }
+      },
     );
 
     return totals;
@@ -626,15 +648,15 @@ export default function CollectionDetailsModal({
   const totalsOverride = useMemo(() => {
     const totalAmount = latestCollections.reduce(
       (sum, collection) => sum + Number(collection.amount ?? 0),
-      0
+      0,
     );
     const totalReceived = latestCollections.reduce(
       (sum, collection) => sum + Number(collection.paymentReceived ?? 0),
-      0
+      0,
     );
     const pendingCollections = Math.max(
       totalCenterMembers - latestCollections.length,
-      0
+      0,
     );
 
     return {
@@ -650,7 +672,7 @@ export default function CollectionDetailsModal({
     const query = memberSearch.trim().toLowerCase();
     const base = members.filter(
       (m) =>
-        Array.isArray(m.loans) && m.loans.some((l) => l.status === "active")
+        Array.isArray(m.loans) && m.loans.some((l) => l.status === "active"),
     );
     const filtered = query
       ? base.filter((m) => {
@@ -810,7 +832,7 @@ export default function CollectionDetailsModal({
                 <Button
                   color="inherit"
                   size="small"
-                  onClick={fetchCenterMembers}
+                  onClick={() => void fetchCenterMembers()}
                 >
                   Retry
                 </Button>

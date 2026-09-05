@@ -1,36 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "react-query";
 import type { ProjectedIncomeSummary } from "../types";
 import { portfolioService } from "../api";
 import { getApiErrorMessage } from "@utils/apiError";
+import { portfolioKeys } from "./usePortfolio";
 
 export function useProjectedIncome() {
-  const [data, setData] = useState<ProjectedIncomeSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchProjectedIncomeData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const projectedIncomeData =
-        await portfolioService.getProjectedIncomeData();
-      setData(projectedIncomeData);
-    } catch (err) {
-      console.error("Failed to fetch projected income data:", err);
-      setError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchProjectedIncomeData();
-  }, [fetchProjectedIncomeData]);
+  const query = useQuery<ProjectedIncomeSummary, Error>(
+    portfolioKeys.projected,
+    ({ signal }) => portfolioService.getProjectedIncomeData(signal),
+    { staleTime: 30_000 },
+  );
 
   return {
-    data,
-    loading,
-    error,
-    refetch: fetchProjectedIncomeData,
+    data: query.data ?? null,
+    loading: query.isLoading || query.isFetching,
+    error: query.error ? getApiErrorMessage(query.error) : null,
+    refetch: async () => {
+      await query.refetch();
+    },
   };
 }

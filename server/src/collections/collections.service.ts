@@ -5,8 +5,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { Collection } from './entities/collection.entity';
+import { Repository, Between, In } from 'typeorm';
+import { AdvancePaymentStatus, Collection } from './entities/collection.entity';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { UpdateCollectionDto } from './dto/update-collection.dto';
 import { Center } from '../centers/entities/center.entity';
@@ -119,6 +119,53 @@ export class CollectionsService {
     return Number(raw?.total ?? 0);
   }
 
+  private async getMemberCountsByCenter(centerIds: string[]) {
+    if (centerIds.length === 0) return new Map<string, number>();
+
+    const rows = await this.memberRepo
+      .createQueryBuilder('member')
+      .select('member.centerId', 'centerId')
+      .addSelect('COUNT(*)', 'count')
+      .where('member.centerId IN (:...centerIds)', { centerIds })
+      .groupBy('member.centerId')
+      .getRawMany<{ centerId: string; count: string }>();
+
+    return new Map(rows.map((row) => [row.centerId, Number(row.count)]));
+  }
+
+  private async getTotalReceivedByCenterForDate(date: string) {
+    const start = new Date(date);
+    const end = new Date(date);
+    end.setDate(end.getDate() + 1);
+
+    const rows = await this.repaymentRepo
+      .createQueryBuilder('repayment')
+      .select('center.id', 'centerId')
+      .addSelect(
+        `COALESCE(SUM(CASE
+          WHEN repayment.operationType = :reversalType THEN -repayment.amount
+          ELSE repayment.amount
+        END), 0)`,
+        'total',
+      )
+      .leftJoin('repayment.center', 'center')
+      .where('repayment.status = :status', {
+        status: RepaymentStatus.APPROVED,
+      })
+      .andWhere(
+        'repayment.createdAt >= :start AND repayment.createdAt < :end',
+        {
+          start: start.toISOString(),
+          end: end.toISOString(),
+        },
+      )
+      .setParameter('reversalType', RepaymentOperationType.REVERSAL)
+      .groupBy('center.id')
+      .getRawMany<{ centerId: string; total: string }>();
+
+    return new Map(rows.map((row) => [row.centerId, Number(row.total)]));
+  }
+
   async create(createCollectionDto: CreateCollectionDto) {
     const center = await this.centerRepo.findOneBy({
       id: createCollectionDto.centerId,
@@ -153,8 +200,12 @@ export class CollectionsService {
       }
 
       return await this.collectionsRepository.findAllWithQuery(query);
-    } catch (err: any) {
-      this.logger.error('Failed to fetch collections', err?.stack || err);
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : null;
+      this.logger.error(
+        'Failed to fetch collections',
+        error?.stack ?? String(err),
+      );
 
       // Re-throw BadRequestException with specific message
       if (err instanceof BadRequestException) {
@@ -163,7 +214,7 @@ export class CollectionsService {
 
       // Generic error for other issues
       throw new BadRequestException(
-        'Invalid query parameters: ' + (err.message || 'Unknown error'),
+        'Invalid query parameters: ' + (error?.message ?? 'Unknown error'),
       );
     }
   }
@@ -226,72 +277,63 @@ export class CollectionsService {
       where: { collectionDay: weekday },
     });
 
-    const dailyCollections: any[] = [];
+    const centerIds = centers.map((center) => center.id);
+    if (centerIds.length === 0) return [];
 
-    for (const center of centers) {
-      const existingCollections = await this.collectionRepo.find({
-        where: {
-          centerId: center.id,
-          collectionDate: dateString,
-        },
+    const [collections, memberCounts, receivedTotals] = await Promise.all([
+      this.collectionRepo.find({
+        where: { centerId: In(centerIds), collectionDate: dateString },
         relations: ['member'],
-      });
+      }),
+      this.getMemberCountsByCenter(centerIds),
+      this.getTotalReceivedByCenterForDate(dateString),
+    ]);
+    const collectionsByCenter = new Map<string, Collection[]>();
+    for (const collection of collections) {
+      const entries = collectionsByCenter.get(collection.centerId) ?? [];
+      entries.push(collection);
+      collectionsByCenter.set(collection.centerId, entries);
+    }
 
-      const centerMembers = await this.memberRepo.find({
-        where: { center: { id: center.id } },
-      });
-
-      const centerCollectionList = {
+    return centers.map((center) => {
+      const existingCollections = collectionsByCenter.get(center.id) ?? [];
+      const totalMembers = memberCounts.get(center.id) ?? 0;
+      return {
         centerId: center.id,
         centerName: center.name,
         collectionDay: center.collectionDay,
         collectionDate: dateString,
-        totalMembers: centerMembers.length,
+        totalMembers,
         collections: existingCollections,
-        pendingCollections: centerMembers.length - existingCollections.length,
+        pendingCollections: totalMembers - existingCollections.length,
         totalAmount: existingCollections.reduce(
           (sum, c) => sum + Number(c.amount),
           0,
         ),
-        totalReceived: await this.calculateTotalReceivedForDate(
-          center.id,
-          dateString,
-        ),
+        totalReceived: receivedTotals.get(center.id) ?? 0,
       };
-
-      dailyCollections.push(centerCollectionList);
-    }
-
-    return dailyCollections;
+    });
   }
 
   async getAllCollectionsGrouped(dateParam?: string) {
     const centers = await this.centerRepo.find();
     const centerMap = new Map(centers.map((center) => [center.id, center]));
 
-    const centerMembers = await this.memberRepo.find({
-      relations: ['center'],
-    });
-
-    const membersMap = new Map<string, Member[]>();
-    for (const member of centerMembers) {
-      const memberCenterId = member.center?.id;
-      if (!memberCenterId) continue;
-      if (!membersMap.has(memberCenterId)) {
-        membersMap.set(memberCenterId, []);
-      }
-      membersMap.get(memberCenterId)!.push(member);
-    }
-
     const targetDate = dateParam
       ? this.formatDateString(this.resolveTargetDate(dateParam))
       : null;
 
-    const collections = await this.collectionRepo.find({
-      where: targetDate ? { collectionDate: targetDate } : {},
-      relations: ['member'],
-      order: { collectionDate: 'ASC', createdAt: 'ASC' },
-    });
+    const [memberCounts, collections, receivedTotals] = await Promise.all([
+      this.getMemberCountsByCenter(centers.map((center) => center.id)),
+      this.collectionRepo.find({
+        where: targetDate ? { collectionDate: targetDate } : {},
+        relations: ['member'],
+        order: { collectionDate: 'ASC', createdAt: 'ASC' },
+      }),
+      targetDate
+        ? this.getTotalReceivedByCenterForDate(targetDate)
+        : Promise.resolve(new Map<string, number>()),
+    ]);
 
     const grouped = new Map<
       string,
@@ -324,24 +366,26 @@ export class CollectionsService {
           return null;
         }
 
-        const members = membersMap.get(entry.centerId) ?? [];
+        const totalMembers = memberCounts.get(entry.centerId) ?? 0;
         const totalAmount = entry.collections.reduce(
           (sum, c) => sum + Number(c.amount || 0),
           0,
         );
-        const totalReceived = await this.calculateTotalReceivedForDate(
-          entry.centerId,
-          entry.collectionDate,
-        );
+        const totalReceived = targetDate
+          ? (receivedTotals.get(entry.centerId) ?? 0)
+          : await this.calculateTotalReceivedForDate(
+              entry.centerId,
+              entry.collectionDate,
+            );
 
         return {
           centerId: entry.centerId,
           centerName: center.name,
           collectionDay: center.collectionDay,
           collectionDate: entry.collectionDate,
-          totalMembers: members.length,
+          totalMembers,
           pendingCollections: Math.max(
-            members.length - entry.collections.length,
+            totalMembers - entry.collections.length,
             0,
           ),
           totalAmount,
@@ -361,14 +405,15 @@ export class CollectionsService {
           !existingGroups.some((group) => group.centerId === center.id),
       )
       .map((center) => {
-        const members = membersMap.get(center.id) ?? [];
+        const totalMembers = memberCounts.get(center.id) ?? 0;
         return {
           centerId: center.id,
           centerName: center.name,
           collectionDay: center.collectionDay,
-          collectionDate: targetDate ?? this.getNextCollectionDate(center.collectionDay),
-          totalMembers: members.length,
-          pendingCollections: members.length,
+          collectionDate:
+            targetDate ?? this.getNextCollectionDate(center.collectionDay),
+          totalMembers,
+          pendingCollections: totalMembers,
           totalAmount: 0,
           totalReceived: 0,
           collections: [],
@@ -428,7 +473,7 @@ export class CollectionsService {
       where: { center: { id: centerId } },
     });
 
-    const collections: any[] = [];
+    const collections: Collection[] = [];
     for (const member of centerMembers) {
       const defaultAmount = 100;
 
@@ -443,7 +488,7 @@ export class CollectionsService {
         notes: 'Auto-generated collection',
         numberOfPayments: 0,
         advancePaymentAmount: 0,
-        advancePaymentStatus: 'none' as any,
+        advancePaymentStatus: AdvancePaymentStatus.NONE,
       });
 
       collections.push(collection);

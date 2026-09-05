@@ -33,6 +33,12 @@ export class CentersController {
   }
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
+  @Get('options')
+  findOptions() {
+    return this.centersService.findOptions();
+  }
+
+  @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.centersService.findOne(id);

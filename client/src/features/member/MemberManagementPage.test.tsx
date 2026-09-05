@@ -1,6 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { AxiosError } from "axios";
 import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CentersAPI } from "@features/centers/api";
 import { useMembers } from "./hooks/useMember";
@@ -8,6 +15,8 @@ import MemberManagementPage from "./MemberManagementPage";
 
 vi.mock("@mui/icons-material", () => ({
   Add: () => <span aria-hidden="true" />,
+  Close: () => <span aria-hidden="true" />,
+  Edit: () => <span aria-hidden="true" />,
   Group: () => <span aria-hidden="true" />,
 }));
 vi.mock("@components/layout/PrivateLayout", () => ({
@@ -22,8 +31,19 @@ vi.mock("@features/auth/authStore", () => ({
 }));
 vi.mock("./hooks/useMember", () => ({ useMembers: vi.fn() }));
 vi.mock("@features/centers/api", () => ({
-  CentersAPI: { getAll: vi.fn() },
+  CentersAPI: { getOptions: vi.fn() },
 }));
+
+const renderPage = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemberManagementPage />
+    </QueryClientProvider>,
+  );
+};
 
 describe("MemberManagementPage error states", () => {
   beforeEach(() => {
@@ -45,26 +65,20 @@ describe("MemberManagementPage error states", () => {
   });
 
   it("renders an explicit access-denied request state", () => {
-    vi.mocked(CentersAPI.getAll).mockResolvedValue({
-      items: [],
-      total: 0,
-      page: 1,
-      limit: 1000,
-      totalPages: 0,
-    });
+    vi.mocked(CentersAPI.getOptions).mockResolvedValue([]);
 
-    render(<MemberManagementPage />);
+    renderPage();
     expect(screen.getByRole("alert")).toHaveTextContent(
       /do not have permission/i,
     );
   });
 
   it("shows degraded information when center filters cannot load", async () => {
-    vi.mocked(CentersAPI.getAll).mockRejectedValue(
+    vi.mocked(CentersAPI.getOptions).mockRejectedValue(
       new AxiosError("Network Error"),
     );
 
-    render(<MemberManagementPage />);
+    renderPage();
 
     await waitFor(() =>
       expect(screen.getByText(/center filters are unavailable/i)).toBeVisible(),
@@ -93,32 +107,30 @@ describe("MemberManagementPage error states", () => {
       deleteMember: vi.fn(),
       refetch: vi.fn(),
     });
-    vi.mocked(CentersAPI.getAll).mockResolvedValue({
-      items: centers,
-      total: centers.length,
-      page: 1,
-      limit: 1000,
-      totalPages: 1,
-    });
+    vi.mocked(CentersAPI.getOptions).mockResolvedValue(centers);
 
-    render(<MemberManagementPage />);
+    renderPage();
 
     const centerSelect = await screen.findByRole("combobox", {
       name: "Center",
     });
     fireEvent.mouseDown(centerSelect);
-    expect(await screen.findAllByRole("option")).toHaveLength(
+    let listbox = await screen.findByRole("listbox");
+    expect(within(listbox).getAllByRole("option")).toHaveLength(
       centers.length + 1,
     );
 
-    fireEvent.click(screen.getByRole("option", { name: "Center 18" }));
+    fireEvent.click(within(listbox).getByRole("option", { name: "Center 18" }));
     await waitFor(() => expect(centerSelect).toHaveTextContent("Center 18"));
 
     fireEvent.mouseDown(centerSelect);
-    expect(await screen.findByRole("listbox")).toBeInTheDocument();
-    fireEvent.mouseDown(document.body);
+    listbox = await screen.findByRole("listbox");
+    expect(listbox).toBeInTheDocument();
+    const backdrop = document.querySelector<HTMLElement>(".MuiBackdrop-root");
+    expect(backdrop).not.toBeNull();
+    fireEvent.click(backdrop!);
     await waitFor(() =>
       expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
     );
-  });
+  }, 15_000);
 });

@@ -1,5 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { AxiosError, AxiosHeaders } from "axios";
+import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { portfolioService } from "../api";
 import { usePortfolio } from "./usePortfolio";
@@ -18,6 +20,15 @@ function serverError() {
   });
 }
 
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+};
+
 describe("usePortfolio", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -27,7 +38,9 @@ describe("usePortfolio", () => {
   });
 
   it("returns a safe server error and supports retry", async () => {
-    const { result } = renderHook(() => usePortfolio());
+    const { result } = renderHook(() => usePortfolio(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toContain("server could not complete");
@@ -38,5 +51,8 @@ describe("usePortfolio", () => {
     });
 
     expect(portfolioService.getPortfolioData).toHaveBeenCalledTimes(2);
+    expect(portfolioService.getPortfolioData).toHaveBeenLastCalledWith(
+      expect.any(AbortSignal),
+    );
   });
 });

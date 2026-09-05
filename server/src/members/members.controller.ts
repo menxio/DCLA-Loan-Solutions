@@ -13,6 +13,7 @@ import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { FindMembersQueryDto } from './dto/find-members-query.dto';
+import { FindCenterMembersQueryDto } from './dto/find-center-members-query.dto';
 import { ROLE } from '../auth/roles.constants';
 import { Roles } from '../auth/roles.decorator';
 
@@ -40,8 +41,11 @@ export class MembersController {
 
   @Roles(ROLE.Manager, ROLE.Cashier, ROLE.LoanProcessor)
   @Get('center/:centerId')
-  getCenterMembers(@Param('centerId', new ParseUUIDPipe()) centerId: string) {
-    return this.membersService.getCenterMembers(centerId);
+  getCenterMembers(
+    @Param('centerId', new ParseUUIDPipe()) centerId: string,
+    @Query() query: FindCenterMembersQueryDto,
+  ) {
+    return this.membersService.getCenterMembers(centerId, query.date);
   }
 
   @Roles(ROLE.LoanProcessor)

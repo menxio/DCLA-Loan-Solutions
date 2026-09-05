@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  Max,
   MinLength,
   IsUUID,
 } from 'class-validator';
@@ -20,6 +21,7 @@ export class FindCollectionsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   @IsOptional()
   limit?: number = 10;
 

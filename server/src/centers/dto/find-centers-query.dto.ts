@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class FindCentersQueryDto {
   @Type(() => Number)
@@ -11,6 +11,7 @@ export class FindCentersQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   @IsOptional()
   limit?: number = 10;
 
@@ -18,5 +19,3 @@ export class FindCentersQueryDto {
   @IsOptional()
   search?: string;
 }
-
-

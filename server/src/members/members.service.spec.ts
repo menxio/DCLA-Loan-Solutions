@@ -17,6 +17,8 @@ describe('MembersService', () => {
     exists: jest.Mock;
     delete: jest.Mock;
   };
+  let memberRepository: { find: jest.Mock; createQueryBuilder: jest.Mock };
+  let loanRepository: { createQueryBuilder: jest.Mock };
 
   beforeEach(async () => {
     manager = {
@@ -30,12 +32,14 @@ describe('MembersService', () => {
           callback(manager),
       ),
     };
+    memberRepository = { find: jest.fn(), createQueryBuilder: jest.fn() };
+    loanRepository = { createQueryBuilder: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MembersService,
-        { provide: getRepositoryToken(Member), useValue: {} },
+        { provide: getRepositoryToken(Member), useValue: memberRepository },
         { provide: getRepositoryToken(Center), useValue: {} },
-        { provide: getRepositoryToken(Loan), useValue: {} },
+        { provide: getRepositoryToken(Loan), useValue: loanRepository },
         { provide: getRepositoryToken(Repayment), useValue: {} },
         { provide: getRepositoryToken(Savings), useValue: {} },
         { provide: DataSource, useValue: dataSource },
@@ -107,5 +111,92 @@ describe('MembersService', () => {
 
     expect(manager.exists).not.toHaveBeenCalled();
     expect(manager.delete).not.toHaveBeenCalled();
+  });
+
+  it('loads center loans in one batch without changing the response aggregates', async () => {
+    const members = [
+      { id: 'member-1', center: { id: 'center-1' } },
+      { id: 'member-2', center: { id: 'center-1' } },
+    ] as Member[];
+    const loans = [
+      {
+        id: 'loan-1',
+        borrower: members[0],
+        status: 'active',
+        principalAmount: 1000,
+        balance: 700,
+        totalAmount: 1200,
+        weeklyPaymentAmount: 100,
+        termWeeks: 12,
+        savings: 50,
+        netCashReleased: 900,
+      },
+      {
+        id: 'loan-2',
+        borrower: members[1],
+        status: 'paid',
+        principalAmount: 500,
+        balance: 0,
+      },
+    ] as Loan[];
+    const queryBuilder = {
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue(loans),
+    };
+    memberRepository.find.mockResolvedValue(members);
+    loanRepository.createQueryBuilder.mockReturnValue(queryBuilder);
+
+    const result = await service.getCenterMembers('center-1', '2026-09-05');
+
+    expect(memberRepository.find).toHaveBeenCalledTimes(1);
+    expect(loanRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
+    expect(queryBuilder.getMany).toHaveBeenCalledTimes(1);
+    expect(queryBuilder.where).toHaveBeenCalledWith(
+      'borrower.id IN (:...memberIds)',
+      { memberIds: ['member-1', 'member-2'] },
+    );
+    expect(result[0]).toMatchObject({
+      id: 'member-1',
+      totalLoanAmount: 1000,
+      totalBalance: 700,
+      overallAmount: 1200,
+      weeklyPaymentAmount: 100,
+      totalSavings: 50,
+      netCashReleased: 900,
+    });
+    expect(result[0].loans[0]).not.toHaveProperty('borrower');
+    expect(result[1].loans).toHaveLength(1);
+  });
+
+  it('filters before paging and uses the member id as a stable tie-breaker', async () => {
+    const queryBuilder = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    memberRepository.createQueryBuilder.mockReturnValue(queryBuilder);
+
+    await service.findAll({
+      page: 2,
+      limit: 10,
+      search: 'del',
+      centerId: 'c1',
+    });
+
+    expect(queryBuilder.andWhere.mock.invocationCallOrder[0]).toBeLessThan(
+      queryBuilder.skip.mock.invocationCallOrder[0],
+    );
+    expect(queryBuilder.addOrderBy).toHaveBeenLastCalledWith(
+      'member.id',
+      'ASC',
+    );
+    expect(queryBuilder.skip).toHaveBeenCalledWith(10);
+    expect(queryBuilder.take).toHaveBeenCalledWith(10);
   });
 });

@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -17,11 +17,7 @@ import {
 } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import {
-  Add,
-  Edit,
-  Close,
-} from "@mui/icons-material";
+import { Add, Edit, Close } from "@mui/icons-material";
 import type { Member, MemberFormData } from "../types";
 import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
@@ -61,6 +57,7 @@ export default function MemberModal({
   const [centerInput, setCenterInput] = useState("");
   const [centerQuery, setCenterQuery] = useState("");
   const [selectedCenter, setSelectedCenter] = useState<Center | null>(null);
+  const centerRequestControllerRef = useRef<AbortController | null>(null);
 
   const isEditing = Boolean(member);
 
@@ -86,23 +83,42 @@ export default function MemberModal({
     if (!open) {
       return;
     }
-    const loadCenters = async (page: number, search: string, append = false) => {
+    const controller = new AbortController();
+    centerRequestControllerRef.current?.abort();
+    centerRequestControllerRef.current = controller;
+
+    const loadCenters = async (
+      page: number,
+      search: string,
+      append = false,
+    ) => {
       try {
         if (append) {
           setLoadingMoreCenters(true);
         } else {
           setLoadingCenters(true);
         }
-        const centersData = await CentersAPI.getAll({ page, limit: 20, search });
-        const items = Array.isArray(centersData) ? centersData : centersData.items ?? [];
-        const totalPages = Array.isArray(centersData) ? 1 : centersData.totalPages ?? 1;
+        const centersData = await CentersAPI.getAll(
+          { page, limit: 20, search },
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        const items = Array.isArray(centersData)
+          ? centersData
+          : (centersData.items ?? []);
+        const totalPages = Array.isArray(centersData)
+          ? 1
+          : (centersData.totalPages ?? 1);
         setCentersTotalPages(totalPages);
         setCenters((prev) => mergeCenters(prev, items, append, selectedCenter));
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error("Failed to load centers:", error);
       } finally {
-        setLoadingCenters(false);
-        setLoadingMoreCenters(false);
+        if (!controller.signal.aborted) {
+          setLoadingCenters(false);
+          setLoadingMoreCenters(false);
+        }
       }
     };
 
@@ -111,7 +127,10 @@ export default function MemberModal({
       loadCenters(1, centerQuery, false);
     }, 300);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [open, centerQuery, selectedCenter]);
 
   useEffect(() => {
@@ -154,8 +173,7 @@ export default function MemberModal({
   type MemberTextField = Exclude<keyof MemberFormData, "birthDate">;
 
   const handleInputChange =
-    (field: MemberTextField) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (field: MemberTextField) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
 
       setFormData((prev) => ({
@@ -175,7 +193,10 @@ export default function MemberModal({
       }
     };
 
-  const handleCenterChange = (_: React.SyntheticEvent, value: Center | null) => {
+  const handleCenterChange = (
+    _: React.SyntheticEvent,
+    value: Center | null,
+  ) => {
     setSelectedCenter(value);
     setCenterInput(value?.name ?? "");
     setFormData((prev) => ({
@@ -198,28 +219,42 @@ export default function MemberModal({
   const handleCenterScroll = (event: React.UIEvent<HTMLUListElement>) => {
     const listboxNode = event.currentTarget;
     const nearBottom =
-      listboxNode.scrollTop + listboxNode.clientHeight >= listboxNode.scrollHeight - 32;
+      listboxNode.scrollTop + listboxNode.clientHeight >=
+      listboxNode.scrollHeight - 32;
 
-    if (nearBottom && !loadingCenters && !loadingMoreCenters && centersPage < centersTotalPages) {
+    if (
+      nearBottom &&
+      !loadingCenters &&
+      !loadingMoreCenters &&
+      centersPage < centersTotalPages
+    ) {
       const nextPage = centersPage + 1;
+      const controller = new AbortController();
+      centerRequestControllerRef.current?.abort();
+      centerRequestControllerRef.current = controller;
       setLoadingMoreCenters(true);
       setCentersPage(nextPage);
-      CentersAPI.getAll({ page: nextPage, limit: 20, search: centerQuery })
+      CentersAPI.getAll(
+        { page: nextPage, limit: 20, search: centerQuery },
+        controller.signal,
+      )
         .then((centersData) => {
+          if (controller.signal.aborted) return;
           const items = Array.isArray(centersData)
             ? centersData
-            : centersData.items ?? [];
+            : (centersData.items ?? []);
           const totalPages = Array.isArray(centersData)
             ? 1
-            : centersData.totalPages ?? 1;
+            : (centersData.totalPages ?? 1);
           setCentersTotalPages(totalPages);
           setCenters((prev) => mergeCenters(prev, items, true, selectedCenter));
         })
         .catch((error) => {
+          if (controller.signal.aborted) return;
           console.error("Failed to load more centers:", error);
         })
         .finally(() => {
-          setLoadingMoreCenters(false);
+          if (!controller.signal.aborted) setLoadingMoreCenters(false);
         });
     }
   };
@@ -344,9 +379,9 @@ export default function MemberModal({
                   label="Birth Date"
                   value={formData.birthDate}
                   onChange={(newValue) => {
-                    setFormData(prev => ({ ...prev, birthDate: newValue }));
+                    setFormData((prev) => ({ ...prev, birthDate: newValue }));
                     if (errors.birthDate) {
-                      setErrors(prev => ({ ...prev, birthDate: undefined }));
+                      setErrors((prev) => ({ ...prev, birthDate: undefined }));
                     }
                   }}
                   maxDate={new Date()} // Cannot be in the future
@@ -357,7 +392,10 @@ export default function MemberModal({
                       fullWidth: true,
                       required: true,
                       error: Boolean(errors.birthDate),
-                      helperText: typeof errors.birthDate === 'string' ? errors.birthDate : "",
+                      helperText:
+                        typeof errors.birthDate === "string"
+                          ? errors.birthDate
+                          : "",
                     },
                   }}
                 />
@@ -382,7 +420,9 @@ export default function MemberModal({
                 filterOptions={(options) => options}
                 getOptionLabel={(option) => option.name || ""}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
-                noOptionsText={centerInput ? "No centers found" : "No centers available"}
+                noOptionsText={
+                  centerInput ? "No centers found" : "No centers available"
+                }
                 ListboxProps={{
                   onScroll: handleCenterScroll,
                   style: { maxHeight: 240, overflow: "auto" },
@@ -420,7 +460,13 @@ export default function MemberModal({
               color="primary"
               disabled={loading}
               startIcon={
-                loading ? <CircularProgress size={16} /> : isEditing ? <Edit /> : <Add />
+                loading ? (
+                  <CircularProgress size={16} />
+                ) : isEditing ? (
+                  <Edit />
+                ) : (
+                  <Add />
+                )
               }
             >
               {loading ? "Saving..." : isEditing ? "Update" : "Create"}

@@ -1,4 +1,5 @@
 import { useState, useEffect, Suspense, lazy } from "react";
+import { useQuery } from "react-query";
 import {
   Box,
   Typography,
@@ -17,9 +18,9 @@ import { Add, Group } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import MemberCards from "./components/MemberCards";
 import { useMembers } from "./hooks/useMember";
-import type { Member, MemberFormData, MembersQuery } from "./types";
-import type { Center } from "@features/centers/types";
+import type { Member, MemberFormData } from "./types";
 import { CentersAPI } from "@features/centers/api";
+import { centerKeys } from "@features/centers/hooks/useCenters";
 import FullScreenLoader from "@components/common/FullScreenLoader";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import RequestErrorAlert from "@components/common/RequestErrorAlert";
@@ -36,6 +37,9 @@ const SavingsDepositDialog = lazy(
 export default function MembersPage() {
   const role = useAuthStore((state) => state.user?.role ?? "");
   const savingsActionsAllowed = canManageSavings(role);
+  const [selectedCenterId, setSelectedCenterId] = useState<string>("");
+  const [searchMember, setSearchMember] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const {
     members,
     total,
@@ -48,7 +52,15 @@ export default function MembersPage() {
     updateMember,
     deleteMember,
     refetch,
-  } = useMembers();
+  } = useMembers({
+    search: debouncedSearch || undefined,
+    centerId: selectedCenterId || undefined,
+  });
+  const centersQuery = useQuery(
+    centerKeys.options,
+    ({ signal }) => CentersAPI.getOptions(signal),
+    { staleTime: 5 * 60_000 },
+  );
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | undefined>(
@@ -63,31 +75,28 @@ export default function MembersPage() {
     message: "",
     severity: "success",
   });
-  const [centers, setCenters] = useState<Center[]>([]);
-  const [selectedCenterId, setSelectedCenterId] = useState<string>("");
   const [loanModalOpen, setLoanModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [savingsDialogOpen, setSavingsDialogOpen] = useState(false);
   const [savingsMember, setSavingsMember] = useState<Member | null>(null);
-  const [searchMember, setSearchMember] = useState("");
-  const [centersError, setCentersError] = useState<string | null>(null);
+  const centers = centersQuery.data ?? [];
+  const centersError = centersQuery.error
+    ? `Center filters are unavailable. ${getApiErrorMessage(centersQuery.error)}`
+    : null;
 
-  // Reset to page 1 and refetch when filters change
   useEffect(() => {
     setPage(1);
-  }, [selectedCenterId, searchMember, setPage]);
+    const timer = setTimeout(
+      () => setDebouncedSearch(searchMember.trim()),
+      300,
+    );
+    return () => clearTimeout(timer);
+  }, [searchMember, setPage]);
 
-  // Refetch whenever filters, page, or limit change (server-side filtering)
-  useEffect(() => {
-    const query: MembersQuery = {
-      page,
-      limit,
-      search: searchMember.trim() || undefined,
-      centerId: selectedCenterId || undefined,
-    };
-
-    refetch(query);
-  }, [page, limit, selectedCenterId, searchMember, refetch]);
+  const handleCenterFilterChange = (centerId: string) => {
+    setSelectedCenterId(centerId);
+    setPage(1);
+  };
 
   const showSnackbar = (
     message: string,
@@ -173,36 +182,10 @@ export default function MembersPage() {
     })}`;
 
   const handleSavingsSuccess = async () => {
-    const query: MembersQuery = {
-      page,
-      limit,
-      search: searchMember.trim() || undefined,
-      centerId: selectedCenterId || undefined,
-    };
-    await refetch(query);
+    await refetch();
     showSnackbar("Savings deposit recorded!");
     handleCloseSavingsDialog();
   };
-
-  // Load centers on component mount
-  useEffect(() => {
-    const loadCenters = async () => {
-      try {
-        setCentersError(null);
-        const centersData = await CentersAPI.getAll({ limit: 1000 });
-        setCenters(
-          Array.isArray(centersData) ? centersData : (centersData.items ?? []),
-        );
-      } catch (error) {
-        console.error("Failed to load centers:", error);
-        setCentersError(
-          `Center filters are unavailable. ${getApiErrorMessage(error)}`,
-        );
-      }
-    };
-
-    loadCenters();
-  }, []);
 
   // Use server-side filtered results directly
   const filteredMembers = members;
@@ -310,11 +293,12 @@ export default function MembersPage() {
                   width: { xs: "100%", sm: "auto" },
                 }}
               >
-                <InputLabel>Center</InputLabel>
+                <InputLabel id="member-center-filter-label">Center</InputLabel>
                 <Select
+                  labelId="member-center-filter-label"
                   value={selectedCenterId}
                   label="Center"
-                  onChange={(e) => setSelectedCenterId(e.target.value)}
+                  onChange={(e) => handleCenterFilterChange(e.target.value)}
                   MenuProps={{
                     anchorOrigin: {
                       vertical: "bottom",
@@ -420,15 +404,17 @@ export default function MembersPage() {
         </Box>
 
         {/* Member Modal */}
-        <Suspense fallback={<FullScreenLoader />}>
-          <MemberModal
-            open={modalOpen}
-            member={editingMember}
-            onClose={handleCloseModal}
-            onSubmit={handleFormSubmit}
-            loading={loading}
-          />
-        </Suspense>
+        {modalOpen && (
+          <Suspense fallback={<FullScreenLoader />}>
+            <MemberModal
+              open
+              member={editingMember}
+              onClose={handleCloseModal}
+              onSubmit={handleFormSubmit}
+              loading={loading}
+            />
+          </Suspense>
+        )}
 
         {/* Loan Modal */}
         {selectedMember && (
@@ -443,15 +429,17 @@ export default function MembersPage() {
         )}
 
         {/* Savings Deposit Dialog */}
-        <Suspense fallback={<FullScreenLoader />}>
-          <SavingsDepositDialog
-            open={savingsDialogOpen}
-            member={savingsMember}
-            onClose={handleCloseSavingsDialog}
-            onSuccess={handleSavingsSuccess}
-            formatCurrency={formatCurrency}
-          />
-        </Suspense>
+        {savingsDialogOpen && (
+          <Suspense fallback={<FullScreenLoader />}>
+            <SavingsDepositDialog
+              open
+              member={savingsMember}
+              onClose={handleCloseSavingsDialog}
+              onSuccess={handleSavingsSuccess}
+              formatCurrency={formatCurrency}
+            />
+          </Suspense>
+        )}
 
         {/* Success/Error Snackbar */}
         <Snackbar

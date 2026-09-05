@@ -85,6 +85,7 @@ export class MembersService {
     qb.orderBy('member.lastName', 'ASC')
       .addOrderBy('member.firstName', 'ASC')
       .addOrderBy('member.middleName', 'ASC')
+      .addOrderBy('member.id', 'ASC')
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -153,65 +154,89 @@ export class MembersService {
   /**
    * Get all members for a specific center with loan information
    */
-  async getCenterMembers(centerId: string) {
+  async getCenterMembers(centerId: string, date?: string) {
     const members = await this.memberRepository.find({
       where: { center: { id: centerId } },
       relations: ['center'],
     });
 
-    // Get loan information for each member
-    const membersWithLoans = await Promise.all(
-      members.map(async (member) => {
-        const loans = await this.loanRepository.find({
-          where: { borrower: { id: member.id } },
-        });
+    if (members.length === 0) {
+      return [];
+    }
 
-        const totalLoanAmount = loans
-          .filter((loan) => loan.status === 'active')
-          .reduce((sum, loan) => sum + Number(loan.principalAmount), 0);
-        const totalBalance = loans
-          .filter((loan) => loan.status === 'active')
-          .reduce((sum, loan) => sum + Number(loan.balance), 0);
+    const loanQuery = this.loanRepository
+      .createQueryBuilder('loan')
+      .innerJoinAndSelect('loan.borrower', 'borrower')
+      .where('borrower.id IN (:...memberIds)', {
+        memberIds: members.map((member) => member.id),
+      });
 
-        // Calculate overall amount (principal + interest) - only for active loans
-        const overallAmount = loans
-          .filter((loan) => loan.status === 'active')
-          .reduce((sum, loan) => sum + Number(loan.totalAmount), 0);
+    if (date) {
+      loanQuery.andWhere(
+        `(loan.status = :activeStatus OR
+          COALESCE(loan."loanCreatedDate", loan."createdAt")::date = :referenceDate)`,
+        { activeStatus: 'active', referenceDate: date },
+      );
+    }
 
-        // Calculate weekly payment amount (sum of all active loans' weekly payments)
-        const weeklyPaymentAmount = loans
-          .filter((loan) => loan.status === 'active')
-          .reduce((sum, loan) => sum + Number(loan.weeklyPaymentAmount), 0);
+    const loans = await loanQuery.getMany();
+    const loansByMember = new Map<string, Omit<Loan, 'borrower'>[]>();
 
-        // Calculate total term weeks (sum of all active loans' terms)
-        const totalTermWeeks = loans
-          .filter((loan) => loan.status === 'active')
-          .reduce((sum, loan) => sum + Number(loan.termWeeks), 0);
+    for (const loan of loans) {
+      const memberId = loan.borrower.id;
+      const { borrower, ...serializedLoan } = loan;
+      void borrower;
+      const memberLoans = loansByMember.get(memberId) ?? [];
+      memberLoans.push(serializedLoan);
+      loansByMember.set(memberId, memberLoans);
+    }
 
-        // Savings displayed in collections view should reflect the active loan's savings balance only
-        const activeLoanSavings =
-          loans.find((loan) => loan.status === 'active')?.savings ?? 0;
-        const totalSavings = Number(activeLoanSavings) || 0;
+    return members.map((member) => {
+      const memberLoans = loansByMember.get(member.id) ?? [];
 
-        // Sum of net cash released across active loans only (reloans)
-        const netCashReleased = loans
-          .filter((loan) => loan.status === 'active')
-          .reduce((sum, loan) => sum + Number(loan.netCashReleased || 0), 0);
+      const totalLoanAmount = memberLoans
+        .filter((loan) => loan.status === 'active')
+        .reduce((sum, loan) => sum + Number(loan.principalAmount), 0);
+      const totalBalance = memberLoans
+        .filter((loan) => loan.status === 'active')
+        .reduce((sum, loan) => sum + Number(loan.balance), 0);
 
-        return {
-          ...member,
-          loans,
-          totalLoanAmount,
-          totalBalance,
-          overallAmount,
-          weeklyPaymentAmount,
-          totalTermWeeks,
-          totalSavings,
-          netCashReleased,
-        };
-      }),
-    );
+      // Calculate overall amount (principal + interest) - only for active loans
+      const overallAmount = memberLoans
+        .filter((loan) => loan.status === 'active')
+        .reduce((sum, loan) => sum + Number(loan.totalAmount), 0);
 
-    return membersWithLoans;
+      // Calculate weekly payment amount (sum of all active loans' weekly payments)
+      const weeklyPaymentAmount = memberLoans
+        .filter((loan) => loan.status === 'active')
+        .reduce((sum, loan) => sum + Number(loan.weeklyPaymentAmount), 0);
+
+      // Calculate total term weeks (sum of all active loans' terms)
+      const totalTermWeeks = memberLoans
+        .filter((loan) => loan.status === 'active')
+        .reduce((sum, loan) => sum + Number(loan.termWeeks), 0);
+
+      // Savings displayed in collections view should reflect the active loan's savings balance only
+      const activeLoanSavings =
+        memberLoans.find((loan) => loan.status === 'active')?.savings ?? 0;
+      const totalSavings = Number(activeLoanSavings) || 0;
+
+      // Sum of net cash released across active loans only (reloans)
+      const netCashReleased = memberLoans
+        .filter((loan) => loan.status === 'active')
+        .reduce((sum, loan) => sum + Number(loan.netCashReleased || 0), 0);
+
+      return {
+        ...member,
+        loans: memberLoans,
+        totalLoanAmount,
+        totalBalance,
+        overallAmount,
+        weeklyPaymentAmount,
+        totalTermWeeks,
+        totalSavings,
+        netCashReleased,
+      };
+    });
   }
 }

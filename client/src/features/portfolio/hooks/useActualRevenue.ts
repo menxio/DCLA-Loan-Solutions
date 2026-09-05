@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "react-query";
 import { portfolioService } from "../api";
 import type {
   ActualRevenueSummary,
@@ -6,40 +6,25 @@ import type {
   RevenueGranularity,
 } from "../types";
 import { getApiErrorMessage } from "@utils/apiError";
+import { portfolioKeys } from "./usePortfolio";
 
 export function useActualRevenue(
   granularity: RevenueGranularity,
   filter?: RevenueDateFilter,
 ) {
-  const [data, setData] = useState<ActualRevenueSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchActualRevenueData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const actualRevenueData = await portfolioService.getActualRevenueData(
-        granularity,
-        filter,
-      );
-      setData(actualRevenueData);
-    } catch (err) {
-      console.error("Failed to fetch actual revenue data:", err);
-      setError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [filter?.month, filter?.year, granularity]);
-
-  useEffect(() => {
-    fetchActualRevenueData();
-  }, [fetchActualRevenueData]);
+  const query = useQuery<ActualRevenueSummary, Error>(
+    portfolioKeys.actual(granularity, filter?.month, filter?.year),
+    ({ signal }) =>
+      portfolioService.getActualRevenueData(granularity, filter, signal),
+    { keepPreviousData: true, staleTime: 30_000 },
+  );
 
   return {
-    data,
-    loading,
-    error,
-    refetch: fetchActualRevenueData,
+    data: query.data ?? null,
+    loading: query.isLoading || query.isFetching,
+    error: query.error ? getApiErrorMessage(query.error) : null,
+    refetch: async () => {
+      await query.refetch();
+    },
   };
 }

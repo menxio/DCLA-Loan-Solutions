@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, ILike, Repository, Or } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { Collection } from './entities/collection.entity';
 import { FindCollectionsQueryDto } from './dto/find-collections-query.dto';
 
@@ -75,8 +75,11 @@ export class CollectionsRepository {
       : 'collectionDate';
     queryBuilder.orderBy(
       sortColumn.includes('.') ? sortColumn : `collection.${sortColumn}`,
-      sortOrder as 'ASC' | 'DESC',
+      sortOrder,
     );
+    if (sortColumn !== 'id') {
+      queryBuilder.addOrderBy('collection.id', sortOrder);
+    }
 
     // Add pagination
     const offset = (page - 1) * limit;

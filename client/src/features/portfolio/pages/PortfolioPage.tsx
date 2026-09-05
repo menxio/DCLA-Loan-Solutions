@@ -34,7 +34,6 @@ import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import RequestErrorAlert from "@components/common/RequestErrorAlert";
 import { usePortfolio } from "../hooks/usePortfolio";
-import { exportPortfolioToExcel } from "../utils/exportUtils";
 import ProjectedIncomeView from "../components/ProjectedIncomeView";
 import RevenueView from "../components/RevenueView";
 
@@ -52,6 +51,7 @@ export default function PortfolioPage() {
 
     setExporting(true);
     try {
+      const { exportPortfolioToExcel } = await import("../utils/exportUtils");
       await exportPortfolioToExcel(data);
     } catch (error) {
       console.error("Export failed:", error);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "react-query";
 import { portfolioService } from "../api";
 import type {
   ExpectedRevenueSummary,
@@ -6,40 +6,25 @@ import type {
   RevenueGranularity,
 } from "../types";
 import { getApiErrorMessage } from "@utils/apiError";
+import { portfolioKeys } from "./usePortfolio";
 
 export function useExpectedRevenue(
   granularity: RevenueGranularity,
   filter?: RevenueDateFilter,
 ) {
-  const [data, setData] = useState<ExpectedRevenueSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchExpectedRevenueData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const expectedRevenueData = await portfolioService.getExpectedRevenueData(
-        granularity,
-        filter,
-      );
-      setData(expectedRevenueData);
-    } catch (err) {
-      console.error("Failed to fetch expected revenue data:", err);
-      setError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [filter?.month, filter?.year, granularity]);
-
-  useEffect(() => {
-    fetchExpectedRevenueData();
-  }, [fetchExpectedRevenueData]);
+  const query = useQuery<ExpectedRevenueSummary, Error>(
+    portfolioKeys.expected(granularity, filter?.month, filter?.year),
+    ({ signal }) =>
+      portfolioService.getExpectedRevenueData(granularity, filter, signal),
+    { keepPreviousData: true, staleTime: 30_000 },
+  );
 
   return {
-    data,
-    loading,
-    error,
-    refetch: fetchExpectedRevenueData,
+    data: query.data ?? null,
+    loading: query.isLoading || query.isFetching,
+    error: query.error ? getApiErrorMessage(query.error) : null,
+    refetch: async () => {
+      await query.refetch();
+    },
   };
 }

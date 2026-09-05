@@ -111,10 +111,6 @@ export class PortfolioService {
     return Number(value.toFixed(2));
   }
 
-  private getOutstandingCollectionAmount(loan: Loan): number {
-    return Math.max(0, Number(loan.balance || 0));
-  }
-
   private getLoanReferenceDate(loan: Loan): Date {
     const rawDate = loan.loanCreatedDate ?? loan.createdAt ?? new Date();
     return new Date(rawDate);
@@ -481,8 +477,7 @@ export class PortfolioService {
       ...activeAllocations
         .filter((allocation) => allocation.schedule)
         .map(
-          (allocation) =>
-            new Date(`${allocation.schedule.dueDate}T00:00:00Z`),
+          (allocation) => new Date(`${allocation.schedule.dueDate}T00:00:00Z`),
         ),
     ]);
 
@@ -533,20 +528,24 @@ export class PortfolioService {
       }
 
       if (
-        ![
-          LoanRepaymentStatus.PAID,
-          LoanRepaymentStatus.ADVANCE,
-        ].includes(allocation.schedule.status)
+        ![LoanRepaymentStatus.PAID, LoanRepaymentStatus.ADVANCE].includes(
+          allocation.schedule.status,
+        )
       ) {
         continue;
       }
 
-      const appliedDueDate = new Date(`${allocation.schedule.dueDate}T00:00:00Z`);
+      const appliedDueDate = new Date(
+        `${allocation.schedule.dueDate}T00:00:00Z`,
+      );
       if (!this.isDateInRange(appliedDueDate, selectedMonthRange)) {
         continue;
       }
 
-      const periodKey = this.getPeriodKey(appliedDueDate, normalizedGranularity);
+      const periodKey = this.getPeriodKey(
+        appliedDueDate,
+        normalizedGranularity,
+      );
       const period = ensurePeriod(periodKey);
 
       period.actualCollectedInterest = this.roundCurrency(
@@ -607,114 +606,96 @@ export class PortfolioService {
   }
 
   async getPortfolioData(): Promise<PortfolioSummary> {
-    // Fetch centers and their loans in bulk to avoid N+1 and ensure consistent aggregates
-    const centers = await this.centerRepo.find({ order: { name: 'ASC' } });
+    const rows = await this.centerRepo
+      .createQueryBuilder('center')
+      .leftJoin('center.members', 'member')
+      .leftJoin('member.loans', 'loan', 'loan.status = :status', {
+        status: 'active',
+      })
+      .select('center.id', 'centerId')
+      .addSelect('center.name', 'centerName')
+      .addSelect(
+        `COALESCE(SUM(CASE
+          WHEN loan.id IS NULL THEN 0
+          WHEN loan."netCashReleased" > 0 THEN loan."netCashReleased"
+          ELSE loan."principalAmount"
+        END), 0)`,
+        'amountDisbursed',
+      )
+      .addSelect(
+        'COALESCE(SUM(GREATEST(COALESCE(loan.balance, 0), 0)), 0)',
+        'outstandingCollection',
+      )
+      .groupBy('center.id')
+      .addGroupBy('center.name')
+      .orderBy('center.name', 'ASC')
+      .getRawMany<{
+        centerId: string;
+        centerName: string;
+        amountDisbursed: string;
+        outstandingCollection: string;
+      }>();
 
-    const loans = await this.loanRepo
-      .createQueryBuilder('loan')
-      .leftJoinAndSelect('loan.borrower', 'member')
-      .leftJoinAndSelect('member.center', 'center')
-      .getMany();
-
-    const loansByCenter = new Map<string, Loan[]>();
-    for (const loan of loans) {
-      const centerId = (loan as any)?.borrower?.center?.id;
-      if (!centerId) continue;
-      if (!loansByCenter.has(centerId)) loansByCenter.set(centerId, []);
-      loansByCenter.get(centerId)!.push(loan);
-    }
-
-    const portfolioData: PortfolioData[] = [];
-    let totalAmountDisbursed = 0;
-    let totalOutstandingCollection = 0;
-
-    centers.forEach((center, idx) => {
-      const centerLoans = loansByCenter.get(center.id) ?? [];
-      const activeLoans = centerLoans.filter((l) => l.status === 'active');
-
-      // Amount disbursed: use actual cash released if available, else principal
-      const amountDisbursed = activeLoans.reduce((sum, loan) => {
-        const netRelease = Number((loan as any).netCashReleased ?? 0);
-        const principal = Number(loan.principalAmount || 0);
-        const effective = Number.isFinite(netRelease) && netRelease > 0 ? netRelease : principal;
-        return sum + effective;
-      }, 0);
-
-      // Outstanding collection tracks the persisted remaining loan balance.
-      const outstandingCollection = activeLoans.reduce(
-        (sum, loan) => sum + this.getOutstandingCollectionAmount(loan),
-        0,
-      );
-
-      portfolioData.push({
-        no: idx + 1,
-        centerName: center.name,
-        amountDisbursed,
-        outstandingCollection,
-      });
-
-      totalAmountDisbursed += amountDisbursed;
-      totalOutstandingCollection += outstandingCollection;
-    });
+    const portfolioData = rows.map((row, index) => ({
+      no: index + 1,
+      centerName: row.centerName,
+      amountDisbursed: Number(row.amountDisbursed),
+      outstandingCollection: Number(row.outstandingCollection),
+    }));
 
     return {
-      totalAmountDisbursed,
-      totalOutstandingCollection,
+      totalAmountDisbursed: portfolioData.reduce(
+        (sum, center) => sum + center.amountDisbursed,
+        0,
+      ),
+      totalOutstandingCollection: portfolioData.reduce(
+        (sum, center) => sum + center.outstandingCollection,
+        0,
+      ),
       centers: portfolioData,
     };
   }
 
   async getProjectedIncomeData(): Promise<ProjectedIncomeSummary> {
-    const centers = await this.centerRepo.find({ order: { name: 'ASC' } });
+    const rows = await this.centerRepo
+      .createQueryBuilder('center')
+      .leftJoin('center.members', 'member')
+      .leftJoin('member.loans', 'loan', 'loan.status = :status', {
+        status: 'active',
+      })
+      .select('center.id', 'centerId')
+      .addSelect('center.name', 'centerName')
+      .addSelect('COALESCE(SUM(loan.balance), 0)', 'outstandingBalance')
+      .addSelect(
+        'COALESCE(SUM(loan."principalAmount" * loan."interestRate"), 0)',
+        'interestIncome',
+      )
+      .groupBy('center.id')
+      .addGroupBy('center.name')
+      .orderBy('center.name', 'ASC')
+      .getRawMany<{
+        centerId: string;
+        centerName: string;
+        outstandingBalance: string;
+        interestIncome: string;
+      }>();
 
-    const loans = await this.loanRepo
-      .createQueryBuilder('loan')
-      .leftJoinAndSelect('loan.borrower', 'member')
-      .leftJoinAndSelect('member.center', 'center')
-      .where('loan.status = :status', { status: 'active' })
-      .getMany();
-
-    const loansByCenter = new Map<string, Loan[]>();
-    for (const loan of loans) {
-      const centerId = (loan as any)?.borrower?.center?.id;
-      if (!centerId) continue;
-      if (!loansByCenter.has(centerId)) loansByCenter.set(centerId, []);
-      loansByCenter.get(centerId)!.push(loan);
-    }
-
-    const projectedIncomeData: ProjectedIncomeData[] = [];
-    let totalOutstandingBalance = 0;
-    let totalInterestIncome = 0;
-
-    centers.forEach((center, idx) => {
-      const activeLoans = loansByCenter.get(center.id) ?? [];
-
-      const outstandingBalance = activeLoans.reduce(
-        (sum, loan) => sum + Number(loan.balance || 0),
-        0,
-      );
-
-      // Use each loan's actual interestRate against principal to avoid double-counting interest
-      const interestIncome = activeLoans.reduce((sum, loan) => {
-        const rate = Number(loan.interestRate || 0);
-        const principal = Number(loan.principalAmount || 0);
-        return sum + principal * rate;
-      }, 0);
-
-      projectedIncomeData.push({
-        no: idx + 1,
-        centerName: center.name,
-        outstandingBalance,
-        interestIncome,
-      });
-
-      totalOutstandingBalance += outstandingBalance;
-      totalInterestIncome += interestIncome;
-    });
+    const projectedIncomeData = rows.map((row, index) => ({
+      no: index + 1,
+      centerName: row.centerName,
+      outstandingBalance: Number(row.outstandingBalance),
+      interestIncome: Number(row.interestIncome),
+    }));
 
     return {
-      totalOutstandingBalance,
-      totalInterestIncome,
+      totalOutstandingBalance: projectedIncomeData.reduce(
+        (sum, center) => sum + center.outstandingBalance,
+        0,
+      ),
+      totalInterestIncome: projectedIncomeData.reduce(
+        (sum, center) => sum + center.interestIncome,
+        0,
+      ),
       centers: projectedIncomeData,
     };
   }
