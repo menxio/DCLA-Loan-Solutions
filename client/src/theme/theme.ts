@@ -88,6 +88,24 @@ export const theme = createTheme({
     borderRadius: 12,
   },
   components: {
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          margin: 16,
+          maxWidth: "calc(100% - 32px)",
+          maxHeight: "calc(100% - 32px)",
+          overflowWrap: "anywhere",
+        },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: {
+          minWidth: 0,
+          overflowX: "auto",
+        },
+      },
+    },
     MuiButton: {
       styleOverrides: {
         root: {

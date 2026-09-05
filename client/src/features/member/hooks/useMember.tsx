@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { MembersAPI } from "../api";
-import type { Member, MemberFormData, MembersQuery, PaginatedMembers } from "../types";
+import type {
+  Member,
+  MemberFormData,
+  MembersQuery,
+  PaginatedMembers,
+} from "../types";
+import { getApiErrorMessage } from "@utils/apiError";
 
 export function useMembers() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -10,26 +16,30 @@ export function useMembers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMembers = useCallback(async (query?: MembersQuery) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const mergedQuery: MembersQuery = { page, limit, ...(query || {}) };
-      const data: PaginatedMembers | Member[] = await MembersAPI.getAll(mergedQuery);
-      if (Array.isArray(data)) {
-        setMembers(data);
-        setTotal(data.length);
-      } else {
-        setMembers(data.items);
-        setTotal(data.total);
+  const fetchMembers = useCallback(
+    async (query?: MembersQuery) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const mergedQuery: MembersQuery = { page, limit, ...(query || {}) };
+        const data: PaginatedMembers | Member[] =
+          await MembersAPI.getAll(mergedQuery);
+        if (Array.isArray(data)) {
+          setMembers(data);
+          setTotal(data.length);
+        } else {
+          setMembers(data.items);
+          setTotal(data.total);
+        }
+      } catch (err) {
+        setError(getApiErrorMessage(err));
+        console.error("Error fetching members:", err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError("Failed to fetch members");
-      console.error("Error fetching members:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, limit]);
+    },
+    [page, limit],
+  );
 
   const createMember = useCallback(
     async (data: MemberFormData) => {
@@ -39,13 +49,13 @@ export function useMembers() {
         await MembersAPI.create(data);
         await fetchMembers();
       } catch (err) {
-        setError("Failed to create member");
+        setError(getApiErrorMessage(err));
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [fetchMembers]
+    [fetchMembers],
   );
 
   const updateMember = useCallback(
@@ -56,13 +66,13 @@ export function useMembers() {
         await MembersAPI.update(id, data);
         await fetchMembers();
       } catch (err) {
-        setError("Failed to update member");
+        setError(getApiErrorMessage(err));
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [fetchMembers]
+    [fetchMembers],
   );
 
   const deleteMember = useCallback(
@@ -73,13 +83,13 @@ export function useMembers() {
         await MembersAPI.remove(id);
         await fetchMembers();
       } catch (err) {
-        setError("Failed to delete member");
+        setError(getApiErrorMessage(err));
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [fetchMembers]
+    [fetchMembers],
   );
 
   useEffect(() => {

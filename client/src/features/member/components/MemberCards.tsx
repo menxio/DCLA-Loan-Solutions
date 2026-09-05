@@ -85,7 +85,10 @@ export default function MemberCards({
     setDeleteDialog({ open: false, member: null });
   };
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, member: Member) => {
+  const handleMenuOpen = (
+    event: React.MouseEvent<HTMLElement>,
+    member: Member,
+  ) => {
     setMenuAnchor({ element: event.currentTarget, member });
   };
 
@@ -146,42 +149,54 @@ export default function MemberCards({
     <>
       <Grid container spacing={3}>
         {members.map((member) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={member.id}>
-                         <Card
-               sx={{
-                 height: "100%",
-                 display: "flex",
-                 flexDirection: "column",
-                 background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-                 border: "1px solid #e2e8f0",
-                 transition: "all 0.3s ease",
-                 position: "relative",
-                 "&:hover": {
-                   transform: "translateY(-4px)",
-                   boxShadow: "0 8px 25px rgba(0, 0, 0, 0.1)",
-                   borderColor: "#3b82f6",
-                 },
-               }}
-             >
-               {/* Menu Button */}
-               <IconButton
-                 onClick={(e) => handleMenuOpen(e, member)}
-                 sx={{
-                   position: "absolute",
-                   top: 8,
-                   right: 8,
-                   zIndex: 1,
-                   color: "#64748b",
-                   "&:hover": {
-                     backgroundColor: "rgba(0, 0, 0, 0.04)",
-                   },
-                 }}
-                 size="small"
-               >
-                 <MoreVertIcon fontSize="small" />
-               </IconButton>
+          <Grid
+            item
+            xs={12}
+            sm={6}
+            md={4}
+            lg={3}
+            key={member.id}
+            sx={{ minWidth: 0 }}
+          >
+            <Card
+              sx={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                border: "1px solid #e2e8f0",
+                transition: "all 0.3s ease",
+                position: "relative",
+                minWidth: 0,
+                overflow: "hidden",
+                "& .MuiTypography-root": { overflowWrap: "anywhere" },
+                "&:hover": {
+                  transform: "translateY(-4px)",
+                  boxShadow: "0 8px 25px rgba(0, 0, 0, 0.1)",
+                  borderColor: "#3b82f6",
+                },
+              }}
+            >
+              {/* Menu Button */}
+              <IconButton
+                aria-label={`Open actions for ${member.firstName} ${member.lastName}`}
+                onClick={(e) => handleMenuOpen(e, member)}
+                sx={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  zIndex: 1,
+                  color: "#64748b",
+                  "&:hover": {
+                    backgroundColor: "rgba(0, 0, 0, 0.04)",
+                  },
+                }}
+                size="small"
+              >
+                <MoreVertIcon fontSize="small" />
+              </IconButton>
 
-               <CardContent sx={{ flexGrow: 1, p: 3 }}>
+              <CardContent sx={{ flexGrow: 1, p: 3 }}>
                 {/* Header with Avatar and Name */}
                 <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
                   <Avatar
@@ -190,7 +205,8 @@ export default function MemberCards({
                       height: 56,
                       fontWeight: 600,
                       fontSize: "1.2rem",
-                      background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+                      background:
+                        "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
                       mr: 2,
                     }}
                   >
@@ -205,7 +221,7 @@ export default function MemberCards({
                         lineHeight: 1.2,
                       }}
                     >
-                      {member.lastName}, {member.firstName} 
+                      {member.lastName}, {member.firstName}
                     </Typography>
                     {member.middleName && (
                       <Typography
@@ -242,7 +258,9 @@ export default function MemberCards({
                     </Typography>
                   </Box>
 
-                  <Box sx={{ display: "flex", alignItems: "flex-start", mb: 1.5 }}>
+                  <Box
+                    sx={{ display: "flex", alignItems: "flex-start", mb: 1.5 }}
+                  >
                     <LocationIcon
                       sx={{
                         fontSize: 18,
@@ -264,7 +282,7 @@ export default function MemberCards({
                     </Typography>
                   </Box>
 
-                                    <Box sx={{ display: "flex", alignItems: "center", mb: 1.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", mb: 1.5 }}>
                     <CalendarIcon
                       sx={{
                         fontSize: 18,
@@ -294,123 +312,123 @@ export default function MemberCards({
                     </Box>
                   )}
                 </Box>
-               </CardContent>
+              </CardContent>
 
-               {/* Action Buttons */}
-               <Box sx={{ px: 2, pb: 2 }}>
-                 <Box
-                   sx={{
-                     display: "flex",
-                     flexDirection: { xs: "column", sm: "row" },
-                     gap: 1,
-                   }}
-                 >
-                   {onAddSavings && (
-                     <Button
-                       variant="outlined"
-                       startIcon={<SavingsIcon />}
-                       onClick={() => onAddSavings(member)}
-                       sx={{
-                         flex: 1,
-                         borderColor: "#3b82f6",
-                         color: "#3b82f6",
-                         "&:hover": {
-                           borderColor: "#2563eb",
-                           backgroundColor: "#dbeafe",
-                         },
-                         fontWeight: 500,
-                       }}
-                     >
-                       Savings
-                     </Button>
-                   )}
-                   <Button
-                     variant="outlined"
-                     startIcon={<AccountBalanceIcon />}
-                     onClick={() => onViewLoan?.(member)}
-                     sx={{
-                       flex: 1,
-                       borderColor: "#3b82f6",
-                       color: "#3b82f6",
-                       "&:hover": {
-                         borderColor: "#2563eb",
-                         backgroundColor: "#dbeafe",
-                       },
-                       fontWeight: 500,
-                     }}
-                   >
-                     View Loan
-                   </Button>
-                 </Box>
-               </Box>
-             </Card>
+              {/* Action Buttons */}
+              <Box sx={{ px: 2, pb: 2 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    gap: 1,
+                  }}
+                >
+                  {onAddSavings && (
+                    <Button
+                      variant="outlined"
+                      startIcon={<SavingsIcon />}
+                      onClick={() => onAddSavings(member)}
+                      sx={{
+                        flex: 1,
+                        borderColor: "#3b82f6",
+                        color: "#3b82f6",
+                        "&:hover": {
+                          borderColor: "#2563eb",
+                          backgroundColor: "#dbeafe",
+                        },
+                        fontWeight: 500,
+                      }}
+                    >
+                      Savings
+                    </Button>
+                  )}
+                  <Button
+                    variant="outlined"
+                    startIcon={<AccountBalanceIcon />}
+                    onClick={() => onViewLoan?.(member)}
+                    sx={{
+                      flex: 1,
+                      borderColor: "#3b82f6",
+                      color: "#3b82f6",
+                      "&:hover": {
+                        borderColor: "#2563eb",
+                        backgroundColor: "#dbeafe",
+                      },
+                      fontWeight: 500,
+                    }}
+                  >
+                    View Loan
+                  </Button>
+                </Box>
+              </Box>
+            </Card>
           </Grid>
-                 ))}
-       </Grid>
+        ))}
+      </Grid>
 
-       {/* Member Actions Menu */}
-       <Menu
-         anchorEl={menuAnchor.element}
-         open={Boolean(menuAnchor.element)}
-         onClose={handleMenuClose}
-         anchorOrigin={{
-           vertical: "top",
-           horizontal: "right",
-         }}
-         transformOrigin={{
-           vertical: "top",
-           horizontal: "right",
-         }}
-         PaperProps={{
-           sx: {
-             mt: 1,
-             minWidth: 120,
-             boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
-             border: "1px solid #e2e8f0",
-           },
-         }}
-       >
-         <MenuItem
-           onClick={() => handleEditClick(menuAnchor.member!)}
-           sx={{
-             py: 1.5,
-             "&:hover": {
-               backgroundColor: "#dbeafe",
-             },
-           }}
-         >
-           <ListItemIcon>
-             <Edit fontSize="small" sx={{ color: "#3b82f6" }} />
-           </ListItemIcon>
-           <ListItemText
-             primary="Edit"
-             primaryTypographyProps={{
-               sx: { fontWeight: 500, color: "#1e293b" },
-             }}
-           />
-         </MenuItem>
-         <MenuItem
-           onClick={() => handleDeleteClick(menuAnchor.member!)}
-           sx={{
-             py: 1.5,
-             "&:hover": {
-               backgroundColor: "#fee2e2",
-             },
-           }}
-         >
-           <ListItemIcon>
-             <Delete fontSize="small" sx={{ color: "#ef4444" }} />
-           </ListItemIcon>
-           <ListItemText
-             primary="Delete"
-             primaryTypographyProps={{
-               sx: { fontWeight: 500, color: "#1e293b" },
-             }}
-           />
-         </MenuItem>
-       </Menu>
+      {/* Member Actions Menu */}
+      <Menu
+        anchorEl={menuAnchor.element}
+        open={Boolean(menuAnchor.element)}
+        onClose={handleMenuClose}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        PaperProps={{
+          sx: {
+            mt: 1,
+            minWidth: 120,
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+            border: "1px solid #e2e8f0",
+          },
+        }}
+      >
+        <MenuItem
+          onClick={() => handleEditClick(menuAnchor.member!)}
+          sx={{
+            py: 1.5,
+            "&:hover": {
+              backgroundColor: "#dbeafe",
+            },
+          }}
+        >
+          <ListItemIcon>
+            <Edit fontSize="small" sx={{ color: "#3b82f6" }} />
+          </ListItemIcon>
+          <ListItemText
+            primary="Edit"
+            primaryTypographyProps={{
+              sx: { fontWeight: 500, color: "#1e293b" },
+            }}
+          />
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleDeleteClick(menuAnchor.member!)}
+          sx={{
+            py: 1.5,
+            "&:hover": {
+              backgroundColor: "#fee2e2",
+            },
+          }}
+        >
+          <ListItemIcon>
+            <Delete fontSize="small" sx={{ color: "#ef4444" }} />
+          </ListItemIcon>
+          <ListItemText
+            primary="Delete"
+            primaryTypographyProps={{
+              sx: { fontWeight: 500, color: "#1e293b" },
+            }}
+          />
+        </MenuItem>
+      </Menu>
 
-       {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation Dialog */}
       <Dialog
         open={deleteDialog.open}
         onClose={handleDeleteCancel}
@@ -422,11 +440,16 @@ export default function MemberCards({
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to delete "{deleteDialog.member?.firstName} {deleteDialog.member?.lastName}"? This action cannot be undone.
+            Are you sure you want to delete "{deleteDialog.member?.firstName}{" "}
+            {deleteDialog.member?.lastName}"? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button onClick={handleDeleteCancel} disabled={deleting} sx={{ color: "#64748b" }}>
+          <Button
+            onClick={handleDeleteCancel}
+            disabled={deleting}
+            sx={{ color: "#64748b" }}
+          >
             Cancel
           </Button>
           <Button
@@ -442,4 +465,4 @@ export default function MemberCards({
       </Dialog>
     </>
   );
-} 
+}

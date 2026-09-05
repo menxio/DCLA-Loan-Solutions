@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { PortfolioSummary } from '../types';
-import { portfolioService } from '../api';
+import { useState, useEffect, useCallback } from "react";
+import type { PortfolioSummary } from "../types";
+import { portfolioService } from "../api";
+import { getApiErrorMessage } from "@utils/apiError";
 
 export function usePortfolio() {
   const [data, setData] = useState<PortfolioSummary | null>(null);
@@ -14,8 +15,8 @@ export function usePortfolio() {
       const portfolioData = await portfolioService.getPortfolioData();
       setData(portfolioData);
     } catch (err) {
-      console.error('Failed to fetch portfolio data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch portfolio data');
+      console.error("Failed to fetch portfolio data:", err);
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
     }

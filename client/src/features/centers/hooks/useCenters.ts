@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { CentersAPI } from "../api";
-import type { Center, CenterFormData, CentersQuery, PaginatedCenters } from "../types";
+import type {
+  Center,
+  CenterFormData,
+  CentersQuery,
+  PaginatedCenters,
+} from "../types";
+import { getApiErrorMessage } from "@utils/apiError";
 
 export function useCenters() {
   const [centers, setCenters] = useState<Center[]>([]);
@@ -11,26 +17,30 @@ export function useCenters() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCenters = useCallback(async (query?: CentersQuery) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const merged: CentersQuery = { page, limit, search, ...(query || {}) };
-      const data: PaginatedCenters | Center[] = await CentersAPI.getAll(merged);
-      if (Array.isArray(data)) {
-        setCenters(data);
-        setTotal(data.length);
-      } else {
-        setCenters(data.items);
-        setTotal(data.total);
+  const fetchCenters = useCallback(
+    async (query?: CentersQuery) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const merged: CentersQuery = { page, limit, search, ...(query || {}) };
+        const data: PaginatedCenters | Center[] =
+          await CentersAPI.getAll(merged);
+        if (Array.isArray(data)) {
+          setCenters(data);
+          setTotal(data.length);
+        } else {
+          setCenters(data.items);
+          setTotal(data.total);
+        }
+      } catch (err) {
+        setError(getApiErrorMessage(err));
+        console.error("Error fetching centers:", err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError("Failed to fetch centers");
-      console.error("Error fetching centers:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, limit, search]);
+    },
+    [page, limit, search],
+  );
 
   const createCenter = useCallback(
     async (data: CenterFormData) => {
@@ -40,13 +50,13 @@ export function useCenters() {
         await CentersAPI.create(data);
         await fetchCenters();
       } catch (err) {
-        setError("Failed to create center");
+        setError(getApiErrorMessage(err));
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [fetchCenters]
+    [fetchCenters],
   );
 
   const updateCenter = useCallback(
@@ -57,13 +67,13 @@ export function useCenters() {
         await CentersAPI.update(id, data);
         await fetchCenters();
       } catch (err) {
-        setError("Failed to update center");
+        setError(getApiErrorMessage(err));
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [fetchCenters]
+    [fetchCenters],
   );
 
   const deleteCenter = useCallback(
@@ -74,13 +84,13 @@ export function useCenters() {
         await CentersAPI.remove(id);
         await fetchCenters();
       } catch (err) {
-        setError("Failed to delete center");
+        setError(getApiErrorMessage(err));
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [fetchCenters]
+    [fetchCenters],
   );
 
   useEffect(() => {

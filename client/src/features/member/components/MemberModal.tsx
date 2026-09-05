@@ -271,7 +271,12 @@ export default function MemberModal({
             {isEditing ? "Edit Member" : "Add New Member"}
           </Typography>
         </Box>
-        <IconButton onClick={handleClose} disabled={loading} size="small">
+        <IconButton
+          aria-label="Close member form"
+          onClick={handleClose}
+          disabled={loading}
+          size="small"
+        >
           <Close />
         </IconButton>
       </DialogTitle>

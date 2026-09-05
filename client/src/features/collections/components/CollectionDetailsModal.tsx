@@ -49,6 +49,7 @@ import {
 import { withNetReleaseForDate } from "../utils/netRelease";
 import { smsNotificationsApi } from "@features/notifications/api";
 import SendSmsConfirmationDialog from "@features/notifications/components/SendSmsConfirmationDialog";
+import { getApiErrorMessage } from "@utils/apiError";
 import type { SmsEligibilityItem } from "@features/notifications/types";
 import { shouldOfferRepaymentSms } from "@features/notifications/eligibility";
 
@@ -107,6 +108,9 @@ export default function CollectionDetailsModal({
   const [members, setMembers] = useState<MemberWithLoansExtended[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supportingDataError, setSupportingDataError] = useState<string | null>(
+    null
+  );
   const [exporting, setExporting] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -164,6 +168,7 @@ export default function CollectionDetailsModal({
 
     setLoading(true);
     setError(null);
+    setSupportingDataError(null);
 
     try {
       const centerMembers = await collectionsService.getCenterMembers(
@@ -181,6 +186,9 @@ export default function CollectionDetailsModal({
         console.warn(
           "Failed to refresh center collections, using existing data:",
           innerErr
+        );
+        setSupportingDataError(
+          "Current collection details could not be refreshed. Existing collection data is shown."
         );
       }
       const normalisedCollections = refreshedCollections.map((col) => ({
@@ -204,6 +212,11 @@ export default function CollectionDetailsModal({
         console.warn(
           "Failed to refresh pending repayments, using empty pending state:",
           innerErr
+        );
+        setSupportingDataError((current) =>
+          current
+            ? `${current} Pending payment status is also unavailable.`
+            : "Pending payment status is unavailable."
         );
       }
       setPendingPaymentMemberIds(
@@ -248,7 +261,7 @@ export default function CollectionDetailsModal({
       setMembers(membersWithNetRelease);
     } catch (error) {
       console.error("Failed to fetch center members:", error);
-      setError("Failed to load member data. Please try again.");
+      setError(getApiErrorMessage(error));
       setMembers([]);
     } finally {
       setLoading(false);
@@ -279,6 +292,7 @@ export default function CollectionDetailsModal({
       setMembers([]);
       setPendingPaymentMemberIds(new Set());
       setError(null);
+      setSupportingDataError(null);
       setSelectedMember(null);
     }
   }, [open, collectionGroup, fetchCenterMembers]);
@@ -683,15 +697,16 @@ export default function CollectionDetailsModal({
             fontWeight: 600,
             color: "white",
             display: "flex",
-            alignItems: "center",
+            alignItems: { xs: "flex-start", sm: "center" },
             justifyContent: "space-between",
+            flexDirection: { xs: "column", sm: "row" },
             gap: 1,
             pb: 2,
             background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
             boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
           }}
         >
-          <Box>
+          <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
               {collectionGroup.centerName}
             </Typography>
@@ -702,7 +717,8 @@ export default function CollectionDetailsModal({
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 3,
+                gap: { xs: 1, sm: 3 },
+                flexWrap: "wrap",
                 opacity: 0.9,
               }}
             >
@@ -726,9 +742,18 @@ export default function CollectionDetailsModal({
               </Box>
             </Box>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              alignSelf: { xs: "flex-end", sm: "center" },
+              gap: 1,
+              flexShrink: 0,
+            }}
+          >
             <Tooltip title="Export to Excel">
               <IconButton
+                aria-label="Export collection details to Excel"
                 onClick={handleExport}
                 disabled={exporting || loading}
                 size="small"
@@ -746,6 +771,7 @@ export default function CollectionDetailsModal({
             </Tooltip>
             <Tooltip title="Export collector PDF">
               <IconButton
+                aria-label="Export collector PDF"
                 onClick={handleExportPdf}
                 disabled={pdfExporting || loading}
                 size="small"
@@ -762,6 +788,7 @@ export default function CollectionDetailsModal({
               </IconButton>
             </Tooltip>
             <IconButton
+              aria-label="Close collection details"
               onClick={onClose}
               size="small"
               sx={{
@@ -790,6 +817,12 @@ export default function CollectionDetailsModal({
               }
             >
               {error}
+            </Alert>
+          )}
+
+          {supportingDataError && (
+            <Alert severity="warning" sx={{ m: 2, borderRadius: 2 }}>
+              {supportingDataError}
             </Alert>
           )}
 

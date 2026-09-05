@@ -17,7 +17,13 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { Assessment, Paid, ReceiptLong, Refresh, Savings } from "@mui/icons-material";
+import {
+  Assessment,
+  Paid,
+  ReceiptLong,
+  Refresh,
+  Savings,
+} from "@mui/icons-material";
 import { useActualRevenue } from "../hooks/useActualRevenue";
 import type { RevenueGranularity } from "../types";
 
@@ -43,8 +49,12 @@ const formatWeeklyCollectionDay = (periodKey: string): string => {
 
 export default function ActualRevenueView() {
   const [granularity, setGranularity] = useState<RevenueGranularity>("monthly");
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => new Date().getMonth() + 1,
+  );
+  const [selectedYear, setSelectedYear] = useState(() =>
+    new Date().getFullYear(),
+  );
   const weeklyFilter =
     granularity === "weekly"
       ? { month: selectedMonth, year: selectedYear }
@@ -81,7 +91,12 @@ export default function ActualRevenueView() {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="400px"
+      >
         <CircularProgress sx={{ color: "#2563eb" }} />
       </Box>
     );
@@ -101,16 +116,20 @@ export default function ActualRevenueView() {
   }
 
   if (!data) {
-    return <Alert severity="info">No actual collected revenue data available</Alert>;
+    return (
+      <Alert severity="info">No actual collected revenue data available</Alert>
+    );
   }
 
   return (
-    <Box>
+    <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          flexDirection: { xs: "column", md: "row" },
+          gap: 2,
           mb: 4,
           p: 3,
           backgroundColor: "#f8fafc",
@@ -118,7 +137,15 @@ export default function ActualRevenueView() {
           border: "1px solid #e2e8f0",
         }}
       >
-        <Box display="flex" alignItems="center" gap={2}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 2,
+            width: { xs: "100%", md: "auto" },
+          }}
+        >
           <Box
             sx={{
               backgroundColor: "#0f766e",
@@ -163,7 +190,9 @@ export default function ActualRevenueView() {
               <Select
                 size="small"
                 value={selectedMonth}
-                onChange={(event) => setSelectedMonth(Number(event.target.value))}
+                onChange={(event) =>
+                  setSelectedMonth(Number(event.target.value))
+                }
                 disabled={availableMonthsForYear.length === 0}
                 sx={{
                   minWidth: 150,
@@ -243,7 +272,11 @@ export default function ActualRevenueView() {
             <CardContent>
               <Box display="flex" alignItems="center" gap={2} mb={2}>
                 <Savings sx={{ color: "#0f766e" }} />
-                <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  fontWeight={600}
+                >
                   Actual Collected Interest
                 </Typography>
               </Box>
@@ -265,7 +298,11 @@ export default function ActualRevenueView() {
             <CardContent>
               <Box display="flex" alignItems="center" gap={2} mb={2}>
                 <Paid sx={{ color: "#2563eb" }} />
-                <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  fontWeight={600}
+                >
                   Service Charge
                 </Typography>
               </Box>
@@ -287,7 +324,11 @@ export default function ActualRevenueView() {
             <CardContent>
               <Box display="flex" alignItems="center" gap={2} mb={2}>
                 <ReceiptLong sx={{ color: "#d97706" }} />
-                <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  fontWeight={600}
+                >
                   Notarial Fee
                 </Typography>
               </Box>
@@ -309,7 +350,11 @@ export default function ActualRevenueView() {
             <CardContent>
               <Box display="flex" alignItems="center" gap={2} mb={2}>
                 <Assessment sx={{ color: "#7c3aed" }} />
-                <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  fontWeight={600}
+                >
                   Total Revenue
                 </Typography>
               </Box>
@@ -326,10 +371,11 @@ export default function ActualRevenueView() {
           borderRadius: 3,
           border: "1px solid #e2e8f0",
           boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-          overflow: "hidden",
+          overflowX: "auto",
+          maxWidth: "100%",
         }}
       >
-        <Table>
+        <Table sx={{ minWidth: 720 }}>
           <TableHead>
             <TableRow sx={{ backgroundColor: "#f8fafc" }}>
               {granularity === "weekly" ? (
@@ -346,16 +392,28 @@ export default function ActualRevenueView() {
                   Period
                 </TableCell>
               )}
-              <TableCell align="right" sx={{ fontWeight: 700, color: "#374151" }}>
+              <TableCell
+                align="right"
+                sx={{ fontWeight: 700, color: "#374151" }}
+              >
                 Actual Collected Interest
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, color: "#374151" }}>
+              <TableCell
+                align="right"
+                sx={{ fontWeight: 700, color: "#374151" }}
+              >
                 Service Charge
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, color: "#374151" }}>
+              <TableCell
+                align="right"
+                sx={{ fontWeight: 700, color: "#374151" }}
+              >
                 Notarial Fee
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, color: "#374151" }}>
+              <TableCell
+                align="right"
+                sx={{ fontWeight: 700, color: "#374151" }}
+              >
                 Total Revenue
               </TableCell>
             </TableRow>
@@ -388,37 +446,66 @@ export default function ActualRevenueView() {
                     {period.periodLabel}
                   </TableCell>
                 )}
-                <TableCell align="right" sx={{ color: "#0f766e", fontWeight: 700 }}>
+                <TableCell
+                  align="right"
+                  sx={{ color: "#0f766e", fontWeight: 700 }}
+                >
                   {formatCurrency(period.actualCollectedInterest)}
                 </TableCell>
-                <TableCell align="right" sx={{ color: "#2563eb", fontWeight: 700 }}>
+                <TableCell
+                  align="right"
+                  sx={{ color: "#2563eb", fontWeight: 700 }}
+                >
                   {formatCurrency(period.serviceCharge)}
                 </TableCell>
-                <TableCell align="right" sx={{ color: "#d97706", fontWeight: 700 }}>
+                <TableCell
+                  align="right"
+                  sx={{ color: "#d97706", fontWeight: 700 }}
+                >
                   {formatCurrency(period.notarialFee)}
                 </TableCell>
-                <TableCell align="right" sx={{ color: "#7c3aed", fontWeight: 700 }}>
+                <TableCell
+                  align="right"
+                  sx={{ color: "#7c3aed", fontWeight: 700 }}
+                >
                   {formatCurrency(period.totalRevenue)}
                 </TableCell>
               </TableRow>
             ))}
-            <TableRow sx={{ backgroundColor: "#f1f5f9", borderTop: "2px solid #e2e8f0" }}>
+            <TableRow
+              sx={{
+                backgroundColor: "#f1f5f9",
+                borderTop: "2px solid #e2e8f0",
+              }}
+            >
               <TableCell
                 colSpan={granularity === "weekly" ? 2 : 1}
                 sx={{ fontWeight: "bold", color: "#1e293b" }}
               >
                 Total
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: "bold", color: "#0f766e" }}>
+              <TableCell
+                align="right"
+                sx={{ fontWeight: "bold", color: "#0f766e" }}
+              >
                 {formatCurrency(data.totalActualCollectedInterest)}
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: "bold", color: "#2563eb" }}>
+              <TableCell
+                align="right"
+                sx={{ fontWeight: "bold", color: "#2563eb" }}
+              >
                 {formatCurrency(data.totalServiceCharge)}
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: "bold", color: "#d97706" }}>
+              <TableCell
+                align="right"
+                sx={{ fontWeight: "bold", color: "#d97706" }}
+              >
                 {formatCurrency(data.totalNotarialFee)}
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: "bold", color: "#7c3aed" }}>
+              <TableCell
+                align="right"
+                sx={{ fontWeight: "bold", color: "#7c3aed" }}
+              >
                 {formatCurrency(data.totalRevenue)}
               </TableCell>
             </TableRow>

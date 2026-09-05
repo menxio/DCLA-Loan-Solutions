@@ -5,6 +5,7 @@ import type {
   RevenueDateFilter,
   RevenueGranularity,
 } from "../types";
+import { getApiErrorMessage } from "@utils/apiError";
 
 export function useActualRevenue(
   granularity: RevenueGranularity,
@@ -18,16 +19,14 @@ export function useActualRevenue(
     try {
       setLoading(true);
       setError(null);
-      const actualRevenueData =
-        await portfolioService.getActualRevenueData(granularity, filter);
+      const actualRevenueData = await portfolioService.getActualRevenueData(
+        granularity,
+        filter,
+      );
       setData(actualRevenueData);
     } catch (err) {
       console.error("Failed to fetch actual revenue data:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to fetch actual revenue data",
-      );
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
     }

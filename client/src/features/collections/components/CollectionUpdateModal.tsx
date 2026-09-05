@@ -132,7 +132,12 @@ export default function CollectionUpdateModal({
           <Edit />
           Update Collection
         </Box>
-        <IconButton onClick={handleClose} disabled={loading} size="small">
+        <IconButton
+          aria-label="Close collection update"
+          onClick={handleClose}
+          disabled={loading}
+          size="small"
+        >
           <Close />
         </IconButton>
       </DialogTitle>

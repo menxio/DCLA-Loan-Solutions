@@ -23,16 +23,12 @@ import {
   KeyboardArrowDown,
   AdminPanelSettings,
   FactCheck,
-  MoneyOff,
 } from "@mui/icons-material";
 import { useState } from "react";
 import { authService } from "@features/auth/api";
 import { useAuthStore } from "@features/auth/authStore";
 import { useNavigate } from "react-router-dom";
-import {
-  canAccessPath,
-  getDefaultRouteForRole,
-} from "@features/auth/access";
+import { canAccessPath, getDefaultRouteForRole } from "@features/auth/access";
 
 interface HeaderProps {
   title?: string;
@@ -61,7 +57,9 @@ export default function Header({
   const isSuperAdmin = user?.role === "superadmin";
   const role = user?.role ?? "";
   const defaultRoute = getDefaultRouteForRole(role);
-  const visibleNavItems = navItems.filter((item) => canAccessPath(role, item.path));
+  const visibleNavItems = navItems.filter((item) =>
+    canAccessPath(role, item.path),
+  );
 
   const handleAccountMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -108,14 +106,16 @@ export default function Header({
         transition: "width 0.3s ease-in-out, left 0.3s ease-in-out",
       }}
     >
-      <Toolbar sx={{ minHeight: "70px !important" }}>
+      <Toolbar sx={{ minHeight: "70px !important", px: { xs: 2, sm: 3 } }}>
         <Typography
           variant="h5"
           noWrap
           component="div"
           sx={{
             flexGrow: 1,
+            minWidth: 0,
             fontWeight: 700,
+            fontSize: { xs: "1.05rem", sm: "1.25rem" },
             background: "linear-gradient(45deg, #ffffff 30%, #e2e8f0 90%)",
             backgroundClip: "text",
             WebkitBackgroundClip: "text",
@@ -125,7 +125,13 @@ export default function Header({
           {title}
         </Typography>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: { xs: 0.5, sm: 2 },
+          }}
+        >
           {!isSuperAdmin && (
             <Button
               variant="outlined"
@@ -133,6 +139,7 @@ export default function Header({
               onClick={handleNavMenu}
               endIcon={<KeyboardArrowDown />}
               sx={{
+                px: { xs: 1.5, sm: 2 },
                 borderColor: "rgba(255, 255, 255, 0.4)",
                 color: "white",
                 textTransform: "none",

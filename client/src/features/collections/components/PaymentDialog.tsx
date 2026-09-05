@@ -19,6 +19,7 @@ import { useState, useEffect } from "react";
 import collectionsService from "../api";
 import type { MemberWithLoans } from "../types";
 import type { Repayment } from "@features/repayments/types";
+import { getApiErrorMessage } from "@utils/apiError";
 
 type MemberLoan = MemberWithLoans["loans"][number] & {
   weeklyPaymentAmount?: number;
@@ -27,7 +28,7 @@ type MemberLoan = MemberWithLoans["loans"][number] & {
 
 const getActiveLoans = (member: MemberWithLoans): MemberLoan[] =>
   ((member.loans ?? []) as MemberLoan[]).filter(
-    (loan) => (loan.status || "").toLowerCase() === "active"
+    (loan) => (loan.status || "").toLowerCase() === "active",
   );
 
 interface PaymentDialogProps {
@@ -84,7 +85,7 @@ export function PaymentDialog({
       }
       if (activeLoans.length > 1) {
         throw new Error(
-          "Member has multiple active loans. Resolve loan records before posting payment."
+          "Member has multiple active loans. Resolve loan records before posting payment.",
         );
       }
 
@@ -107,12 +108,12 @@ export function PaymentDialog({
         }
         if (shortfall <= 0) {
           throw new Error(
-            "Cash payment already covers the weekly amount. Reduce the amount or disable savings."
+            "Cash payment already covers the weekly amount. Reduce the amount or disable savings.",
           );
         }
         if (savingsToApply <= 0) {
           throw new Error(
-            "Savings cannot cover the payment shortfall. Adjust the payment amount."
+            "Savings cannot cover the payment shortfall. Adjust the payment amount.",
           );
         }
       }
@@ -130,9 +131,7 @@ export function PaymentDialog({
       onSuccess(repayment);
     } catch (error) {
       console.error("Failed to process payment:", error);
-      setError(
-        error instanceof Error ? error.message : "Failed to process payment"
-      );
+      setError(getApiErrorMessage(error));
     } finally {
       setProcessing(false);
     }
@@ -274,7 +273,7 @@ export function PaymentDialog({
                   sx={{ fontWeight: 600, color: "#059669" }}
                 >
                   {formatCurrency(
-                    member.collection?.amount || member.totalBalance
+                    member.collection?.amount || member.totalBalance,
                   )}
                 </Typography>
               </CardContent>
@@ -318,7 +317,6 @@ export function PaymentDialog({
             type="number"
             value={paymentAmount}
             onChange={(e) => setPaymentAmount(e.target.value)}
-            
             InputProps={{
               startAdornment: (
                 <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>
@@ -371,7 +369,7 @@ export function PaymentDialog({
           />
         </Box>
 
-       {/* Payment Summary */}
+        {/* Payment Summary */}
         {(paymentAmountNum > 0 || (useSavings && savingsToApply > 0)) && (
           <Card
             sx={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0" }}
@@ -413,7 +411,7 @@ export function PaymentDialog({
                   >
                     {formatCurrency(
                       Math.max(paymentAmountNum, 0) +
-                        (useSavings ? savingsToApply : 0)
+                        (useSavings ? savingsToApply : 0),
                     )}
                   </Typography>
                 </Grid>

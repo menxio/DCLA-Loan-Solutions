@@ -1,16 +1,16 @@
 import { useState, useEffect, Suspense, lazy } from "react";
-import { 
-  Box, 
-  Typography, 
-  Alert, 
-  Snackbar, 
-  Button, 
-  Paper, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  MenuItem, 
-  TextField, 
+import {
+  Box,
+  Typography,
+  Alert,
+  Snackbar,
+  Button,
+  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
   Pagination,
 } from "@mui/material";
 import { Add, Group } from "@mui/icons-material";
@@ -22,22 +22,38 @@ import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
 import FullScreenLoader from "@components/common/FullScreenLoader";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
+import RequestErrorAlert from "@components/common/RequestErrorAlert";
 import { useAuthStore } from "@features/auth/authStore";
 import { canManageSavings } from "@features/auth/access";
+import { getApiErrorMessage } from "@utils/apiError";
 
 const MemberModal = lazy(() => import("./components/MemberModal"));
 const LoanModal = lazy(() => import("@features/loans/components/LoanModal"));
 const SavingsDepositDialog = lazy(
-  () => import("@features/savings/components/SavingsDepositDialog")
+  () => import("@features/savings/components/SavingsDepositDialog"),
 );
 
 export default function MembersPage() {
   const role = useAuthStore((state) => state.user?.role ?? "");
   const savingsActionsAllowed = canManageSavings(role);
-  const { members, total, page, limit, setPage, loading, error, createMember, updateMember, deleteMember, refetch } = useMembers();
-  
+  const {
+    members,
+    total,
+    page,
+    limit,
+    setPage,
+    loading,
+    error,
+    createMember,
+    updateMember,
+    deleteMember,
+    refetch,
+  } = useMembers();
+
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<Member | undefined>(undefined);
+  const [editingMember, setEditingMember] = useState<Member | undefined>(
+    undefined,
+  );
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -54,6 +70,7 @@ export default function MembersPage() {
   const [savingsDialogOpen, setSavingsDialogOpen] = useState(false);
   const [savingsMember, setSavingsMember] = useState<Member | null>(null);
   const [searchMember, setSearchMember] = useState("");
+  const [centersError, setCentersError] = useState<string | null>(null);
 
   // Reset to page 1 and refetch when filters change
   useEffect(() => {
@@ -68,11 +85,14 @@ export default function MembersPage() {
       search: searchMember.trim() || undefined,
       centerId: selectedCenterId || undefined,
     };
-     
+
     refetch(query);
   }, [page, limit, selectedCenterId, searchMember, refetch]);
 
-  const showSnackbar = (message: string, severity: "success" | "error" = "success") => {
+  const showSnackbar = (
+    message: string,
+    severity: "success" | "error" = "success",
+  ) => {
     setSnackbar({ open: true, message, severity });
   };
 
@@ -97,7 +117,7 @@ export default function MembersPage() {
       }
     } catch (err) {
       console.error("Failed to save member:", err);
-      showSnackbar("Failed to save member. Please try again.", "error");
+      showSnackbar(getApiErrorMessage(err), "error");
       throw err;
     }
   };
@@ -107,15 +127,13 @@ export default function MembersPage() {
     setModalOpen(true);
   };
 
-  
-
   const handleDelete = async (id: string) => {
     try {
       await deleteMember(id);
       showSnackbar("Member deleted successfully!");
     } catch (err) {
       console.error("Failed to delete member:", err);
-      showSnackbar("Failed to delete member. Please try again.", "error");
+      showSnackbar(getApiErrorMessage(err), "error");
       throw err;
     }
   };
@@ -170,10 +188,16 @@ export default function MembersPage() {
   useEffect(() => {
     const loadCenters = async () => {
       try {
+        setCentersError(null);
         const centersData = await CentersAPI.getAll({ limit: 1000 });
-        setCenters(Array.isArray(centersData) ? centersData : centersData.items ?? []);
+        setCenters(
+          Array.isArray(centersData) ? centersData : (centersData.items ?? []),
+        );
       } catch (error) {
         console.error("Failed to load centers:", error);
+        setCentersError(
+          `Center filters are unavailable. ${getApiErrorMessage(error)}`,
+        );
       }
     };
 
@@ -197,37 +221,69 @@ export default function MembersPage() {
 
   return (
     <DashboardLayout>
-      <Box sx={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
+      <Box
+        sx={{
+          backgroundColor: "#f8fafc",
+          minHeight: "100vh",
+          minWidth: 0,
+          maxWidth: "100%",
+        }}
+      >
         {/* Header Section */}
         <Paper
           sx={{
             background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
             border: "1px solid #e2e8f0",
             borderRadius: 3,
-            p: 4,
+            p: { xs: 2, sm: 4 },
             mb: 3,
-            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            boxShadow:
+              "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
           }}
         >
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: { xs: "stretch", md: "center" },
+              flexDirection: { xs: "column", md: "row" },
+              gap: 2,
+              mb: 3,
+              minWidth: 0,
+            }}
+          >
             {/* Left side - Title and Description */}
-            <Box display="flex" alignItems="center" gap={3}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: { xs: 1.5, sm: 3 },
+                minWidth: 0,
+              }}
+            >
               <Box
                 sx={{
                   width: 56,
                   height: 56,
                   borderRadius: 2,
-                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
+                  flexShrink: 0,
                 }}
               >
                 <Group sx={{ fontSize: 28, color: "white" }} />
               </Box>
-              <Box>
-                <Typography variant="h4" fontWeight="bold" color="#1e293b" mb={1}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  variant="h4"
+                  fontWeight="bold"
+                  color="#1e293b"
+                  mb={1}
+                >
                   Members
                 </Typography>
                 <Typography variant="body1" color="#64748b">
@@ -237,13 +293,45 @@ export default function MembersPage() {
             </Box>
 
             {/* Right side - Controls */}
-            <Box display="flex" alignItems="center" gap={2}>
-              <FormControl size="small" sx={{ minWidth: 150 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                flexDirection: { xs: "column", sm: "row" },
+                gap: 2,
+                width: { xs: "100%", md: "auto" },
+                minWidth: 0,
+              }}
+            >
+              <FormControl
+                size="small"
+                sx={{
+                  minWidth: { sm: 150 },
+                  width: { xs: "100%", sm: "auto" },
+                }}
+              >
                 <InputLabel>Center</InputLabel>
                 <Select
                   value={selectedCenterId}
                   label="Center"
                   onChange={(e) => setSelectedCenterId(e.target.value)}
+                  MenuProps={{
+                    anchorOrigin: {
+                      vertical: "bottom",
+                      horizontal: "left",
+                    },
+                    transformOrigin: {
+                      vertical: "top",
+                      horizontal: "left",
+                    },
+                    PaperProps: {
+                      sx: {
+                        maxHeight: { xs: 280, sm: 320 },
+                        maxWidth: "calc(100vw - 32px)",
+                        overflowY: "auto",
+                      },
+                    },
+                  }}
                   sx={{
                     backgroundColor: "white",
                     borderRadius: 2,
@@ -257,35 +345,39 @@ export default function MembersPage() {
                   ))}
                 </Select>
               </FormControl>
-              
+
               <TextField
                 size="small"
                 placeholder="Search by name"
                 value={searchMember}
                 onChange={(e) => setSearchMember(e.target.value)}
                 sx={{
-                  minWidth: 200,
+                  minWidth: { sm: 200 },
+                  width: { xs: "100%", sm: "auto" },
                   "& .MuiOutlinedInput-root": {
                     backgroundColor: "white",
                     borderRadius: 2,
                   },
                 }}
               />
-              
+
               <Button
                 variant="contained"
                 startIcon={<Add />}
                 onClick={handleOpenModal}
                 sx={{
-                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   borderRadius: 2,
                   px: 3,
                   py: 1.5,
                   textTransform: "none",
                   fontWeight: 600,
                   boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
+                  width: { xs: "100%", sm: "auto" },
                   "&:hover": {
-                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                    background:
+                      "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                     boxShadow: "0 6px 20px 0 rgba(59, 130, 246, 0.4)",
                   },
                 }}
@@ -297,20 +389,24 @@ export default function MembersPage() {
         </Paper>
         {/* Error Alert */}
         {error && (
-          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-            {error}
+          <RequestErrorAlert message={error} onRetry={() => refetch()} />
+        )}
+        {centersError && (
+          <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+            {centersError}
           </Alert>
         )}
 
-
         {/* Members Cards */}
-        <MemberCards 
-        members={filteredMembers} 
-        onEdit={handleEdit} 
-        onDelete={handleDelete} 
-        onViewLoan={handleViewLoan}
-        onAddSavings={savingsActionsAllowed ? handleOpenSavingsDialog : undefined}
-        loading={loading} 
+        <MemberCards
+          members={filteredMembers}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onViewLoan={handleViewLoan}
+          onAddSavings={
+            savingsActionsAllowed ? handleOpenSavingsDialog : undefined
+          }
+          loading={loading}
         />
 
         {/* Pagination Controls */}
@@ -364,7 +460,11 @@ export default function MembersPage() {
           onClose={handleCloseSnackbar}
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         >
-          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: "100%" }}>
+          <Alert
+            onClose={handleCloseSnackbar}
+            severity={snackbar.severity}
+            sx={{ width: "100%" }}
+          >
             {snackbar.message}
           </Alert>
         </Snackbar>

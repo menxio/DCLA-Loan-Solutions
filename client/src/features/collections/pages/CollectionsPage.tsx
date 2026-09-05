@@ -10,7 +10,6 @@ import {
   Paper,
   Tabs,
   Tab,
-  CircularProgress,
   TextField,
   InputAdornment,
   Skeleton,
@@ -24,11 +23,13 @@ import {
 } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
+import RequestErrorAlert from "@components/common/RequestErrorAlert";
 import DailyCollectionsView from "../components/DailyCollectionsView";
 import CollectionDetailsModal from "../components/CollectionDetailsModal";
 import CollectionUpdateModal from "../components/CollectionUpdateModal";
 import { useCollections } from "../hooks/useCollections";
 import type { Collection, DailyCollectionGroup } from "../types";
+import { getApiErrorMessage } from "@utils/apiError";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -99,11 +100,7 @@ function CollectionsTabSkeleton() {
               }}
             >
               {Array.from({ length: 4 }).map((__, statIndex) => (
-                <Skeleton
-                  key={statIndex}
-                  variant="rounded"
-                  height={92}
-                />
+                <Skeleton key={statIndex} variant="rounded" height={92} />
               ))}
             </Box>
             <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
@@ -123,7 +120,7 @@ export default function CollectionsPage() {
     loading,
     loadingDaily,
     loadingAll,
-    error,
+    errors,
     updateCollection,
     refetchDaily,
     refetchAll,
@@ -154,7 +151,7 @@ export default function CollectionsPage() {
 
   const showSnackbar = (
     message: string,
-    severity: "success" | "error" = "success"
+    severity: "success" | "error" = "success",
   ) => {
     setSnackbar({
       open: true,
@@ -165,7 +162,7 @@ export default function CollectionsPage() {
 
   const handleTabChange = async (
     event: React.SyntheticEvent,
-    newValue: number
+    newValue: number,
   ) => {
     setTabValue(newValue);
 
@@ -214,14 +211,14 @@ export default function CollectionsPage() {
 
   const handleUpdateCollection = async (
     id: string,
-    data: { paymentReceived: number; notes?: string }
+    data: { paymentReceived: number; notes?: string },
   ) => {
     try {
       await updateCollection(id, data);
       showSnackbar("Collection updated successfully!");
     } catch (err) {
       console.error("Failed to update collection", err);
-      showSnackbar("Failed to update collection. Please try again.", "error");
+      showSnackbar(getApiErrorMessage(err), "error");
       throw err;
     }
   };
@@ -236,7 +233,7 @@ export default function CollectionsPage() {
       showSnackbar("Data refreshed successfully!");
     } catch (err) {
       console.error("Failed to refresh collections", err);
-      showSnackbar("Failed to refresh data. Please try again.", "error");
+      showSnackbar(getApiErrorMessage(err), "error");
     }
   };
 
@@ -252,44 +249,81 @@ export default function CollectionsPage() {
   if (loading && dailyCollections.length === 0 && allCollections.length === 0) {
     return (
       <DashboardLayout>
-        <PageLoadingSkeleton showStats={false} showTabs filterCount={3} rowCount={8} />
+        <PageLoadingSkeleton
+          showStats={false}
+          showTabs
+          filterCount={3}
+          rowCount={8}
+        />
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <Box sx={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
+      <Box
+        sx={{
+          backgroundColor: "#f8fafc",
+          minHeight: "100vh",
+          minWidth: 0,
+          maxWidth: "100%",
+        }}
+      >
         {/* Header Section */}
         <Paper
           sx={{
             background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
             border: "1px solid #e2e8f0",
             borderRadius: 3,
-            p: 4,
+            p: { xs: 2, sm: 4 },
             mb: 3,
-            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            boxShadow:
+              "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
           }}
         >
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: { xs: "stretch", md: "center" },
+              flexDirection: { xs: "column", md: "row" },
+              gap: 2,
+              mb: 3,
+              minWidth: 0,
+            }}
+          >
             {/* Left side - Title and Description */}
-            <Box display="flex" alignItems="center" gap={3}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: { xs: 1.5, sm: 3 },
+                minWidth: 0,
+              }}
+            >
               <Box
                 sx={{
                   width: 56,
                   height: 56,
                   borderRadius: 2,
-                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
+                  flexShrink: 0,
                 }}
               >
                 <Assessment sx={{ fontSize: 28, color: "white" }} />
               </Box>
-              <Box>
-                <Typography variant="h4" fontWeight="bold" color="#1e293b" mb={1}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  variant="h4"
+                  fontWeight="bold"
+                  color="#1e293b"
+                  mb={1}
+                >
                   Collection Analytics
                 </Typography>
                 <Typography variant="body1" color="#64748b">
@@ -299,7 +333,16 @@ export default function CollectionsPage() {
             </Box>
 
             {/* Right side - Controls */}
-            <Box display="flex" alignItems="center" gap={2}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                flexDirection: { xs: "column", sm: "row" },
+                gap: 2,
+                width: { xs: "100%", md: "auto" },
+                minWidth: 0,
+              }}
+            >
               {tabValue === 1 && (
                 <TextField
                   size="small"
@@ -309,6 +352,7 @@ export default function CollectionsPage() {
                   onChange={(e) => handleDateChange(e.target.value)}
                   InputLabelProps={{ shrink: true }}
                   sx={{
+                    width: { xs: "100%", sm: "auto" },
                     "& .MuiOutlinedInput-root": {
                       backgroundColor: "white",
                       borderRadius: 2,
@@ -333,28 +377,32 @@ export default function CollectionsPage() {
                   ),
                 }}
                 sx={{
-                  minWidth: 200,
+                  minWidth: { sm: 200 },
+                  width: { xs: "100%", sm: "auto" },
                   "& .MuiOutlinedInput-root": {
                     backgroundColor: "white",
                     borderRadius: 2,
                   },
                 }}
               />
-              
+
               <Button
                 variant="contained"
                 startIcon={<Refresh />}
                 onClick={handleRefresh}
                 sx={{
-                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   borderRadius: 2,
                   px: 3,
                   py: 1.5,
                   textTransform: "none",
                   fontWeight: 600,
                   boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
+                  width: { xs: "100%", sm: "auto" },
                   "&:hover": {
-                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                    background:
+                      "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                     boxShadow: "0 6px 20px 0 rgba(59, 130, 246, 0.4)",
                   },
                 }}
@@ -366,32 +414,42 @@ export default function CollectionsPage() {
         </Paper>
 
         {/* Error Alert */}
-        {error && (
-          <Box px={3}>
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-              {error}
-            </Alert>
+        {(tabValue === 0 ? errors.daily : errors.all) && (
+          <Box sx={{ px: { xs: 0, sm: 3 }, minWidth: 0, maxWidth: "100%" }}>
+            <RequestErrorAlert
+              message={(tabValue === 0 ? errors.daily : errors.all) ?? ""}
+              onRetry={tabValue === 0 ? refetchDaily : refetchAll}
+            />
+          </Box>
+        )}
+        {errors.update && (
+          <Box sx={{ px: { xs: 0, sm: 3 }, minWidth: 0, maxWidth: "100%" }}>
+            <RequestErrorAlert message={errors.update} />
           </Box>
         )}
 
         {/* Main Content Card */}
-        <Box px={3}>
+        <Box sx={{ px: { xs: 0, sm: 3 }, minWidth: 0, maxWidth: "100%" }}>
           <Paper
             sx={{
               borderRadius: 3,
               border: "1px solid #e2e8f0",
-              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+              boxShadow:
+                "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
               overflow: "hidden",
+              minWidth: 0,
+              maxWidth: "100%",
             }}
           >
-
             {/* Tabs */}
             <Box sx={{ backgroundColor: "#ffffff" }}>
               <Tabs
                 value={tabValue}
                 onChange={handleTabChange}
+                variant="scrollable"
+                scrollButtons={false}
                 sx={{
-                  px: 3,
+                  px: { xs: 0, sm: 3 },
                   "& .MuiTab-root": {
                     textTransform: "none",
                     fontWeight: 600,
@@ -413,7 +471,7 @@ export default function CollectionsPage() {
                   },
                 }}
               >
-                <Tab 
+                <Tab
                   label={
                     <Box display="flex" alignItems="center" gap={1}>
                       <Groups sx={{ fontSize: 20 }} />
@@ -432,9 +490,9 @@ export default function CollectionsPage() {
                         {dailyCollections.length}
                       </Box>
                     </Box>
-                  } 
+                  }
                 />
-                <Tab 
+                <Tab
                   label={
                     <Box display="flex" alignItems="center" gap={1}>
                       <AccountBalance sx={{ fontSize: 20 }} />
@@ -453,78 +511,90 @@ export default function CollectionsPage() {
                         {allCollections.length}
                       </Box>
                     </Box>
-                  } 
+                  }
                 />
               </Tabs>
             </Box>
 
-          {/* Daily Collections Tab */}
-          <TabPanel value={tabValue} index={0}>
-            <Box sx={{ p: 3 }}>
-              {(tabSkeleton === 0 || loadingDaily) &&
-              dailyCollections.length === 0 ? (
-                <CollectionsTabSkeleton />
-              ) : dailyCollections?.length === 0 && search ? (
-                <Paper
-                  sx={{
-                    textAlign: "center",
-                    py: 6,
-                    background:
-                      "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-                    border: "1px solid #e2e8f0",
-                  }}
-                >
-                  <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No centers found matching "{search}"
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Try adjusting your search terms or check for typos.
-                  </Typography>
-                </Paper>
-              ) : (
-                <DailyCollectionsView
-                  data={dailyCollections ?? []}
-                  onViewDetails={handleViewDetails}
-                  loading={loading}
-                />
-              )}
-            </Box>
-          </TabPanel>
+            {/* Daily Collections Tab */}
+            <TabPanel value={tabValue} index={0}>
+              <Box
+                sx={{ p: { xs: 1.5, sm: 3 }, minWidth: 0, maxWidth: "100%" }}
+              >
+                {(tabSkeleton === 0 || loadingDaily) &&
+                dailyCollections.length === 0 ? (
+                  <CollectionsTabSkeleton />
+                ) : dailyCollections?.length === 0 && search ? (
+                  <Paper
+                    sx={{
+                      textAlign: "center",
+                      py: 6,
+                      background:
+                        "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
+                    <Typography
+                      variant="h6"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      No centers found matching "{search}"
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Try adjusting your search terms or check for typos.
+                    </Typography>
+                  </Paper>
+                ) : (
+                  <DailyCollectionsView
+                    data={dailyCollections ?? []}
+                    onViewDetails={handleViewDetails}
+                    loading={loading}
+                  />
+                )}
+              </Box>
+            </TabPanel>
 
-          {/* All Collections Tab */}
-          <TabPanel value={tabValue} index={1}>
-            <Box sx={{ p: 3 }}>
-              {(tabSkeleton === 1 || loadingAll) &&
-              allCollections.length === 0 ? (
-                <CollectionsTabSkeleton />
-              ) : allCollections.length === 0 && search ? (
-                <Paper
-                  sx={{
-                    textAlign: "center",
-                    py: 6,
-                    background:
-                      "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-                    border: "1px solid #e2e8f0",
-                  }}
-                >
-                  <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No centers found matching "{search}"
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Try adjusting your search terms or check for typos.
-                  </Typography>
-                </Paper>
-              ) : (
-                <DailyCollectionsView
-                  data={allCollections}
-                  onViewDetails={handleViewDetails}
-                  loading={loading}
-                />
-              )}
-            </Box>
-          </TabPanel>
+            {/* All Collections Tab */}
+            <TabPanel value={tabValue} index={1}>
+              <Box
+                sx={{ p: { xs: 1.5, sm: 3 }, minWidth: 0, maxWidth: "100%" }}
+              >
+                {(tabSkeleton === 1 || loadingAll) &&
+                allCollections.length === 0 ? (
+                  <CollectionsTabSkeleton />
+                ) : allCollections.length === 0 && search ? (
+                  <Paper
+                    sx={{
+                      textAlign: "center",
+                      py: 6,
+                      background:
+                        "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <Search sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
+                    <Typography
+                      variant="h6"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      No centers found matching "{search}"
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Try adjusting your search terms or check for typos.
+                    </Typography>
+                  </Paper>
+                ) : (
+                  <DailyCollectionsView
+                    data={allCollections}
+                    onViewDetails={handleViewDetails}
+                    loading={loading}
+                  />
+                )}
+              </Box>
+            </TabPanel>
           </Paper>
         </Box>
 

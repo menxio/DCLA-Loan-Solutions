@@ -1,22 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import collectionsService from "../api.ts";
-import type {
-  DailyCollectionGroup,
-  CollectionFormData,
-} from "../types.ts";
+import type { DailyCollectionGroup, CollectionFormData } from "../types.ts";
+import { getApiErrorMessage } from "@utils/apiError";
 
 type LoadingKey = "daily" | "all" | "update";
+type ErrorKey = LoadingKey;
 
-const getLocalISODate = (date: Date) =>
-  date.toLocaleDateString("en-CA");
+const getLocalISODate = (date: Date) => date.toLocaleDateString("en-CA");
 
 export function useCollections() {
   const [dailyCollections, setDailyCollections] = useState<
     DailyCollectionGroup[]
   >([]);
-  const [allCollections, setAllCollections] = useState<
-    DailyCollectionGroup[]
-  >([]);
+  const [allCollections, setAllCollections] = useState<DailyCollectionGroup[]>(
+    [],
+  );
 
   const [loadingMap, setLoadingMap] = useState<Record<LoadingKey, boolean>>({
     daily: true,
@@ -24,11 +22,15 @@ export function useCollections() {
     update: false,
   });
 
-  const [error, setError] = useState<string | null>(null);
+  const [errorMap, setErrorMap] = useState<Record<ErrorKey, string | null>>({
+    daily: null,
+    all: null,
+    update: null,
+  });
 
   const [dailyDate] = useState<string>(() => getLocalISODate(new Date()));
   const [allDate, setAllDate] = useState<string>(() =>
-    getLocalISODate(new Date())
+    getLocalISODate(new Date()),
   );
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -38,6 +40,10 @@ export function useCollections() {
       ...prev,
       [key]: value,
     }));
+  }, []);
+
+  const setRequestError = useCallback((key: ErrorKey, value: string | null) => {
+    setErrorMap((previous) => ({ ...previous, [key]: value }));
   }, []);
 
   useEffect(() => {
@@ -56,30 +62,30 @@ export function useCollections() {
   const fetchDailyCollections = useCallback(async () => {
     setLoading("daily", true);
     try {
-      setError(null);
+      setRequestError("daily", null);
       const data = await collectionsService.getTodayCollections(dailyDate);
       setDailyCollections(data);
     } catch (err) {
       console.error("Error fetching daily collections:", err);
-      setError("Failed to fetch daily collections");
+      setRequestError("daily", getApiErrorMessage(err));
     } finally {
       setLoading("daily", false);
     }
-  }, [dailyDate, setLoading]);
+  }, [dailyDate, setLoading, setRequestError]);
 
   const fetchAllCollections = useCallback(async () => {
     setLoading("all", true);
     try {
-      setError(null);
+      setRequestError("all", null);
       const data = await collectionsService.getAllCollectionGroups(allDate);
       setAllCollections(data);
     } catch (err) {
       console.error("Error fetching all collections:", err);
-      setError("Failed to fetch all collections");
+      setRequestError("all", getApiErrorMessage(err));
     } finally {
       setLoading("all", false);
     }
-  }, [allDate, setLoading]);
+  }, [allDate, setLoading, setRequestError]);
 
   useEffect(() => {
     fetchDailyCollections();
@@ -92,14 +98,14 @@ export function useCollections() {
   const filteredDailyCollections = useMemo(() => {
     if (!validatedSearch) return dailyCollections;
     return dailyCollections.filter((group) =>
-      group.centerName.toLowerCase().includes(validatedSearch.toLowerCase())
+      group.centerName.toLowerCase().includes(validatedSearch.toLowerCase()),
     );
   }, [dailyCollections, validatedSearch]);
 
   const filteredAllCollections = useMemo(() => {
     if (!validatedSearch) return allCollections;
     return allCollections.filter((group) =>
-      group.centerName.toLowerCase().includes(validatedSearch.toLowerCase())
+      group.centerName.toLowerCase().includes(validatedSearch.toLowerCase()),
     );
   }, [allCollections, validatedSearch]);
 
@@ -107,31 +113,31 @@ export function useCollections() {
     () =>
       allCollections.reduce(
         (sum, group) => sum + (group.collections?.length ?? 0),
-        0
+        0,
       ),
-    [allCollections]
+    [allCollections],
   );
 
   const updateCollection = useCallback(
     async (id: string, data: Partial<CollectionFormData>) => {
       setLoading("update", true);
-      setError(null);
+      setRequestError("update", null);
       try {
         await collectionsService.updateCollection(id, data);
         await Promise.all([fetchDailyCollections(), fetchAllCollections()]);
       } catch (err) {
         console.error("Failed to update collection:", err);
-        setError("Failed to update collection");
+        setRequestError("update", getApiErrorMessage(err));
         throw err;
       } finally {
         setLoading("update", false);
       }
     },
-    [fetchDailyCollections, fetchAllCollections, setLoading]
+    [fetchDailyCollections, fetchAllCollections, setLoading, setRequestError],
   );
 
-  const loading =
-    loadingMap.daily || loadingMap.all || loadingMap.update;
+  const loading = loadingMap.daily || loadingMap.all || loadingMap.update;
+  const error = errorMap.update ?? errorMap.daily ?? errorMap.all;
 
   return {
     dailyCollections: filteredDailyCollections,
@@ -147,6 +153,7 @@ export function useCollections() {
     loadingDaily: loadingMap.daily,
     loadingAll: loadingMap.all,
     error,
+    errors: errorMap,
     updateCollection,
     refetchDaily: fetchDailyCollections,
     refetchAll: fetchAllCollections,

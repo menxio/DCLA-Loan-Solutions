@@ -159,7 +159,12 @@ export default function CenterModal({
           {isEditing ? <Edit /> : <Add />}
           {isEditing ? "Edit Center" : "Add New Center"}
         </Box>
-        <IconButton onClick={handleClose} disabled={loading} size="small">
+        <IconButton
+          aria-label="Close center form"
+          onClick={handleClose}
+          disabled={loading}
+          size="small"
+        >
           <Close />
         </IconButton>
       </DialogTitle>

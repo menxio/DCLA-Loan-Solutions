@@ -113,7 +113,6 @@ export default function CenterTable({
     );
   }
 
-  console.log(centers);
   return (
     <>
       <Paper
@@ -121,6 +120,8 @@ export default function CenterTable({
           background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
           border: "1px solid #e2e8f0",
           overflow: "hidden",
+          minWidth: 0,
+          maxWidth: "100%",
         }}
       >
         <Box sx={{ p: 3, borderBottom: "1px solid #e2e8f0" }}>
@@ -138,8 +139,8 @@ export default function CenterTable({
           </Typography>
         </Box>
 
-        <TableContainer>
-          <Table>
+        <TableContainer sx={{ maxWidth: "100%", overflowX: "auto" }}>
+          <Table sx={{ minWidth: 680 }}>
             <TableHead>
               <TableRow sx={{ backgroundColor: "#f8fafc" }}>
                 <TableCell
@@ -248,6 +249,7 @@ export default function CenterTable({
                       sx={{ display: "flex", justifyContent: "center", gap: 1 }}
                     >
                       <IconButton
+                        aria-label={`Edit ${center.name}`}
                         onClick={() => onEdit(center)}
                         size="small"
                         sx={{
@@ -260,6 +262,7 @@ export default function CenterTable({
                         <Edit fontSize="small" />
                       </IconButton>
                       <IconButton
+                        aria-label={`Delete ${center.name}`}
                         onClick={() => handleDeleteClick(center)}
                         size="small"
                         sx={{

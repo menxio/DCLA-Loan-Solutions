@@ -52,6 +52,9 @@ export default function DailyCollectionsView({
 }: DailyCollectionsViewProps) {
   const [exportingAll, setExportingAll] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [supportingDataError, setSupportingDataError] = useState<string | null>(
+    null
+  );
   const [centerMembersMap, setCenterMembersMap] = useState<
     Record<string, MemberWithLoansExtended[]>
   >({});
@@ -73,6 +76,7 @@ export default function DailyCollectionsView({
         setMembersLoading(true);
         setCenterMembersMap({});
         setPendingPaymentMemberIdsMap({});
+        setSupportingDataError(null);
       }
       try {
         const results = await Promise.all(
@@ -106,6 +110,7 @@ export default function DailyCollectionsView({
                   .filter((repayment) => repayment.operationType !== "reversal")
                   .map((repayment) => repayment.member?.id)
                   .filter((id): id is string => Boolean(id)),
+                failed: false,
               };
             } catch {
               return {
@@ -113,6 +118,7 @@ export default function DailyCollectionsView({
                 groupKey: getGroupKey(group),
                 members: [] as MemberWithLoansExtended[],
                 pendingMemberIds: [] as string[],
+                failed: true,
               };
             }
           })
@@ -124,11 +130,21 @@ export default function DailyCollectionsView({
           results.forEach((r) => (pendingMap[r.groupKey] = r.pendingMemberIds));
           setCenterMembersMap(map);
           setPendingPaymentMemberIdsMap(pendingMap);
+          if (results.some((result) => result.failed)) {
+            setSupportingDataError(
+              results.every((result) => result.failed)
+                ? "Member and pending payment details are temporarily unavailable."
+                : "Some member or pending payment details are temporarily unavailable."
+            );
+          }
         }
       } catch {
         if (!cancelled) {
           setCenterMembersMap({});
           setPendingPaymentMemberIdsMap({});
+          setSupportingDataError(
+            "Member and pending payment details are temporarily unavailable."
+          );
         }
       } finally {
         if (!cancelled) {
@@ -141,6 +157,7 @@ export default function DailyCollectionsView({
     } else {
       setCenterMembersMap({});
       setPendingPaymentMemberIdsMap({});
+      setSupportingDataError(null);
       setMembersLoading(false);
     }
     return () => {
@@ -573,6 +590,12 @@ export default function DailyCollectionsView({
       </Box>
 
       {/* Export Error Alert */}
+      {supportingDataError && (
+        <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+          {supportingDataError}
+        </Alert>
+      )}
+
       {exportError && (
         <Alert
           severity="error"

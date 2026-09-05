@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { 
-  Box, 
-  Typography, 
-  Alert, 
-  Snackbar, 
-  Button, 
-  Paper, 
+import {
+  Box,
+  Typography,
+  Alert,
+  Snackbar,
+  Button,
+  Paper,
   Pagination,
   TextField,
   InputAdornment,
@@ -16,17 +16,33 @@ import {
 import { Add, Groups, Search } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
+import RequestErrorAlert from "@components/common/RequestErrorAlert";
 import CenterModal from "../components/CenterModal";
 import CenterTable from "../components/CenterTable";
 import { useCenters } from "../hooks/useCenters";
 import type { Center, CenterFormData } from "../types";
+import { getApiErrorMessage } from "@utils/apiError";
 
 export default function CentersPage() {
-  const { centers, total, page, limit, setPage, setLimit, search, setSearch, loading, error, createCenter, updateCenter, deleteCenter } =
-    useCenters();
+  const {
+    centers,
+    total,
+    page,
+    limit,
+    setPage,
+    setLimit,
+    search,
+    setSearch,
+    loading,
+    error,
+    createCenter,
+    updateCenter,
+    deleteCenter,
+    refetch,
+  } = useCenters();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCenter, setEditingCenter] = useState<Center | undefined>(
-    undefined
+    undefined,
   );
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -40,7 +56,7 @@ export default function CentersPage() {
 
   const showSnackbar = (
     message: string,
-    severity: "success" | "error" = "success"
+    severity: "success" | "error" = "success",
   ) => {
     setSnackbar({
       open: true,
@@ -70,7 +86,7 @@ export default function CentersPage() {
       }
     } catch (err) {
       console.error("Failed to save center:", err);
-      showSnackbar("Failed to save center. Please try again.", "error");
+      showSnackbar(getApiErrorMessage(err), "error");
       throw err;
     }
   };
@@ -86,7 +102,7 @@ export default function CentersPage() {
       showSnackbar("Center deleted successfully!");
     } catch (err) {
       console.error("Failed to delete center:", err);
-      showSnackbar("Failed to delete center. Please try again.", "error");
+      showSnackbar(getApiErrorMessage(err), "error");
       throw err;
     }
   };
@@ -109,37 +125,69 @@ export default function CentersPage() {
 
   return (
     <DashboardLayout>
-      <Box sx={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
+      <Box
+        sx={{
+          backgroundColor: "#f8fafc",
+          minHeight: "100vh",
+          minWidth: 0,
+          maxWidth: "100%",
+        }}
+      >
         {/* Header Section */}
         <Paper
           sx={{
             background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
             border: "1px solid #e2e8f0",
             borderRadius: 3,
-            p: 4,
+            p: { xs: 2, sm: 4 },
             mb: 3,
-            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            boxShadow:
+              "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
           }}
         >
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: { xs: "stretch", md: "center" },
+              flexDirection: { xs: "column", md: "row" },
+              gap: 2,
+              mb: 3,
+              minWidth: 0,
+            }}
+          >
             {/* Left side - Title and Description */}
-            <Box display="flex" alignItems="center" gap={3}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: { xs: 1.5, sm: 3 },
+                minWidth: 0,
+              }}
+            >
               <Box
                 sx={{
                   width: 56,
                   height: 56,
                   borderRadius: 2,
-                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
+                  flexShrink: 0,
                 }}
               >
                 <Groups sx={{ fontSize: 28, color: "white" }} />
               </Box>
-              <Box>
-                <Typography variant="h4" fontWeight="bold" color="#1e293b" mb={1}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  variant="h4"
+                  fontWeight="bold"
+                  color="#1e293b"
+                  mb={1}
+                >
                   Collection Centers
                 </Typography>
                 <Typography variant="body1" color="#64748b">
@@ -149,7 +197,16 @@ export default function CentersPage() {
             </Box>
 
             {/* Right side - Controls */}
-            <Box display="flex" alignItems="center" gap={2}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                flexDirection: { xs: "column", sm: "row" },
+                gap: 2,
+                width: { xs: "100%", md: "auto" },
+                minWidth: 0,
+              }}
+            >
               <TextField
                 size="small"
                 placeholder="Search centers..."
@@ -163,22 +220,26 @@ export default function CentersPage() {
                   ),
                 }}
                 sx={{
-                  minWidth: 200,
+                  minWidth: { sm: 200 },
+                  width: { xs: "100%", sm: "auto" },
                   "& .MuiOutlinedInput-root": {
                     backgroundColor: "white",
                     borderRadius: 2,
                   },
                 }}
               />
-              
-              <FormControl size="small">
-                <Select 
-                  value={limit} 
+
+              <FormControl
+                size="small"
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+              >
+                <Select
+                  value={limit}
                   onChange={(event) => {
                     setPage(1);
                     setLimit(Number(event.target.value));
                   }}
-                  sx={{ 
+                  sx={{
                     minWidth: 80,
                     backgroundColor: "white",
                     borderRadius: 2,
@@ -190,21 +251,24 @@ export default function CentersPage() {
                   <MenuItem value={50}>50</MenuItem>
                 </Select>
               </FormControl>
-              
+
               <Button
                 variant="contained"
                 startIcon={<Add />}
                 onClick={handleOpenModal}
                 sx={{
-                  background: "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
                   borderRadius: 2,
                   px: 3,
                   py: 1.5,
                   textTransform: "none",
                   fontWeight: 600,
                   boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
+                  width: { xs: "100%", sm: "auto" },
                   "&:hover": {
-                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                    background:
+                      "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                     boxShadow: "0 6px 20px 0 rgba(59, 130, 246, 0.4)",
                   },
                 }}
@@ -217,25 +281,24 @@ export default function CentersPage() {
 
         {/* Error Alert */}
         {error && (
-          <Box px={3}>
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-              {error}
-            </Alert>
+          <Box sx={{ px: { xs: 0, sm: 3 }, minWidth: 0, maxWidth: "100%" }}>
+            <RequestErrorAlert message={error} onRetry={() => refetch()} />
           </Box>
         )}
 
         {/* Main Content Card */}
-        <Box px={3}>
+        <Box sx={{ px: { xs: 0, sm: 3 }, minWidth: 0, maxWidth: "100%" }}>
           <Paper
             sx={{
               borderRadius: 3,
               border: "1px solid #e2e8f0",
-              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+              boxShadow:
+                "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
               overflow: "hidden",
             }}
           >
             {/* Centers Table */}
-            <Box p={3}>
+            <Box sx={{ p: { xs: 1.5, sm: 3 }, minWidth: 0, maxWidth: "100%" }}>
               <Box
                 sx={{
                   display: "flex",
@@ -245,8 +308,7 @@ export default function CentersPage() {
                   mb: 2,
                   flexWrap: "wrap",
                 }}
-              >
-              </Box>
+              ></Box>
               <CenterTable
                 centers={centers}
                 onEdit={handleEdit}

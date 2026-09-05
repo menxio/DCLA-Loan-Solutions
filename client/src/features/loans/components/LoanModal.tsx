@@ -571,7 +571,12 @@ export default function LoanModal({
             {creatingLoan ? "Create Loan" : "Loan"} - {member.firstName} {member.lastName}
           </Typography>
         </Box>
-        <IconButton onClick={handleClose} disabled={loading} size="small">
+        <IconButton
+          aria-label="Close loan management"
+          onClick={handleClose}
+          disabled={loading}
+          size="small"
+        >
           <Close />
         </IconButton>
       </DialogTitle>
@@ -934,7 +939,12 @@ export default function LoanModal({
             )}
           </Box>
         </Box>
-        <IconButton onClick={handleCloseHistoryDialog} disabled={historyLoading} size="small">
+        <IconButton
+          aria-label="Close loan history"
+          onClick={handleCloseHistoryDialog}
+          disabled={historyLoading}
+          size="small"
+        >
           <Close />
         </IconButton>
       </DialogTitle>

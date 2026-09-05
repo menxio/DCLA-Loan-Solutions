@@ -5,6 +5,7 @@ import type {
   RevenueDateFilter,
   RevenueGranularity,
 } from "../types";
+import { getApiErrorMessage } from "@utils/apiError";
 
 export function useExpectedRevenue(
   granularity: RevenueGranularity,
@@ -18,16 +19,14 @@ export function useExpectedRevenue(
     try {
       setLoading(true);
       setError(null);
-      const expectedRevenueData =
-        await portfolioService.getExpectedRevenueData(granularity, filter);
+      const expectedRevenueData = await portfolioService.getExpectedRevenueData(
+        granularity,
+        filter,
+      );
       setData(expectedRevenueData);
     } catch (err) {
       console.error("Failed to fetch expected revenue data:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to fetch expected revenue data",
-      );
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
     }
