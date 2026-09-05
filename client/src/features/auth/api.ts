@@ -10,14 +10,12 @@ import type {
 } from "./types";
 import type { User } from "../../types/auth";
 import api from "../../utils/api";
+import { API_BASE_URL } from "../../config/api-url";
 
 type ChangePasswordResponse = {
   message: string;
   user: User;
 };
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 // Create axios instance
 const authApi = axios.create({

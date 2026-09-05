@@ -19,21 +19,14 @@ import { PortfolioModule } from './portfolio/portfolio.module';
 import { RolesModule } from './roles/roles.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { validateEnvironment } from './config/environment';
+import { createApplicationDatabaseOptions } from './config/database.config';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      url: process.env.DATABASE_URL,
-      autoLoadEntities: true,
-      synchronize: process.env.TYPEORM_SYNC === 'true',
-      migrationsRun: process.env.TYPEORM_RUN_MIGRATIONS === 'true',
-      migrations: ['dist/migrations/*.js'],
-      ssl: {
-        rejectUnauthorized: false,
-      },
-    }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
+    TypeOrmModule.forRoot(createApplicationDatabaseOptions(process.env)),
     UsersModule,
     RolesModule,
     AuthModule,
@@ -47,7 +40,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     TransactionsModule,
     NotificationsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     {
