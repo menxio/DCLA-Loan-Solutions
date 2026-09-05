@@ -71,7 +71,7 @@ export class SavingsHistoryService {
           'savings.balanceBefore AS "balanceBefore"',
           'savings.balanceAfter AS "balanceAfter"',
           'savings."businessDate"::text AS "businessDate"',
-          'savings.createdAt AS "createdAt"',
+          `savings."createdAt" AT TIME ZONE 'Asia/Manila' AS "createdAt"`,
           'savings.remarks AS "remarks"',
           'savings.loanId AS "loanId"',
           'savings.referenceType AS "referenceType"',
@@ -86,7 +86,7 @@ export class SavingsHistoryService {
       pageQuery.select([
         'savings.id AS "id"',
         'savings.amount AS "amount"',
-        'savings.createdAt AS "createdAt"',
+        `savings."createdAt" AT TIME ZONE 'Asia/Manila' AS "createdAt"`,
         'savings.remarks AS "remarks"',
       ]);
     }

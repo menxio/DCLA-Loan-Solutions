@@ -36,9 +36,9 @@ import { useSavingsHistory } from "../hooks/useSavingsHistory";
 import {
   formatSavingsBusinessDate,
   formatSavingsMoney,
-  formatSavingsRecordedAt,
   SAVINGS_EVENT_LABELS,
 } from "../savings-history";
+import { formatRecordedTimestamp } from "@utils/dateTime";
 import type {
   SavingsHistoryPagination,
   SavingsHistoryScope,
@@ -152,7 +152,7 @@ function LedgerDetails({ item }: { item: SavingsLedgerHistoryItem }) {
       />
       <DetailField
         label="Recorded At"
-        value={formatSavingsRecordedAt(item.createdAt)}
+        value={formatRecordedTimestamp(item.createdAt)}
       />
       <DetailField
         label="Performed By"
@@ -341,7 +341,7 @@ function LegacyTable({ items }: { items: SavingsLegacyHistoryItem[] }) {
           {items.map((item) => (
             <TableRow key={item.id} hover>
               <TableCell sx={{ whiteSpace: "nowrap" }}>
-                {formatSavingsRecordedAt(item.createdAt)}
+                {formatRecordedTimestamp(item.createdAt)}
               </TableCell>
               <TableCell>
                 {item.direction
@@ -391,7 +391,7 @@ function LegacyCards({ items }: { items: SavingsLegacyHistoryItem[] }) {
             </Typography>
           </Stack>
           <Typography variant="body2" mt={1}>
-            {formatSavingsRecordedAt(item.createdAt)}
+            {formatRecordedTimestamp(item.createdAt)}
           </Typography>
           <Typography variant="body2" color="text.secondary" mt={0.5}>
             {item.remarks || "—"}

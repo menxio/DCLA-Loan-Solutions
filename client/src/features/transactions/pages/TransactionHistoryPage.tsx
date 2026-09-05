@@ -38,6 +38,7 @@ import type { SelectChangeEvent } from "@mui/material/Select";
 import type { TransactionFilterType } from "../types";
 import { useAuthStore } from "@features/auth/authStore";
 import { repaymentsService } from "@features/repayments/api";
+import { formatRecordedTimestamp } from "@utils/dateTime";
 
 const typeOptions = [
   { value: "all", label: "All Transactions" },
@@ -48,12 +49,6 @@ const typeOptions = [
 
 const formatCurrency = (value: number) =>
   `₱${Number(value || 0).toLocaleString()}`;
-
-const formatDate = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-};
 
 const directionColors: Record<string, "success" | "error" | "default"> = {
   credit: "success",
@@ -152,7 +147,7 @@ export default function TransactionHistoryPage() {
       );
       handleCloseReversalDialog();
       await refresh();
-    } catch (err) {
+    } catch {
       showSnackbar(
         isOperationalAdmin
           ? "Failed to reverse payment."
@@ -372,7 +367,9 @@ export default function TransactionHistoryPage() {
                   const showReversalAction = canRequestReversal && isRepaymentPayment;
                   return (
                   <TableRow key={transaction.id} hover>
-                    <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                    <TableCell>
+                      {formatRecordedTimestamp(transaction.createdAt)}
+                    </TableCell>
                     <TableCell>
                       <Typography sx={{ fontWeight: 600 }}>
                         {transaction.member.name}
@@ -543,4 +540,3 @@ export default function TransactionHistoryPage() {
     </DashboardLayout>
   );
 }
-

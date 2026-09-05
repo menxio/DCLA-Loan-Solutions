@@ -84,7 +84,8 @@ function createHarness(options: {
   };
 }
 
-const createdAt = new Date('2026-09-03T04:05:06.000Z');
+const createdAt = new Date('2026-09-03T15:14:29.683Z');
+const manilaCreatedAtProjection = `savings."createdAt" AT TIME ZONE 'Asia/Manila' AS "createdAt"`;
 
 describe('SavingsHistoryService', () => {
   it('returns only complete ledger fields with safe actor provenance', async () => {
@@ -176,6 +177,9 @@ describe('SavingsHistoryService', () => {
     expect(harness.page.addOrderBy).toHaveBeenCalledWith('savings.id', 'DESC');
     expect(harness.page.offset).toHaveBeenCalledWith(2);
     expect(harness.page.limit).toHaveBeenCalledWith(2);
+    expect(harness.page.select).toHaveBeenCalledWith(
+      expect.arrayContaining([manilaCreatedAtProjection]),
+    );
     expect(harness.findMember).toHaveBeenCalledTimes(1);
     expect(harness.createQueryBuilder).toHaveBeenCalledTimes(2);
   });
@@ -234,9 +238,12 @@ describe('SavingsHistoryService', () => {
     expect(harness.page.select).toHaveBeenCalledWith([
       'savings.id AS "id"',
       'savings.amount AS "amount"',
-      'savings.createdAt AS "createdAt"',
+      manilaCreatedAtProjection,
       'savings.remarks AS "remarks"',
     ]);
+    expect(result.items[0]?.createdAt.toISOString()).toBe(
+      '2026-09-03T15:14:29.683Z',
+    );
     for (const item of result.items) {
       expect(item).not.toHaveProperty('eventType');
       expect(item).not.toHaveProperty('balanceBefore');

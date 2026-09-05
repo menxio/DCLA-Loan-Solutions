@@ -59,6 +59,7 @@ import { smsNotificationsApi } from "@features/notifications/api";
 import SendSmsConfirmationDialog from "@features/notifications/components/SendSmsConfirmationDialog";
 import type { SmsEligibilityItem } from "@features/notifications/types";
 import { queryClient } from "../../../queryClient";
+import { formatRecordedTimestamp } from "@utils/dateTime";
 
 interface LoanModalProps {
   open: boolean;
@@ -1080,7 +1081,8 @@ export default function LoanModal({
                                 {getTransactionTypeLabel(transaction.type)}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                Recorded: {new Date(transaction.createdAt).toLocaleString()}
+                                Recorded:{" "}
+                                {formatRecordedTimestamp(transaction.createdAt)}
                               </Typography>
                               {transaction.collectionDate && (
                                 <Typography

@@ -101,7 +101,7 @@ describe('TransactionsService', () => {
       collectionDate: '2026-09-05',
       paymentDate: '2026-09-05',
       operationType: 'payment',
-      createdAt: new Date('2026-09-05T01:00:00.000Z'),
+      createdAt: new Date('2026-09-03T15:14:29.683Z'),
       memberId: 'member-1',
       memberFirstName: 'Test',
       memberLastName: 'Member',
@@ -132,6 +132,7 @@ describe('TransactionsService', () => {
     expect(result.items[0]).toMatchObject({
       id: 'repayment-1',
       amount: 125.5,
+      createdAt: '2026-09-03T15:14:29.683Z',
       member: {
         id: 'member-1',
         name: 'Member, Test',
@@ -148,6 +149,11 @@ describe('TransactionsService', () => {
       'DESC',
     );
     expect(repayment.builder.getRawMany).toHaveBeenCalledTimes(1);
+    expect(repayment.builder.select).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        `repayment."createdAt" AT TIME ZONE 'Asia/Manila' AS "createdAt"`,
+      ]),
+    );
     expect(repayment.countQuery.getCount).toHaveBeenCalledTimes(1);
     expect(repayment.builder.andWhere).toHaveBeenCalledWith(
       expect.stringContaining('LOWER(CONCAT'),

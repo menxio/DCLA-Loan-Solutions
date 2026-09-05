@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   formatSavingsBusinessDate,
   formatSavingsMoney,
-  formatSavingsRecordedAt,
   SAVINGS_EVENT_LABELS,
 } from "./savings-history";
+import { formatRecordedTimestamp } from "@utils/dateTime";
 
 describe("savings history presentation", () => {
   it("maps every persisted ledger event to a readable label", () => {
@@ -27,7 +27,7 @@ describe("savings history presentation", () => {
 
   it("formats business dates without timezone shifting and timestamps in Manila", () => {
     expect(formatSavingsBusinessDate("2026-09-03")).toBe("Sep 3, 2026");
-    expect(formatSavingsRecordedAt("2026-09-03T02:35:00.000Z")).toBe(
+    expect(formatRecordedTimestamp("2026-09-03T02:35:00.000Z")).toBe(
       "Sep 3, 2026, 10:35 AM",
     );
   });
