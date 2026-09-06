@@ -31,7 +31,13 @@ function setup(role = "manager", desktop = true, path = "/dashboard") {
     })),
   );
   useAuthStore.setState({
-    user: { id: "fixture", email: "user@example.com", role },
+    user: {
+      id: "fixture",
+      email: "user@example.com",
+      firstName: "Alexandria Catherine",
+      lastName: "Montgomery-Santos",
+      role,
+    },
   });
   return render(
     <ThemeProvider theme={theme}>
@@ -72,6 +78,15 @@ describe("Application navigation", () => {
     expect(
       screen.queryByRole("button", { name: "Open navigation" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "account of current user" }),
+    ).not.toBeInTheDocument();
+    const account = screen.getByLabelText("Signed in user");
+    expect(account).toHaveTextContent("Alexandria Catherine Montgomery-Santos");
+    expect(account).toHaveTextContent(
+      role.replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    );
   });
   it("marks the exact current route and updates on navigation", () => {
     setup();
@@ -90,8 +105,13 @@ describe("Application navigation", () => {
   });
   it("opens the mobile drawer and closes it after selecting a route", async () => {
     setup("manager", false);
+    expect(screen.getByRole("banner")).toHaveTextContent("Dashboard");
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    expect(screen.getByLabelText("Signed in user")).toHaveTextContent(
+      "Manager",
+    );
+    expect(screen.getByRole("button", { name: "Logout" })).toBeVisible();
     fireEvent.click(screen.getByRole("link", { name: "Transactions" }));
     expect(screen.getByLabelText("Current path")).toHaveTextContent(
       "/transactions",
@@ -111,13 +131,21 @@ describe("Application navigation", () => {
   it("preserves the logout service and redirect", async () => {
     vi.mocked(authService.logout).mockResolvedValue(undefined);
     setup();
-    fireEvent.click(
-      screen.getByRole("button", { name: "account of current user" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Logout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
     await waitFor(() =>
       expect(screen.getByLabelText("Current path")).toHaveTextContent("/login"),
     );
     expect(authService.logout).toHaveBeenCalledOnce();
+  });
+  it("uses the same logout path from the mobile drawer", async () => {
+    vi.mocked(authService.logout).mockResolvedValue(undefined);
+    setup("cashier", false, "/collections");
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Current path")).toHaveTextContent("/login"),
+    );
+    expect(authService.logout).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 });

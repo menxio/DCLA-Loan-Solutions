@@ -25,6 +25,34 @@ const member = {
 } as Member;
 
 describe("MemberCards savings entry point", () => {
+  it("keeps the loan and edit actions bound to the selected member", () => {
+    const onViewLoan = vi.fn();
+    const onEdit = vi.fn();
+    render(
+      <MemberCards
+        members={[member]}
+        onEdit={onEdit}
+        onDelete={vi.fn()}
+        onViewLoan={onViewLoan}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "View Loan" }));
+    expect(onViewLoan).toHaveBeenCalledWith(member);
+    fireEvent.click(screen.getByRole("button", { name: /Open actions/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    expect(onEdit).toHaveBeenCalledWith(member);
+  });
+  it("keeps delete behind confirmation", () => {
+    const onDelete = vi.fn();
+    render(
+      <MemberCards members={[member]} onEdit={vi.fn()} onDelete={onDelete} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Open actions/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onDelete).not.toHaveBeenCalled();
+  });
   it("keeps the existing Savings action wired to the selected member", () => {
     const onAddSavings = vi.fn();
     render(

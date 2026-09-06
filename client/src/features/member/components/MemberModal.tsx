@@ -282,27 +282,31 @@ export default function MemberModal({
       onClose={handleClose}
       fullWidth
       maxWidth="md"
+      aria-labelledby="member-dialog-title"
       PaperProps={{
         sx: {
-          borderRadius: 3,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-          p: 2,
+          borderRadius: "12px",
+          bgcolor: "background.paper",
         },
       }}
     >
       <DialogTitle
+        id="member-dialog-title"
         sx={{
           fontWeight: 600,
           color: "#1e293b",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          pb: 1,
+          px: { xs: 2, sm: 3 },
+          py: 2,
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           {isEditing ? <Edit fontSize="small" /> : <Add fontSize="small" />}
-          <Typography variant="h6" fontWeight={600}>
+          <Typography component="span" variant="h5" fontWeight={600}>
             {isEditing ? "Edit Member" : "Add New Member"}
           </Typography>
         </Box>
@@ -311,13 +315,16 @@ export default function MemberModal({
           onClick={handleClose}
           disabled={loading}
           size="small"
+          sx={{ width: 44, height: 44 }}
         >
           <Close />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
+      <DialogContent
+        sx={{ px: { xs: 2, sm: 3 }, py: 3, "&:first-of-type": { pt: 3 } }}
+      >
+        <form id="member-form" onSubmit={handleSubmit}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -445,35 +452,43 @@ export default function MemberModal({
               {submitError}
             </Alert>
           )}
-
-          <DialogActions sx={{ mt: 3 }}>
-            <Button
-              onClick={handleClose}
-              disabled={loading}
-              sx={{ color: "#64748b" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              disabled={loading}
-              startIcon={
-                loading ? (
-                  <CircularProgress size={16} />
-                ) : isEditing ? (
-                  <Edit />
-                ) : (
-                  <Add />
-                )
-              }
-            >
-              {loading ? "Saving..." : isEditing ? "Update" : "Create"}
-            </Button>
-          </DialogActions>
         </form>
       </DialogContent>
+      <DialogActions
+        sx={{
+          px: { xs: 2, sm: 3 },
+          py: 2,
+          gap: 1,
+          borderTop: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Button
+          onClick={handleClose}
+          disabled={loading}
+          sx={{ color: "#64748b" }}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          form="member-form"
+          variant="contained"
+          color="primary"
+          disabled={loading}
+          startIcon={
+            loading ? (
+              <CircularProgress size={16} />
+            ) : isEditing ? (
+              <Edit />
+            ) : (
+              <Add />
+            )
+          }
+        >
+          {loading ? "Saving..." : isEditing ? "Update" : "Create"}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }

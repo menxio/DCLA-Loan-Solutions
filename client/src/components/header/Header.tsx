@@ -5,8 +5,6 @@ import {
   Typography,
   IconButton,
   Avatar,
-  Menu,
-  MenuItem,
   Box,
   ListItemIcon,
   Divider,
@@ -18,9 +16,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import AccountCircle from "@mui/icons-material/AccountCircle";
 import Logout from "@mui/icons-material/Logout";
-import AdminPanelSettings from "@mui/icons-material/AdminPanelSettings";
 import MenuIcon from "@mui/icons-material/Menu";
 import Close from "@mui/icons-material/Close";
 import AccountBalance from "@mui/icons-material/AccountBalance";
@@ -38,7 +34,6 @@ interface HeaderProps {
 }
 
 export default function Header({ title }: HeaderProps) {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -53,30 +48,33 @@ export default function Header({ title }: HeaderProps) {
     .filter(Boolean)
     .join(" ")
     .trim();
+  const userLabel = userName || user?.email || "User";
+  const userInitials = userName
+    ? [user?.firstName?.[0], user?.lastName?.[0]]
+        .filter(Boolean)
+        .join("")
+        .toUpperCase()
+    : user?.email?.[0]?.toUpperCase() || "U";
+  const roleLabel = user?.role
+    ? user.role.replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : "";
   const handleLogout = async () => {
     await authService.logout();
     navigate("/login");
-    setAnchorEl(null);
+    setDrawerOpen(false);
   };
 
   return (
     <>
-      <AppBar
-        position="fixed"
-        elevation={0}
-        sx={{
-          ml: { lg: `${navigationWidth}px` },
-          width: { xs: "100%", lg: `calc(100% - ${navigationWidth}px)` },
-        }}
-      >
-        <Toolbar
-          sx={{
-            minHeight: `${headerHeight}px !important`,
-            px: { xs: 2, sm: 3, lg: 4 },
-            gap: 1,
-          }}
-        >
-          {!desktop && (
+      {!desktop && (
+        <AppBar position="fixed" elevation={0} sx={{ width: "100%" }}>
+          <Toolbar
+            sx={{
+              minHeight: `${headerHeight}px !important`,
+              px: { xs: 2, sm: 3 },
+              gap: 1,
+            }}
+          >
             <Tooltip title="Open navigation">
               <IconButton
                 aria-label="Open navigation"
@@ -90,77 +88,15 @@ export default function Header({ title }: HeaderProps) {
                 <MenuIcon />
               </IconButton>
             </Tooltip>
-          )}
-          <Typography
-            component="div"
-            sx={{ flexGrow: 1, minWidth: 0, fontSize: 16, fontWeight: 600 }}
-          >
-            {desktop
-              ? (title ?? currentLabel ?? "DCLA Loan Solutions")
-              : "DCLA Loan Solutions"}
-          </Typography>
-          <Tooltip title="Account">
-            <IconButton
-              aria-label="account of current user"
-              aria-controls={anchorEl ? "menu-appbar" : undefined}
-              aria-haspopup="menu"
-              aria-expanded={Boolean(anchorEl)}
-              onClick={(event) => setAnchorEl(event.currentTarget)}
-              sx={{ width: 44, height: 44 }}
+            <Typography
+              component="div"
+              sx={{ flexGrow: 1, minWidth: 0, fontSize: 16, fontWeight: 600 }}
             >
-              <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main" }}>
-                <AccountCircle />
-              </Avatar>
-            </IconButton>
-          </Tooltip>
-          <Menu
-            id="menu-appbar"
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={() => setAnchorEl(null)}
-            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-            transformOrigin={{ vertical: "top", horizontal: "right" }}
-            PaperProps={{
-              sx: {
-                maxWidth: "calc(100vw - 32px)",
-                "& .MuiMenuItem-root": {
-                  whiteSpace: "normal",
-                  overflowWrap: "anywhere",
-                },
-              },
-            }}
-          >
-            <MenuItem disabled>
-              <ListItemIcon>
-                <AccountCircle fontSize="small" />
-              </ListItemIcon>
-              {userName || user?.email || "User"}
-            </MenuItem>
-            {user?.role === "superadmin" && [
-              <Divider key="admin-divider" />,
-              <MenuItem
-                key="admin"
-                onClick={() => {
-                  navigate("/admin/users");
-                  setAnchorEl(null);
-                }}
-              >
-                <ListItemIcon>
-                  <AdminPanelSettings fontSize="small" />
-                </ListItemIcon>
-                User Management
-              </MenuItem>,
-            ]}
-            <Divider />
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
-                <Logout fontSize="small" />
-              </ListItemIcon>
-              Logout
-            </MenuItem>
-          </Menu>
-        </Toolbar>
-      </AppBar>
+              {title ?? currentLabel ?? "DCLA Loan Solutions"}
+            </Typography>
+          </Toolbar>
+        </AppBar>
+      )}
       <Drawer
         variant={desktop ? "permanent" : "temporary"}
         open={desktop || drawerOpen}
@@ -173,6 +109,9 @@ export default function Header({ title }: HeaderProps) {
             boxShadow: "none",
             borderRight: "1px solid",
             borderColor: "divider",
+            display: "flex",
+            flexDirection: "column",
+            overflowX: "hidden",
           },
         }}
       >
@@ -210,7 +149,13 @@ export default function Header({ title }: HeaderProps) {
           component="nav"
           id="application-navigation"
           aria-label="Main navigation"
-          sx={{ px: 1.5, py: 1 }}
+          sx={{
+            px: 1.5,
+            py: 1,
+            flex: "1 1 auto",
+            minHeight: 0,
+            overflowY: "auto",
+          }}
         >
           <List disablePadding>
             {items.map((item) => (
@@ -246,6 +191,68 @@ export default function Header({ title }: HeaderProps) {
               </ListItemButton>
             ))}
           </List>
+        </Box>
+        <Box
+          aria-label="Signed in user"
+          sx={{
+            mt: "auto",
+            flexShrink: 0,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            p: 1.5,
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.25,
+              px: 1,
+              py: 1,
+              minWidth: 0,
+            }}
+          >
+            <Avatar
+              sx={{
+                width: 36,
+                height: 36,
+                bgcolor: "action.selected",
+                color: "primary.main",
+                fontSize: 13,
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              {userInitials}
+            </Avatar>
+            <Box sx={{ minWidth: 0, flex: 1 }} title={userLabel}>
+              <Typography noWrap sx={{ fontSize: 14, fontWeight: 600 }}>
+                {userLabel}
+              </Typography>
+              <Typography noWrap sx={{ fontSize: 12, color: "text.secondary" }}>
+                {roleLabel}
+              </Typography>
+            </Box>
+          </Box>
+          <Divider sx={{ my: 0.5 }} />
+          <ListItemButton
+            onClick={handleLogout}
+            sx={{
+              minHeight: 44,
+              borderRadius: "8px",
+              px: 1.25,
+              color: "text.secondary",
+              "&:hover": { color: "error.dark" },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+              <Logout fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Logout"
+              primaryTypographyProps={{ fontSize: 14, fontWeight: 600 }}
+            />
+          </ListItemButton>
         </Box>
       </Drawer>
     </>

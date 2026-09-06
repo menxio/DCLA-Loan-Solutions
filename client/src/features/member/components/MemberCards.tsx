@@ -19,6 +19,7 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Tooltip,
 } from "@mui/material";
 import {
   Edit,
@@ -111,7 +112,8 @@ export default function MemberCards({
       <Paper
         sx={{
           p: 4,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+          bgcolor: "background.paper",
+          boxShadow: "none",
           border: "1px solid #e2e8f0",
           textAlign: "center",
         }}
@@ -126,35 +128,30 @@ export default function MemberCards({
 
   if (members.length === 0) {
     return (
-      <Paper
+      <Box
         sx={{
           p: 4,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-          border: "1px solid #e2e8f0",
           textAlign: "center",
         }}
       >
-        <PersonIcon sx={{ fontSize: 64, color: "text.secondary", mb: 2 }} />
+        <PersonIcon sx={{ fontSize: 40, color: "text.secondary", mb: 2 }} />
         <Typography variant="h6" color="text.secondary" gutterBottom>
           No Members Found
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Add your first member using the form above.
-        </Typography>
-      </Paper>
+      </Box>
     );
   }
 
   return (
     <>
-      <Grid container spacing={3}>
+      <Grid container spacing={2}>
         {members.map((member) => (
           <Grid
             item
             xs={12}
             sm={6}
-            md={4}
-            lg={3}
+            md={6}
+            lg={6}
             key={member.id}
             sx={{ minWidth: 0 }}
           >
@@ -163,56 +160,68 @@ export default function MemberCards({
                 height: "100%",
                 display: "flex",
                 flexDirection: "column",
-                background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-                border: "1px solid #e2e8f0",
-                transition: "all 0.3s ease",
+                bgcolor: "background.paper",
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: "8px",
+                boxShadow: "none",
                 position: "relative",
                 minWidth: 0,
-                overflow: "hidden",
+                overflow: "visible",
                 "& .MuiTypography-root": { overflowWrap: "anywhere" },
                 "&:hover": {
-                  transform: "translateY(-4px)",
-                  boxShadow: "0 8px 25px rgba(0, 0, 0, 0.1)",
-                  borderColor: "#3b82f6",
+                  boxShadow: "none",
                 },
               }}
             >
               {/* Menu Button */}
-              <IconButton
-                aria-label={`Open actions for ${member.firstName} ${member.lastName}`}
-                onClick={(e) => handleMenuOpen(e, member)}
-                sx={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  zIndex: 1,
-                  color: "#64748b",
-                  "&:hover": {
-                    backgroundColor: "rgba(0, 0, 0, 0.04)",
-                  },
-                }}
-                size="small"
-              >
-                <MoreVertIcon fontSize="small" />
-              </IconButton>
+              <Tooltip title="Member actions">
+                <IconButton
+                  aria-label={`Open actions for ${member.firstName} ${member.lastName}`}
+                  onClick={(e) => handleMenuOpen(e, member)}
+                  sx={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    zIndex: 1,
+                    width: 44,
+                    height: 44,
+                    color: "#64748b",
+                    "&:hover": {
+                      backgroundColor: "rgba(0, 0, 0, 0.04)",
+                    },
+                  }}
+                  size="small"
+                >
+                  <MoreVertIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
 
-              <CardContent sx={{ flexGrow: 1, p: 3 }}>
+              <CardContent sx={{ flexGrow: 1, p: 2.5 }}>
                 {/* Header with Avatar and Name */}
-                <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    mb: 2.5,
+                    pr: 4,
+                  }}
+                >
                   <Avatar
                     sx={{
-                      width: 56,
-                      height: 56,
+                      width: 40,
+                      height: 40,
+                      flexShrink: 0,
                       fontWeight: 600,
-                      fontSize: "1.2rem",
-                      background:
-                        "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                      mr: 2,
+                      fontSize: 14,
+                      bgcolor: "action.selected",
+                      color: "primary.main",
+                      mr: 1.5,
                     }}
                   >
                     {getInitials(member.firstName, member.lastName)}
                   </Avatar>
-                  <Box sx={{ flexGrow: 1 }}>
+                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                     <Typography
                       variant="h6"
                       sx={{
@@ -224,11 +233,7 @@ export default function MemberCards({
                       {member.lastName}, {member.firstName}
                     </Typography>
                     {member.middleName && (
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{ fontStyle: "italic" }}
-                      >
+                      <Typography variant="body2" color="text.secondary">
                         {member.middleName}
                       </Typography>
                     )}
@@ -315,27 +320,31 @@ export default function MemberCards({
               </CardContent>
 
               {/* Action Buttons */}
-              <Box sx={{ px: 2, pb: 2 }}>
+              <Box
+                sx={{
+                  mx: 2.5,
+                  py: 2,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
                 <Box
                   sx={{
                     display: "flex",
-                    flexDirection: { xs: "column", sm: "row" },
+                    flexWrap: "wrap",
                     gap: 1,
                   }}
                 >
                   {onAddSavings && (
                     <Button
-                      variant="outlined"
+                      variant="text"
                       startIcon={<SavingsIcon />}
                       onClick={() => onAddSavings(member)}
                       sx={{
                         flex: 1,
-                        borderColor: "#3b82f6",
-                        color: "#3b82f6",
-                        "&:hover": {
-                          borderColor: "#2563eb",
-                          backgroundColor: "#dbeafe",
-                        },
+                        color: "primary.main",
+                        minHeight: 44,
+                        px: 1.5,
                         fontWeight: 500,
                       }}
                     >
@@ -348,12 +357,10 @@ export default function MemberCards({
                     onClick={() => onViewLoan?.(member)}
                     sx={{
                       flex: 1,
-                      borderColor: "#3b82f6",
-                      color: "#3b82f6",
-                      "&:hover": {
-                        borderColor: "#2563eb",
-                        backgroundColor: "#dbeafe",
-                      },
+                      color: "primary.main",
+                      borderColor: "primary.main",
+                      minHeight: 44,
+                      px: 1.5,
                       fontWeight: 500,
                     }}
                   >

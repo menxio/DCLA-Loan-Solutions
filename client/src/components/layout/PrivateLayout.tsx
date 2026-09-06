@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
         component="main"
         sx={{
           flexGrow: 1,
-          pt: `${headerHeight}px`,
+          pt: { xs: `${headerHeight}px`, lg: 0 },
           ml: { lg: `${navigationWidth}px` },
           width: { xs: "100%", lg: `calc(100% - ${navigationWidth}px)` },
           maxWidth: "100%",

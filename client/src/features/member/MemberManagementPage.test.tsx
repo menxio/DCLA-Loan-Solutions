@@ -68,6 +68,12 @@ describe("MemberManagementPage error states", () => {
     vi.mocked(CentersAPI.getOptions).mockResolvedValue([]);
 
     renderPage();
+    expect(
+      screen.getByRole("heading", { name: "Members", level: 1 }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("textbox", { name: "Search members" }),
+    ).toBeVisible();
     expect(screen.getByRole("alert")).toHaveTextContent(
       /do not have permission/i,
     );
