@@ -1,20 +1,23 @@
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  Grid,
   Alert,
-  CircularProgress,
-  MenuItem,
-  IconButton,
   Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Grid,
+  IconButton,
+  MenuItem,
+  TextField,
+  Typography,
 } from "@mui/material";
-import { Add, Edit, Cancel, Close } from "@mui/icons-material";
+import Add from "@mui/icons-material/Add";
+import Close from "@mui/icons-material/Close";
+import Edit from "@mui/icons-material/Edit";
 import type { Center, CenterFormData } from "../types";
 
 interface CenterModalProps {
@@ -35,6 +38,13 @@ const COLLECTION_DAYS = [
   "Sunday",
 ];
 
+const EMPTY_FORM: CenterFormData = {
+  name: "",
+  collectionDay: "",
+  address: "",
+  leader: "",
+};
+
 export default function CenterModal({
   open,
   center,
@@ -42,79 +52,50 @@ export default function CenterModal({
   onSubmit,
   loading = false,
 }: CenterModalProps) {
-  const [formData, setFormData] = useState<CenterFormData>({
-    name: "",
-    collectionDay: "",
-    address: "",
-    leader: "",
-  });
+  const [formData, setFormData] = useState<CenterFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<CenterFormData>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-
   const isEditing = Boolean(center);
 
   useEffect(() => {
-    if (open) {
-      if (center) {
-        setFormData({
-          name: center.name,
-          collectionDay: center.collectionDay,
-          address: center.address || "",
-          leader: center.leader || "",
-        });
-      } else {
-        setFormData({
-          name: "",
-          collectionDay: "",
-          address: "",
-          leader: "",
-        });
-      }
-      setErrors({});
-      setSubmitError(null);
-    }
+    if (!open) return;
+
+    setFormData(
+      center
+        ? {
+            name: center.name,
+            collectionDay: center.collectionDay,
+            address: center.address || "",
+            leader: center.leader || "",
+          }
+        : EMPTY_FORM,
+    );
+    setErrors({});
+    setSubmitError(null);
   }, [open, center]);
-
-  const validateForm = (): boolean => {
-    const newErrors: Partial<CenterFormData> = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Center name is required";
-    }
-
-    if (!formData.collectionDay.trim()) {
-      newErrors.collectionDay = "Collection day is required";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
   const handleInputChange =
     (field: keyof CenterFormData) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: e.target.value,
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((current) => ({
+        ...current,
+        [field]: event.target.value,
       }));
-
-      // Clear error when user starts typing
       if (errors[field]) {
-        setErrors((prev) => ({
-          ...prev,
-          [field]: undefined,
-        }));
+        setErrors((current) => ({ ...current, [field]: undefined }));
       }
-
-      if (submitError) {
-        setSubmitError(null);
-      }
+      if (submitError) setSubmitError(null);
     };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) return;
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const nextErrors: Partial<CenterFormData> = {};
+    if (!formData.name.trim()) nextErrors.name = "Center name is required";
+    if (!formData.collectionDay.trim()) {
+      nextErrors.collectionDay = "Collection day is required";
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     try {
       await onSubmit(formData);
@@ -126,94 +107,88 @@ export default function CenterModal({
   };
 
   const handleClose = () => {
-    if (!loading) {
-      onClose();
-    }
+    if (!loading) onClose();
   };
 
   return (
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="md"
+      maxWidth="sm"
       fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-        },
-      }}
+      scroll="paper"
+      aria-labelledby="center-dialog-title"
+      PaperProps={{ sx: { bgcolor: "background.paper" } }}
     >
       <DialogTitle
+        id="center-dialog-title"
         sx={{
-          fontWeight: 600,
-          color: "#1e293b",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 1,
-          pb: 1,
+          px: { xs: 2, sm: 3 },
+          py: 2,
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          {isEditing ? <Edit /> : <Add />}
-          {isEditing ? "Edit Center" : "Add New Center"}
+          {isEditing ? <Edit fontSize="small" /> : <Add fontSize="small" />}
+          <Typography component="span" variant="h5">
+            {isEditing ? "Edit Center" : "Add Center"}
+          </Typography>
         </Box>
         <IconButton
           aria-label="Close center form"
           onClick={handleClose}
           disabled={loading}
-          size="small"
+          sx={{ width: 44, height: 44 }}
         >
           <Close />
         </IconButton>
       </DialogTitle>
 
-      <form onSubmit={handleSubmit}>
-        <DialogContent sx={{ pt: 2 }}>
+      <DialogContent
+        sx={{
+          px: { xs: 2, sm: 3 },
+          py: 3,
+          overflowY: "auto",
+          "&:first-of-type": { pt: 3 },
+        }}
+      >
+        <form id="center-form" onSubmit={handleSubmit}>
           {submitError && (
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            <Alert severity="error" sx={{ mb: 2 }}>
               {submitError}
             </Alert>
           )}
-
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
+                required
                 label="Center Name"
                 value={formData.name}
                 onChange={handleInputChange("name")}
                 error={Boolean(errors.name)}
                 helperText={errors.name}
                 disabled={loading}
-                required
-                sx={{
-                  "& .MuiInputLabel-root": {
-                    fontWeight: 500,
-                  },
-                }}
               />
             </Grid>
-
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Center Leader"
                 value={formData.leader}
                 onChange={handleInputChange("leader")}
                 disabled={loading}
-                sx={{
-                  "& .MuiInputLabel-root": {
-                    fontWeight: 500,
-                  },
-                }}
               />
             </Grid>
-
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
+                required
                 select
                 label="Collection Day"
                 value={formData.collectionDay}
@@ -221,12 +196,6 @@ export default function CenterModal({
                 error={Boolean(errors.collectionDay)}
                 helperText={errors.collectionDay}
                 disabled={loading}
-                required
-                sx={{
-                  "& .MuiInputLabel-root": {
-                    fontWeight: 500,
-                  },
-                }}
               >
                 {COLLECTION_DAYS.map((day) => (
                   <MenuItem key={day} value={day}>
@@ -235,73 +204,60 @@ export default function CenterModal({
                 ))}
               </TextField>
             </Grid>
-
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
+                multiline
+                minRows={2}
                 label="Address"
                 value={formData.address}
                 onChange={handleInputChange("address")}
                 error={Boolean(errors.address)}
                 helperText={errors.address}
                 disabled={loading}
-                multiline
-                sx={{
-                  "& .MuiInputLabel-root": {
-                    fontWeight: 500,
-                  },
-                }}
               />
             </Grid>
           </Grid>
-        </DialogContent>
+        </form>
+      </DialogContent>
 
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button
-            onClick={handleClose}
-            disabled={loading}
-            startIcon={<Cancel />}
-            sx={{
-              borderColor: "#64748b",
-              color: "#64748b",
-              "&:hover": {
-                borderColor: "#475569",
-                backgroundColor: "#f8fafc",
-              },
-            }}
-          >
-            Cancel
-          </Button>
-
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={loading}
-            startIcon={
-              loading ? (
-                <CircularProgress size={20} color="inherit" />
-              ) : isEditing ? (
-                <Edit />
-              ) : (
-                <Add />
-              )
-            }
-            sx={{
-              minWidth: 140,
-              background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-              "&:hover": {
-                background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-              },
-            }}
-          >
-            {loading
-              ? "Saving..."
-              : isEditing
-                ? "Update Center"
-                : "Create Center"}
-          </Button>
-        </DialogActions>
-      </form>
+      <DialogActions
+        sx={{
+          flexDirection: { xs: "column-reverse", sm: "row" },
+          alignItems: "stretch",
+          px: { xs: 2, sm: 3 },
+          py: 2,
+          gap: 1,
+          borderTop: "1px solid",
+          borderColor: "divider",
+          "& > .MuiButton-root": { width: { xs: "100%", sm: "auto" } },
+        }}
+      >
+        <Button onClick={handleClose} disabled={loading}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          form="center-form"
+          variant="contained"
+          disabled={loading}
+          startIcon={
+            loading ? (
+              <CircularProgress size={16} color="inherit" />
+            ) : isEditing ? (
+              <Edit />
+            ) : (
+              <Add />
+            )
+          }
+        >
+          {loading
+            ? "Saving..."
+            : isEditing
+              ? "Update Center"
+              : "Create Center"}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }

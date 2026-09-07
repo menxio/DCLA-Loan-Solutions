@@ -1,26 +1,29 @@
 import { useState } from "react";
 import {
-  Paper,
-  Typography,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  IconButton,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  IconButton,
-  Box,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  Button,
-  CircularProgress,
+  Tooltip,
+  Typography,
 } from "@mui/material";
-import { Edit, Delete, LocationOn, CalendarToday } from "@mui/icons-material";
-import type { CenterTableProps, Center } from "../types";
+import CalendarToday from "@mui/icons-material/CalendarToday";
+import Delete from "@mui/icons-material/Delete";
+import Edit from "@mui/icons-material/Edit";
+import LocationOn from "@mui/icons-material/LocationOn";
+import type { Center, CenterTableProps } from "../types";
 
 export default function CenterTable({
   centers,
@@ -31,18 +34,8 @@ export default function CenterTable({
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     center: Center | null;
-  }>({
-    open: false,
-    center: null,
-  });
+  }>({ open: false, center: null });
   const [deleting, setDeleting] = useState(false);
-
-  const handleDeleteClick = (center: Center) => {
-    setDeleteDialog({
-      open: true,
-      center,
-    });
-  };
 
   const handleDeleteConfirm = async () => {
     if (!deleteDialog.center) return;
@@ -62,257 +55,182 @@ export default function CenterTable({
     setDeleteDialog({ open: false, center: null });
   };
 
-  const getDayColor = (day: string) => {
-    const colors: Record<string, string> = {
-      Monday: "#ef4444",
-      Tuesday: "#f97316",
-      Wednesday: "#eab308",
-      Thursday: "#22c55e",
-      Friday: "#3b82f6",
-      Saturday: "#8b5cf6",
-      Sunday: "#ec4899",
-    };
-    return colors[day] || "#64748b";
-  };
-
   if (loading && centers.length === 0) {
     return (
-      <Paper
-        sx={{
-          p: 4,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-          border: "1px solid #e2e8f0",
-          textAlign: "center",
-        }}
+      <Box
+        role="status"
+        sx={{ py: 8, px: 2, textAlign: "center", color: "text.secondary" }}
       >
-        <CircularProgress size={40} />
-        <Typography variant="body1" sx={{ mt: 2, color: "text.secondary" }}>
+        <CircularProgress size={32} />
+        <Typography variant="body2" sx={{ mt: 2 }}>
           Loading centers...
         </Typography>
-      </Paper>
+      </Box>
     );
   }
 
   if (centers.length === 0) {
     return (
-      <Paper
-        sx={{
-          p: 4,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-          border: "1px solid #e2e8f0",
-          textAlign: "center",
-        }}
-      >
-        <Typography variant="h6" color="text.secondary" gutterBottom>
-          No Centers Found
+      <Box sx={{ py: 8, px: 2, textAlign: "center" }}>
+        <Typography variant="h6">No centers found</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          No center records match the current view.
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Create your first center using the form above.
-        </Typography>
-      </Paper>
+      </Box>
     );
   }
 
   return (
     <>
-      <Paper
-        sx={{
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-          border: "1px solid #e2e8f0",
-          overflow: "hidden",
-          minWidth: 0,
-          maxWidth: "100%",
-        }}
-      >
-        <Box sx={{ p: 3, borderBottom: "1px solid #e2e8f0" }}>
-          <Typography
-            variant="h5"
-            sx={{
-              fontWeight: 600,
-              color: "#1e293b",
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            Centers List
-          </Typography>
-        </Box>
-
-        <TableContainer sx={{ maxWidth: "100%", overflowX: "auto" }}>
-          <Table sx={{ minWidth: 680 }}>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: "#f8fafc" }}>
-                <TableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    borderBottom: "2px solid #e2e8f0",
-                  }}
-                >
-                  Center Name
+      <TableContainer sx={{ maxWidth: "100%", overflowX: "auto" }}>
+        <Table sx={{ minWidth: 760 }} aria-label="Centers">
+          <TableHead>
+            <TableRow sx={{ bgcolor: "background.default" }}>
+              <TableCell>Center name</TableCell>
+              <TableCell>Collection day</TableCell>
+              <TableCell>Address</TableCell>
+              <TableCell>Center leader</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {centers.map((center) => (
+              <TableRow
+                key={center.id}
+                hover
+                sx={{
+                  "&:last-child td": { borderBottom: 0 },
+                  "&:hover": { bgcolor: "action.hover" },
+                }}
+              >
+                <TableCell sx={{ minWidth: 180 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 600, color: "text.primary" }}
+                  >
+                    {center.name}
+                  </Typography>
                 </TableCell>
-                <TableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    borderBottom: "2px solid #e2e8f0",
-                  }}
-                >
-                  Collection Day
+                <TableCell>
+                  <Chip
+                    icon={<CalendarToday />}
+                    label={center.collectionDay}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      color: "text.primary",
+                      borderColor: "divider",
+                      bgcolor: "background.paper",
+                      "& .MuiChip-icon": { color: "primary.main" },
+                    }}
+                  />
                 </TableCell>
-                <TableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    borderBottom: "2px solid #e2e8f0",
-                  }}
-                >
-                  Address
-                </TableCell>
-                <TableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    borderBottom: "2px solid #e2e8f0",
-                  }}
-                >
-                  Center Leader
-                </TableCell>
-                <TableCell
-                  align="center"
-                  sx={{
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    borderBottom: "2px solid #e2e8f0",
-                  }}
-                >
-                  Actions
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {centers.map((center, index) => (
-                <TableRow
-                  key={center.id}
-                  sx={{
-                    "&:hover": {
-                      backgroundColor: "#f8fafc",
-                    },
-                    backgroundColor: index % 2 === 0 ? "#ffffff" : "#fafbfc",
-                  }}
-                >
-                  <TableCell>
-                    <Typography variant="body1" fontWeight={500}>
-                      {center.name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      icon={<CalendarToday sx={{ fontSize: 16 }} />}
-                      label={center.collectionDay}
-                      size="small"
-                      sx={{
-                        backgroundColor: getDayColor(center.collectionDay),
-                        color: "white",
-                        fontWeight: 500,
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {center.address ? (
-                      <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                      >
-                        <LocationOn sx={{ fontSize: 16, color: "#64748b" }} />
-                        <Typography variant="body2" color="text.secondary">
-                          {center.address}
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Typography
-                        variant="body2"
-                        color="text.disabled"
-                        fontStyle="italic"
-                      >
-                        No address provided
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {center.leader || "-"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="center">
+                <TableCell sx={{ minWidth: 220 }}>
+                  {center.address ? (
                     <Box
-                      sx={{ display: "flex", justifyContent: "center", gap: 1 }}
+                      sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
                     >
+                      <LocationOn
+                        sx={{ mt: 0.25, fontSize: 18, color: "text.secondary" }}
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        {center.address}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.disabled">
+                      Not provided
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell sx={{ minWidth: 160 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {center.leader || "Not assigned"}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 0.5,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <Tooltip title="Edit center">
                       <IconButton
                         aria-label={`Edit ${center.name}`}
                         onClick={() => onEdit(center)}
-                        size="small"
-                        sx={{
-                          color: "#3b82f6",
-                          "&:hover": {
-                            backgroundColor: "#dbeafe",
-                          },
-                        }}
+                        sx={{ width: 44, height: 44, color: "primary.main" }}
                       >
                         <Edit fontSize="small" />
                       </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete center">
                       <IconButton
                         aria-label={`Delete ${center.name}`}
-                        onClick={() => handleDeleteClick(center)}
-                        size="small"
-                        sx={{
-                          color: "#ef4444",
-                          "&:hover": {
-                            backgroundColor: "#fee2e2",
-                          },
-                        }}
+                        onClick={() => setDeleteDialog({ open: true, center })}
+                        sx={{ width: 44, height: 44, color: "error.main" }}
                       >
                         <Delete fontSize="small" />
                       </IconButton>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+                    </Tooltip>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog
         open={deleteDialog.open}
         onClose={handleDeleteCancel}
         maxWidth="sm"
         fullWidth
+        aria-labelledby="delete-center-title"
       >
-        <DialogTitle sx={{ fontWeight: 600, color: "#1e293b" }}>
-          Delete Center
+        <DialogTitle
+          id="delete-center-title"
+          sx={{
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          Delete center
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
           <DialogContentText>
-            Are you sure you want to delete "{deleteDialog.center?.name}"? This
-            action cannot be undone.
+            Delete <strong>{deleteDialog.center?.name}</strong>? This action
+            cannot be undone.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button
-            onClick={handleDeleteCancel}
-            disabled={deleting}
-            sx={{ color: "#64748b" }}
-          >
+        <DialogActions
+          sx={{
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            gap: 1,
+            borderTop: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <Button onClick={handleDeleteCancel} disabled={deleting}>
             Cancel
           </Button>
           <Button
-            onClick={handleDeleteConfirm}
+            onClick={() => void handleDeleteConfirm()}
             variant="contained"
             color="error"
             disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={16} /> : <Delete />}
+            startIcon={
+              deleting ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <Delete />
+              )
+            }
           >
             {deleting ? "Deleting..." : "Delete"}
           </Button>

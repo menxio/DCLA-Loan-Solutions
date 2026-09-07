@@ -3,9 +3,11 @@ import { Box, Typography } from "@mui/material";
 
 export default function PageHeader({
   title,
+  description,
   actions,
 }: {
   title: string;
+  description?: string;
   actions?: ReactNode;
 }) {
   return (
@@ -20,13 +22,20 @@ export default function PageHeader({
         minWidth: 0,
       }}
     >
-      <Typography
-        component="h1"
-        variant="h4"
-        sx={{ fontWeight: 700, overflowWrap: "anywhere" }}
-      >
-        {title}
-      </Typography>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography
+          component="h1"
+          variant="h4"
+          sx={{ fontWeight: 700, overflowWrap: "anywhere" }}
+        >
+          {title}
+        </Typography>
+        {description && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {description}
+          </Typography>
+        )}
+      </Box>
       {actions && (
         <Box
           sx={{
