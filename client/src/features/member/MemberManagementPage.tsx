@@ -208,6 +208,7 @@ export default function MembersPage() {
         {/* Header Section */}
         <PageHeader
           title="Members"
+          description="Manage member records and lending information."
           actions={
             <Button
               variant="contained"
