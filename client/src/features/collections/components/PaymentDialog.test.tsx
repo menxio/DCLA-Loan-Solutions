@@ -10,6 +10,7 @@ vi.mock("../api", () => ({
 }));
 vi.mock("@mui/icons-material", () => ({
   AccountBalance: () => <span aria-hidden="true" />,
+  Close: () => <span aria-hidden="true" />,
   Payment: () => <span aria-hidden="true" />,
   Savings: () => <span aria-hidden="true" />,
 }));

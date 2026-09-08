@@ -110,14 +110,17 @@ export default function CollectionUpdateModal({
       onClose={handleClose}
       maxWidth="md"
       fullWidth
+      scroll="paper"
+      aria-labelledby="collection-update-title"
       PaperProps={{
         sx: {
-          borderRadius: 3,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+          borderRadius: 2,
+          overflow: "hidden",
         },
       }}
     >
       <DialogTitle
+        id="collection-update-title"
         sx={{
           fontWeight: 600,
           color: "#1e293b",
@@ -125,7 +128,9 @@ export default function CollectionUpdateModal({
           alignItems: "center",
           justifyContent: "space-between",
           gap: 1,
-          pb: 1,
+          p: { xs: 2, sm: 2.5 },
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -136,7 +141,7 @@ export default function CollectionUpdateModal({
           aria-label="Close collection update"
           onClick={handleClose}
           disabled={loading}
-          size="small"
+          sx={{ width: 44, height: 44, flexShrink: 0 }}
         >
           <Close />
         </IconButton>
@@ -144,15 +149,16 @@ export default function CollectionUpdateModal({
 
       {collection && (
         <form onSubmit={handleSubmit}>
-          <DialogContent sx={{ pt: 2 }}>
+          <DialogContent sx={{ p: { xs: 2, sm: 2.5 }, overflowY: "auto" }}>
             {/* Collection Info */}
             <Box
               sx={{
                 p: 3,
                 mb: 3,
-                backgroundColor: "#f8fafc",
+                backgroundColor: "action.hover",
                 borderRadius: 2,
-                border: "1px solid #e2e8f0",
+                border: "1px solid",
+                borderColor: "divider",
               }}
             >
               <Grid container spacing={2}>
@@ -279,18 +285,23 @@ export default function CollectionUpdateModal({
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 3, gap: 1 }}>
+          <DialogActions
+            sx={{
+              p: { xs: 2, sm: 2.5 },
+              gap: 1,
+              flexDirection: { xs: "column-reverse", sm: "row" },
+              borderTop: "1px solid",
+              borderColor: "divider",
+              "& > :not(style) ~ :not(style)": { ml: 0 },
+            }}
+          >
             <Button
               onClick={handleClose}
               disabled={loading}
               startIcon={<Cancel />}
               sx={{
-                borderColor: "#64748b",
-                color: "#64748b",
-                "&:hover": {
-                  borderColor: "#475569",
-                  backgroundColor: "#f8fafc",
-                },
+                minHeight: 44,
+                width: { xs: "100%", sm: "auto" },
               }}
             >
               Cancel
@@ -309,11 +320,8 @@ export default function CollectionUpdateModal({
               }
               sx={{
                 minWidth: 140,
-                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                "&:hover": {
-                  background:
-                    "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                },
+                minHeight: 44,
+                width: { xs: "100%", sm: "auto" },
               }}
             >
               {loading ? "Updating..." : "Update Collection"}

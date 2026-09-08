@@ -26,36 +26,32 @@ export default function CollectionStatsCard({
 
   return (
     <Card
+      elevation={0}
       sx={{
         height: "100%",
-        background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-        border: "1px solid #e2e8f0",
-        transition: "all 0.3s ease-in-out",
-        "&:hover": {
-          transform: "translateY(-2px)",
-          boxShadow: "0 8px 25px rgba(0, 0, 0, 0.1)",
-        },
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 2,
       }}
     >
-      <CardContent sx={{ p: 3 }}>
+      <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
         <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
           <Avatar
             sx={{
               bgcolor: colorMap[color],
               mr: 2,
-              width: 48,
-              height: 48,
-              background: `linear-gradient(135deg, ${colorMap[color]} 0%, ${colorMap[color]}CC 100%)`,
+              width: 36,
+              height: 36,
             }}
           >
             {icon}
           </Avatar>
           <Box>
             <Typography
-              variant="h5"
+              variant="h6"
               component="div"
               fontWeight="bold"
-              sx={{ color: "#1e293b" }}
+              color="text.primary"
             >
               {value}
             </Typography>

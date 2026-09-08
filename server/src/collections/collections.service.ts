@@ -18,6 +18,8 @@ import {
   RepaymentOperationType,
   RepaymentStatus,
 } from '../repayments/repayment.entity';
+import { addDaysToDateOnly, parseDateOnly } from '../common/date-only';
+import { getFinancialBusinessDate } from '../common/financial-business-date';
 
 @Injectable()
 export class CollectionsService {
@@ -51,40 +53,25 @@ export class CollectionsService {
     return index === -1 ? null : index;
   }
 
-  private formatDateString(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
   private getNextCollectionDate(collectionDay: string) {
+    const today = this.resolveTargetDate();
     const targetIndex = this.weekdayToIndex(collectionDay);
     if (targetIndex === null) {
-      return this.formatDateString(new Date());
+      return today.value;
     }
 
-    const today = new Date();
-    const diff = (targetIndex + 7 - today.getDay()) % 7;
-    const nextDate = new Date(today);
-    nextDate.setDate(today.getDate() + diff);
-    return this.formatDateString(nextDate);
+    const diff = (targetIndex + 7 - today.weekdayIndex) % 7;
+    return addDaysToDateOnly(today, diff);
   }
 
   private resolveTargetDate(dateInput?: string) {
-    if (dateInput) {
-      const parsed = new Date(dateInput);
-      if (!Number.isNaN(parsed.getTime())) {
-        const normalized = new Date(
-          parsed.getFullYear(),
-          parsed.getMonth(),
-          parsed.getDate(),
-        );
-        return normalized;
-      }
+    try {
+      return parseDateOnly(dateInput ?? getFinancialBusinessDate());
+    } catch {
+      throw new BadRequestException(
+        'Invalid collection date. Expected a valid YYYY-MM-DD date.',
+      );
     }
-    const today = new Date();
-    return new Date(today.getFullYear(), today.getMonth(), today.getDate());
   }
 
   private async calculateTotalReceivedForDate(centerId: string, date: string) {
@@ -266,8 +253,8 @@ export class CollectionsService {
    */
   async getTodayCollections(dateParam?: string) {
     const targetDate = this.resolveTargetDate(dateParam);
-    const weekday = targetDate.toLocaleString('en-US', { weekday: 'long' });
-    const dateString = this.formatDateString(targetDate);
+    const weekday = targetDate.weekday;
+    const dateString = targetDate.value;
 
     this.logger.log(
       `Getting collections for ${weekday} (${dateString}) [input=${dateParam ?? 'today'}]`,
@@ -320,7 +307,7 @@ export class CollectionsService {
     const centerMap = new Map(centers.map((center) => [center.id, center]));
 
     const targetDate = dateParam
-      ? this.formatDateString(this.resolveTargetDate(dateParam))
+      ? this.resolveTargetDate(dateParam).value
       : null;
 
     const [memberCounts, collections, receivedTotals] = await Promise.all([
@@ -422,16 +409,11 @@ export class CollectionsService {
 
     const allGroups = [...existingGroups, ...placeholders];
 
-    const today = new Date();
-    const todayMs = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    ).getTime();
+    const todayMs = this.resolveTargetDate().utcTimestamp;
 
     return allGroups.sort((a, b) => {
-      const aTime = new Date(a.collectionDate).getTime();
-      const bTime = new Date(b.collectionDate).getTime();
+      const aTime = parseDateOnly(a.collectionDate).utcTimestamp;
+      const bTime = parseDateOnly(b.collectionDate).utcTimestamp;
 
       const aDiff = Math.abs(aTime - todayMs);
       const bDiff = Math.abs(bTime - todayMs);

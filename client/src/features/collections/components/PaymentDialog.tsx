@@ -13,8 +13,9 @@ import {
   Card,
   CardContent,
   Divider,
+  IconButton,
 } from "@mui/material";
-import { Payment, AccountBalance, Savings } from "@mui/icons-material";
+import { Payment, AccountBalance, Savings, Close } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import collectionsService from "../api";
 import type { MemberWithLoans } from "../types";
@@ -163,32 +164,46 @@ export function PaymentDialog({
       onClose={onClose}
       maxWidth="md"
       fullWidth
+      scroll="paper"
+      aria-labelledby="payment-dialog-title"
       PaperProps={{
         sx: {
-          borderRadius: 3,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+          borderRadius: 2,
+          overflow: "hidden",
         },
       }}
     >
       <DialogTitle
+        id="payment-dialog-title"
         sx={{
-          background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-          color: "white",
           display: "flex",
           alignItems: "center",
-          gap: 1,
+          justifyContent: "space-between",
+          gap: 2,
+          p: { xs: 2, sm: 2.5 },
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
-        <Payment />
-        <Box>
-          <Typography variant="h6">Process Payment</Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            {member.firstName} {member.lastName}
-          </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Payment color="primary" />
+          <Box>
+            <Typography variant="h6">Process Payment</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {member.firstName} {member.lastName}
+            </Typography>
+          </Box>
         </Box>
+        <IconButton
+          aria-label="Close payment dialog"
+          onClick={onClose}
+          sx={{ width: 44, height: 44, flexShrink: 0 }}
+        >
+          <Close />
+        </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ p: 3 }}>
+      <DialogContent sx={{ p: { xs: 2, sm: 2.5 }, overflowY: "auto" }}>
         {error && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
             {error}
@@ -205,7 +220,14 @@ export function PaymentDialog({
         {/* Member Financial Overview */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} md={6}>
-            <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
+            <Card
+              elevation={0}
+              sx={{
+                height: "100%",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <CardContent>
                 <Typography
                   variant="h6"
@@ -221,7 +243,7 @@ export function PaymentDialog({
                   Outstanding Balance
                 </Typography>
                 <Typography
-                  variant="h4"
+                  variant="h5"
                   sx={{ fontWeight: 700, color: "#ef4444" }}
                 >
                   {formatCurrency(member.totalBalance)}
@@ -231,7 +253,14 @@ export function PaymentDialog({
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
+            <Card
+              elevation={0}
+              sx={{
+                height: "100%",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <CardContent>
                 <Typography
                   variant="h6"
@@ -247,7 +276,7 @@ export function PaymentDialog({
                   Weekly Payment
                 </Typography>
                 <Typography
-                  variant="h4"
+                  variant="h5"
                   sx={{ fontWeight: 700, color: "#3b82f6" }}
                 >
                   {formatCurrency(weeklyPayment)}
@@ -259,7 +288,14 @@ export function PaymentDialog({
 
         <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} md={6}>
-            <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
+            <Card
+              elevation={0}
+              sx={{
+                height: "100%",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <CardContent>
                 <Typography
                   variant="body2"
@@ -281,7 +317,14 @@ export function PaymentDialog({
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
+            <Card
+              elevation={0}
+              sx={{
+                height: "100%",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <CardContent>
                 <Typography
                   variant="body2"
@@ -372,6 +415,7 @@ export function PaymentDialog({
         {/* Payment Summary */}
         {(paymentAmountNum > 0 || (useSavings && savingsToApply > 0)) && (
           <Card
+            elevation={0}
             sx={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0" }}
           >
             <CardContent>
@@ -421,8 +465,19 @@ export function PaymentDialog({
         )}
       </DialogContent>
 
-      <DialogActions sx={{ p: 3, backgroundColor: "#f8fafc" }}>
-        <Button onClick={onClose} size="large">
+      <DialogActions
+        sx={{
+          p: { xs: 2, sm: 2.5 },
+          flexDirection: { xs: "column-reverse", sm: "row" },
+          borderTop: "1px solid",
+          borderColor: "divider",
+          "& > :not(style) ~ :not(style)": { ml: 0 },
+        }}
+      >
+        <Button
+          onClick={onClose}
+          sx={{ minHeight: 44, width: { xs: "100%", sm: "auto" } }}
+        >
           Cancel
         </Button>
         <Button
@@ -430,12 +485,9 @@ export function PaymentDialog({
           variant="contained"
           disabled={isSubmitDisabled}
           startIcon={processing ? <CircularProgress size={16} /> : <Payment />}
-          size="large"
           sx={{
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            "&:hover": {
-              background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
-            },
+            minHeight: 44,
+            width: { xs: "100%", sm: "auto" },
           }}
         >
           {processing ? "Processing..." : "Process Payment"}

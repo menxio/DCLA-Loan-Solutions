@@ -37,7 +37,7 @@ type MemberWithLoansRow = Omit<MemberWithLoans, "loans"> & {
 interface MembersTableProps {
   members: MemberWithLoansRow[];
   getStatusColor: (
-    member: MemberWithLoansRow
+    member: MemberWithLoansRow,
   ) => "default" | "success" | "warning" | "error";
   getStatusLabel: (member: MemberWithLoansRow) => string;
   getCollectionMetrics: (member: MemberWithLoansRow) => {
@@ -61,15 +61,16 @@ interface MembersTableProps {
 const detailCardSx = {
   p: 2,
   borderRadius: 2,
-  backgroundColor: "#f8fafc",
-  border: "1px solid #e2e8f0",
+  backgroundColor: "background.paper",
+  border: "1px solid",
+  borderColor: "divider",
 };
 
 const detailLabelSx = {
   fontSize: "0.78rem",
   fontWeight: 700,
   letterSpacing: "0.04em",
-  color: "#64748b",
+  color: "text.secondary",
   textTransform: "uppercase",
   mb: 0.75,
 };
@@ -83,7 +84,7 @@ const statusChipStyles: Record<string, { bg: string; color: string }> = {
 
 const getActiveLoans = (member: MemberWithLoansRow): MemberLoan[] =>
   (member.loans ?? []).filter(
-    (loan) => (loan.status || "").toLowerCase() === "active"
+    (loan) => (loan.status || "").toLowerCase() === "active",
   );
 
 const summaryGridColumns =
@@ -114,34 +115,34 @@ export function MembersTable({
     setExpandedId((current) =>
       current && members.some((member) => member.id === current)
         ? current
-        : members[0].id
+        : members[0].id,
     );
   }, [members]);
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
       <Typography
         variant="h6"
         sx={{
           fontWeight: 600,
-          color: "#1e293b",
+          color: "text.primary",
           mb: 3,
           display: "flex",
           alignItems: "center",
           gap: 1,
         }}
       >
-        <AccountBalance sx={{ color: "#2563eb" }} />
+        <AccountBalance color="primary" />
         Member Collection Status & Management
       </Typography>
 
       <Paper
         elevation={0}
         sx={{
-          borderRadius: 3,
-          border: "1px solid #dbe4f0",
+          borderRadius: 2,
+          border: "1px solid",
+          borderColor: "divider",
           overflow: "hidden",
-          boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
         }}
       >
         <Box
@@ -152,9 +153,10 @@ export function MembersTable({
             alignItems: "center",
             px: 3,
             py: 2.25,
-            backgroundColor: "#f8fafc",
-            borderBottom: "1px solid #dbe4f0",
-            color: "#475569",
+            backgroundColor: "action.hover",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            color: "text.secondary",
             fontWeight: 700,
           }}
         >
@@ -198,10 +200,10 @@ export function MembersTable({
             due ||
             Number(
               hasSingleActiveLoan
-                ? activeLoan?.weeklyPaymentAmount ??
+                ? (activeLoan?.weeklyPaymentAmount ??
                     member.weeklyPaymentAmount ??
-                    0
-                : member.weeklyPaymentAmount ?? 0
+                    0)
+                : (member.weeklyPaymentAmount ?? 0),
             );
           const balance = hasSingleActiveLoan
             ? Number(activeLoan?.balance ?? 0)
@@ -236,18 +238,19 @@ export function MembersTable({
               disableGutters
               elevation={0}
               sx={{
-                backgroundColor: index % 2 === 0 ? "#ffffff" : "#fcfdff",
+                backgroundColor: "background.paper",
                 "&:before": { display: "none" },
                 borderBottom:
-                  index === members.length - 1 ? "none" : "1px solid #e2e8f0",
+                  index === members.length - 1 ? "none" : "1px solid",
+                borderColor: "divider",
               }}
             >
               <AccordionSummary
                 expandIcon={
                   isExpanded ? (
-                    <KeyboardArrowDown sx={{ color: "#94a3b8" }} />
+                    <KeyboardArrowDown color="action" />
                   ) : (
-                    <KeyboardArrowRight sx={{ color: "#94a3b8" }} />
+                    <KeyboardArrowRight color="action" />
                   )
                 }
                 sx={{
@@ -277,11 +280,11 @@ export function MembersTable({
                   <Box>
                     <Typography
                       variant="body1"
-                      sx={{ fontWeight: 700, color: "#1e293b" }}
+                      sx={{ fontWeight: 700, color: "text.primary" }}
                     >
                       {member.firstName} {member.lastName}
                     </Typography>
-                    <Typography variant="body2" sx={{ color: "#64748b" }}>
+                    <Typography variant="body2" color="text.secondary">
                       {member.contactNumber}
                     </Typography>
                   </Box>
@@ -357,6 +360,7 @@ export function MembersTable({
                           disabled={!canPostPayment}
                           sx={{
                             minWidth: 98,
+                            minHeight: 44,
                             borderRadius: 2,
                             fontWeight: 700,
                             borderColor: "#bfdbfe",
@@ -385,6 +389,7 @@ export function MembersTable({
                           }
                           sx={{
                             minWidth: 98,
+                            minHeight: 44,
                             borderRadius: 2,
                             fontWeight: 700,
                             borderColor: "#bfdbfe",
@@ -408,9 +413,9 @@ export function MembersTable({
                   px: 3,
                   pb: 3,
                   pt: 0.5,
-                  borderTop: "1px solid #e2e8f0",
-                  background:
-                    "linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(255,255,255,1) 100%)",
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  backgroundColor: "action.hover",
                 }}
               >
                 <Box
@@ -468,7 +473,9 @@ export function MembersTable({
                   </Box>
 
                   <Box sx={detailCardSx}>
-                    <Typography sx={detailLabelSx}>Net Cash Released</Typography>
+                    <Typography sx={detailLabelSx}>
+                      Net Cash Released
+                    </Typography>
                     <Typography
                       variant="h6"
                       sx={{ fontWeight: 700, color: "#3b82f6" }}
@@ -477,8 +484,8 @@ export function MembersTable({
                         Number(
                           member.netCashReleasedForDate ??
                             member.netCashReleased ??
-                            0
-                        )
+                            0,
+                        ),
                       )}
                     </Typography>
                   </Box>
@@ -507,7 +514,9 @@ export function MembersTable({
                   </Box>
 
                   <Box sx={detailCardSx}>
-                    <Typography sx={detailLabelSx}>Remaining Balance</Typography>
+                    <Typography sx={detailLabelSx}>
+                      Remaining Balance
+                    </Typography>
                     <Typography
                       variant="h6"
                       sx={{

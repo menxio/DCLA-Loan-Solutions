@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { formatRecordedTimestamp } from "./dateTime";
+import { formatRecordedTimestamp, getManilaBusinessDate } from "./dateTime";
+
+describe("getManilaBusinessDate", () => {
+  it("advances at the Asia/Manila date boundary", () => {
+    expect(getManilaBusinessDate(new Date("2026-09-07T16:30:00.000Z"))).toBe(
+      "2026-09-08",
+    );
+  });
+
+  it("keeps the prior date before the Asia/Manila boundary", () => {
+    expect(getManilaBusinessDate(new Date("2026-09-07T15:30:00.000Z"))).toBe(
+      "2026-09-07",
+    );
+  });
+});
 
 describe("formatRecordedTimestamp", () => {
   it("formats recorded timestamps explicitly in Asia/Manila", () => {

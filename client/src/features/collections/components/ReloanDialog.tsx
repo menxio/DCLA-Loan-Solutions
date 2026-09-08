@@ -18,113 +18,138 @@ import {
   MenuItem,
   Chip,
   Divider,
-} from "@mui/material"
-import { AccountBalance, Calculate, TrendingUp } from "@mui/icons-material"
-import { useState, useEffect, useMemo } from "react"
-import { loansClient } from "../api"
-import type { MemberWithLoans } from "../types"
-import type { ReloanEligibility } from "../../loans/types"
+  IconButton,
+} from "@mui/material";
+import {
+  AccountBalance,
+  Calculate,
+  Close,
+  TrendingUp,
+} from "@mui/icons-material";
+import { useState, useEffect, useMemo } from "react";
+import { loansClient } from "../api";
+import type { MemberWithLoans } from "../types";
+import type { ReloanEligibility } from "../../loans/types";
 
 type MemberLoan = MemberWithLoans["loans"][number] & {
-  weeksPaid?: number
-  savings?: number
-}
+  weeksPaid?: number;
+  savings?: number;
+};
 
 type ReloanEligibilityResponse = ReloanEligibility & {
-  message?: string
-}
+  message?: string;
+};
 
 interface ReloanDialogProps {
-  open: boolean
-  member: MemberWithLoans | null
-  onClose: () => void
-  onSuccess: () => void
-  formatCurrency: (amount: number) => string
+  open: boolean;
+  member: MemberWithLoans | null;
+  onClose: () => void;
+  onSuccess: () => void;
+  formatCurrency: (amount: number) => string;
 }
 
-export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency }: ReloanDialogProps) {
-  const [reloanPrincipal, setReloanPrincipal] = useState("")
-  const [reloanTerm, setReloanTerm] = useState<4 | 8 | 12 | 24>(12)
-  const [monthlyInterestRate, setMonthlyInterestRate] = useState("")
-  const [reloanMode, setReloanMode] = useState<"payoff" | "netoff">("netoff")
-  const [serviceCharge, setServiceCharge] = useState("")
-  const [notarialFee, setNotarialFee] = useState("")
-  const [savings, setSavings] = useState("")
-  const [processing, setProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [eligibility, setEligibility] = useState<ReloanEligibilityResponse | null>(null)
-  const [loadingEligibility, setLoadingEligibility] = useState(false)
+export function ReloanDialog({
+  open,
+  member,
+  onClose,
+  onSuccess,
+  formatCurrency,
+}: ReloanDialogProps) {
+  const [reloanPrincipal, setReloanPrincipal] = useState("");
+  const [reloanTerm, setReloanTerm] = useState<4 | 8 | 12 | 24>(12);
+  const [monthlyInterestRate, setMonthlyInterestRate] = useState("");
+  const [reloanMode, setReloanMode] = useState<"payoff" | "netoff">("netoff");
+  const [serviceCharge, setServiceCharge] = useState("");
+  const [notarialFee, setNotarialFee] = useState("");
+  const [savings, setSavings] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [eligibility, setEligibility] =
+    useState<ReloanEligibilityResponse | null>(null);
+  const [loadingEligibility, setLoadingEligibility] = useState(false);
 
   // Reset form when dialog opens/closes
   useEffect(() => {
     if (open && member) {
-      const activeLoan = member.loans?.find((l) => l.status === "active")
-      setReloanPrincipal("")
-      setReloanTerm(12)
-      setMonthlyInterestRate("")
-      setReloanMode("netoff")
-      setServiceCharge("")
-      setNotarialFee("")
-      setSavings("")
-      setError(null)
-      setEligibility(null)
+      const activeLoan = member.loans?.find((l) => l.status === "active");
+      setReloanPrincipal("");
+      setReloanTerm(12);
+      setMonthlyInterestRate("");
+      setReloanMode("netoff");
+      setServiceCharge("");
+      setNotarialFee("");
+      setSavings("");
+      setError(null);
+      setEligibility(null);
 
       // Check eligibility
       if (activeLoan) {
-        checkEligibility(activeLoan.id)
+        checkEligibility(activeLoan.id);
       }
     }
-  }, [open, member])
+  }, [open, member]);
 
   const checkEligibility = async (loanId: string) => {
-    setLoadingEligibility(true)
+    setLoadingEligibility(true);
     try {
-      const result = await loansClient.checkEligibilityByLoan(loanId)
-      setEligibility(result)
+      const result = await loansClient.checkEligibilityByLoan(loanId);
+      setEligibility(result);
     } catch (error) {
-      console.error("Failed to check eligibility:", error)
-      setError("Failed to check reloan eligibility")
+      console.error("Failed to check eligibility:", error);
+      setError("Failed to check reloan eligibility");
     } finally {
-      setLoadingEligibility(false)
+      setLoadingEligibility(false);
     }
-  }
+  };
 
   // Calculate net cash released
   const netCashReleased = useMemo(() => {
-    if (!member) return 0
+    if (!member) return 0;
 
-    const principal = Number(reloanPrincipal) || 0
-    const fee = Number(serviceCharge) || 0
-    const legalFee = Number(notarialFee) || 0
-    const savingsAmt = Number(savings) || 0
-    const oldBalance = Number(member.totalBalance) || 0
+    const principal = Number(reloanPrincipal) || 0;
+    const fee = Number(serviceCharge) || 0;
+    const legalFee = Number(notarialFee) || 0;
+    const savingsAmt = Number(savings) || 0;
+    const oldBalance = Number(member.totalBalance) || 0;
 
     if (reloanMode === "payoff") {
-      return Math.max(0, principal - fee - legalFee - savingsAmt)
+      return Math.max(0, principal - fee - legalFee - savingsAmt);
     } else {
-      return Math.max(0, principal - oldBalance - fee - legalFee - savingsAmt)
+      return Math.max(0, principal - oldBalance - fee - legalFee - savingsAmt);
     }
-  }, [reloanPrincipal, serviceCharge, notarialFee, savings, member, reloanMode])
+  }, [
+    reloanPrincipal,
+    serviceCharge,
+    notarialFee,
+    savings,
+    member,
+    reloanMode,
+  ]);
 
   const handleSubmit = async () => {
-    if (!member) return
+    if (!member) return;
 
-    setProcessing(true)
-    setError(null)
+    setProcessing(true);
+    setError(null);
 
     try {
-      const principal = Number(reloanPrincipal)
+      const principal = Number(reloanPrincipal);
       if (principal <= 0) {
-        throw new Error("Principal amount must be greater than 0")
+        throw new Error("Principal amount must be greater than 0");
       }
-      const monthlyRate = Number(monthlyInterestRate)
-      if (reloanTerm === 24 && (!Number.isFinite(monthlyRate) || monthlyRate < 3.33 || monthlyRate > 10)) {
-        throw new Error("Monthly interest rate must be between 3.33% and 10%")
+      const monthlyRate = Number(monthlyInterestRate);
+      if (
+        reloanTerm === 24 &&
+        (!Number.isFinite(monthlyRate) ||
+          monthlyRate < 3.33 ||
+          monthlyRate > 10)
+      ) {
+        throw new Error("Monthly interest rate must be between 3.33% and 10%");
       }
 
-      const activeLoan = member.loans?.find((l) => l.status === "active")
+      const activeLoan = member.loans?.find((l) => l.status === "active");
       if (!activeLoan) {
-        throw new Error("No active loan found for member")
+        throw new Error("No active loan found for member");
       }
 
       await loansClient.reloan(activeLoan.id, {
@@ -135,24 +160,25 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
         serviceCharge: Number(serviceCharge) || 0,
         notarialFee: Number(notarialFee) || 0,
         ...(savings !== "" ? { savings: Number(savings) || 0 } : {}),
-      })
+      });
 
-      onSuccess()
+      onSuccess();
     } catch (error) {
-      console.error("Failed to process reloan:", error)
-      setError(error instanceof Error ? error.message : "Failed to process reloan")
+      console.error("Failed to process reloan:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to process reloan",
+      );
     } finally {
-      setProcessing(false)
+      setProcessing(false);
     }
-  }
+  };
 
-  if (!member) return null
+  if (!member) return null;
 
-  const activeLoan = member.loans?.find(
-    (l) => l.status === "active"
-  ) as MemberLoan | undefined
-  const weeksPaid = activeLoan?.weeksPaid ?? 0
-  const existingSavings = Number(activeLoan?.savings ?? 0)
+  const activeLoan = member.loans?.find((l) => l.status === "active") as
+    MemberLoan | undefined;
+  const weeksPaid = activeLoan?.weeksPaid ?? 0;
+  const existingSavings = Number(activeLoan?.savings ?? 0);
 
   return (
     <Dialog
@@ -160,32 +186,46 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
       onClose={onClose}
       maxWidth="md"
       fullWidth
+      scroll="paper"
+      aria-labelledby="reloan-dialog-title"
       PaperProps={{
         sx: {
-          borderRadius: 3,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+          borderRadius: 2,
+          overflow: "hidden",
         },
       }}
     >
       <DialogTitle
+        id="reloan-dialog-title"
         sx={{
-          background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
-          color: "white",
           display: "flex",
           alignItems: "center",
-          gap: 1,
+          justifyContent: "space-between",
+          gap: 2,
+          p: { xs: 2, sm: 2.5 },
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
-        <AccountBalance />
-        <Box>
-          <Typography variant="h6">Process Reloan</Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            {member.firstName} {member.lastName}
-          </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <AccountBalance color="primary" />
+          <Box>
+            <Typography variant="h6">Process Reloan</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {member.firstName} {member.lastName}
+            </Typography>
+          </Box>
         </Box>
+        <IconButton
+          aria-label="Close reloan dialog"
+          onClick={onClose}
+          sx={{ width: 44, height: 44, flexShrink: 0 }}
+        >
+          <Close />
+        </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ p: 3 }}>
+      <DialogContent sx={{ p: { xs: 2, sm: 2.5 }, overflowY: "auto" }}>
         {error && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
             {error}
@@ -194,14 +234,20 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
 
         {/* Eligibility Check */}
         {loadingEligibility ? (
-          <Card sx={{ mb: 3, border: "1px solid #e2e8f0" }}>
+          <Card
+            elevation={0}
+            sx={{ mb: 3, border: "1px solid", borderColor: "divider" }}
+          >
             <CardContent sx={{ textAlign: "center" }}>
               <CircularProgress size={24} sx={{ mb: 1 }} />
-              <Typography variant="body2">Checking reloan eligibility...</Typography>
+              <Typography variant="body2">
+                Checking reloan eligibility...
+              </Typography>
             </CardContent>
           </Card>
         ) : eligibility ? (
           <Card
+            elevation={0}
             sx={{
               mb: 3,
               border: `1px solid ${eligibility.eligible ? "#10b981" : "#ef4444"}`,
@@ -209,7 +255,9 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
             }}
           >
             <CardContent>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}
+              >
                 <Chip
                   label={eligibility.eligible ? "ELIGIBLE" : "NOT ELIGIBLE"}
                   color={eligibility.eligible ? "success" : "error"}
@@ -218,7 +266,9 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               </Box>
               <Typography variant="body2" color="text.secondary">
                 {eligibility.message ||
-                  (eligibility.eligible ? "Member is eligible for reloan" : "Member is not eligible for reloan")}
+                  (eligibility.eligible
+                    ? "Member is eligible for reloan"
+                    : "Member is not eligible for reloan")}
               </Typography>
             </CardContent>
           </Card>
@@ -227,16 +277,32 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
         {/* Current Loan Information */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} md={4}>
-            <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
+            <Card
+              elevation={0}
+              sx={{
+                height: "100%",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <CardContent>
                 <Typography
                   variant="h6"
-                  sx={{ mb: 2, color: "#1e293b", display: "flex", alignItems: "center", gap: 1 }}
+                  sx={{
+                    mb: 2,
+                    color: "#1e293b",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
                 >
                   <TrendingUp sx={{ color: "#ef4444" }} />
                   Current Balance
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: "#ef4444" }}>
+                <Typography
+                  variant="h5"
+                  sx={{ fontWeight: 700, color: "#ef4444" }}
+                >
                   {formatCurrency(member.totalBalance)}
                 </Typography>
               </CardContent>
@@ -244,15 +310,22 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
           </Grid>
 
           <Grid item xs={12} md={4}>
-            <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
+            <Card
+              elevation={0}
+              sx={{
+                height: "100%",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <CardContent>
-                <Typography
-                  variant="h6"
-                  sx={{ mb: 2, color: "#1e293b" }}
-                >
+                <Typography variant="h6" sx={{ mb: 2, color: "#1e293b" }}>
                   Payments Made
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: "#3b82f6" }}>
+                <Typography
+                  variant="h5"
+                  sx={{ fontWeight: 700, color: "#3b82f6" }}
+                >
                   {weeksPaid} weeks
                 </Typography>
               </CardContent>
@@ -260,19 +333,30 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
           </Grid>
 
           <Grid item xs={12} md={4}>
-            <Card sx={{ height: "100%", border: "1px solid #e2e8f0" }}>
+            <Card
+              elevation={0}
+              sx={{
+                height: "100%",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 2, color: "#1e293b" }}>
                   Existing Savings
                 </Typography>
                 <Typography
-                  variant="h4"
-                  sx={{ fontWeight: 700, color: existingSavings > 0 ? "#0f766e" : "#6b7280" }}
+                  variant="h5"
+                  sx={{
+                    fontWeight: 700,
+                    color: existingSavings > 0 ? "#0f766e" : "#6b7280",
+                  }}
                 >
                   {formatCurrency(existingSavings)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  These savings stay with the member and are carried into the new loan automatically.
+                  These savings stay with the member and are carried into the
+                  new loan automatically.
                 </Typography>
               </CardContent>
             </Card>
@@ -282,7 +366,16 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
         <Divider sx={{ my: 3 }} />
 
         {/* Reloan Configuration */}
-        <Typography variant="h6" sx={{ mb: 3, color: "#1e293b", display: "flex", alignItems: "center", gap: 1 }}>
+        <Typography
+          variant="h6"
+          sx={{
+            mb: 3,
+            color: "#1e293b",
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+          }}
+        >
           <Calculate />
           Reloan Configuration
         </Typography>
@@ -295,10 +388,12 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               type="number"
               value={reloanPrincipal}
               onChange={(e) => setReloanPrincipal(e.target.value)}
-              
+
               inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               InputProps={{
-                startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
+                startAdornment: (
+                  <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>
+                ),
               }}
               helperText="Enter the new loan principal amount"
             />
@@ -307,11 +402,15 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
           <Grid item xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>Term (Weeks)</InputLabel>
-              <Select value={reloanTerm} label="Term (Weeks)" onChange={(e) => {
-                const nextTerm = e.target.value as 4 | 8 | 12 | 24
-                setReloanTerm(nextTerm)
-                if (nextTerm !== 24) setMonthlyInterestRate("")
-              }}>
+              <Select
+                value={reloanTerm}
+                label="Term (Weeks)"
+                onChange={(e) => {
+                  const nextTerm = e.target.value as 4 | 8 | 12 | 24;
+                  setReloanTerm(nextTerm);
+                  if (nextTerm !== 24) setMonthlyInterestRate("");
+                }}
+              >
                 <MenuItem value={4}>4 weeks</MenuItem>
                 <MenuItem value={8}>8 weeks</MenuItem>
                 <MenuItem value={12}>12 weeks</MenuItem>
@@ -341,10 +440,14 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               <Select
                 value={reloanMode}
                 label="Reloan Mode"
-                onChange={(e) => setReloanMode(e.target.value as "payoff" | "netoff")}
+                onChange={(e) =>
+                  setReloanMode(e.target.value as "payoff" | "netoff")
+                }
               >
                 <MenuItem value="netoff">Net Off (Deduct old balance)</MenuItem>
-                <MenuItem value="payoff">Pay Off (Full principal release)</MenuItem>
+                <MenuItem value="payoff">
+                  Pay Off (Full principal release)
+                </MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -356,10 +459,12 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               type="number"
               value={serviceCharge}
               onChange={(e) => setServiceCharge(e.target.value)}
-              
+
               inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               InputProps={{
-                startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
+                startAdornment: (
+                  <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>
+                ),
               }}
               helperText="Processing fee for the reloan"
             />
@@ -372,10 +477,12 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               type="number"
               value={notarialFee}
               onChange={(e) => setNotarialFee(e.target.value)}
-              
+
               inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               InputProps={{
-                startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
+                startAdornment: (
+                  <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>
+                ),
               }}
               helperText="Legal/notarial fee for the reloan"
             />
@@ -388,10 +495,12 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
               type="number"
               value={savings}
               onChange={(e) => setSavings(e.target.value)}
-              
+
               inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               InputProps={{
-                startAdornment: <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>,
+                startAdornment: (
+                  <Typography sx={{ mr: 1, color: "#6b7280" }}>₱</Typography>
+                ),
               }}
               helperText="Set or adjust savings to carry on the new loan"
             />
@@ -400,19 +509,29 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
 
         {/* Net Cash Released Preview */}
         <Card
+          elevation={0}
           sx={{
             backgroundColor: "#f0f9ff",
-            border: "2px solid #3b82f6",
-            borderRadius: 3,
+            border: "1px solid #3b82f6",
+            borderRadius: 2,
           }}
         >
           <CardContent>
-            <Typography variant="h6" sx={{ mb: 2, color: "#1e293b", display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography
+              variant="h6"
+              sx={{
+                mb: 2,
+                color: "#1e293b",
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
               <Calculate sx={{ color: "#3b82f6" }} />
               Net Cash Released (Preview)
             </Typography>
 
-            <Grid container spacing={2} sx={{ mb: 2,  }}>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
               <Grid item xs={12} md={6}>
                 <Typography variant="body2" color="text.secondary">
                   New Principal:
@@ -427,7 +546,10 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                   <Typography variant="body2" color="text.secondary">
                     Less: Old Balance:
                   </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: "#ef4444" }}>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 600, color: "#ef4444" }}
+                  >
                     -{formatCurrency(member.totalBalance)}
                   </Typography>
                 </Grid>
@@ -437,7 +559,10 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                 <Typography variant="body2" color="text.secondary">
                   Less: Service Charge:
                 </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 600, color: "#f59e0b" }}
+                >
                   -{formatCurrency(Number(serviceCharge) || 0)}
                 </Typography>
               </Grid>
@@ -446,7 +571,10 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                 <Typography variant="body2" color="text.secondary">
                   Less: Notarial Fee:
                 </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 600, color: "#f59e0b" }}
+                >
                   -{formatCurrency(Number(notarialFee) || 0)}
                 </Typography>
               </Grid>
@@ -455,7 +583,10 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                 <Typography variant="body2" color="text.secondary">
                   Less: Savings:
                 </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: "#f59e0b" }}>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 600, color: "#f59e0b" }}
+                >
                   -{formatCurrency(Number(savings) || 0)}
                 </Typography>
               </Grid>
@@ -468,7 +599,7 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
                 Net Cash to be Released:
               </Typography>
               <Typography
-                variant="h4"
+                variant="h5"
                 sx={{
                   fontWeight: 700,
                   color: netCashReleased > 0 ? "#10b981" : "#ef4444",
@@ -486,26 +617,41 @@ export function ReloanDialog({ open, member, onClose, onSuccess, formatCurrency 
         </Card>
       </DialogContent>
 
-      <DialogActions sx={{ p: 3, backgroundColor: "#f8fafc" }}>
-        <Button onClick={onClose} size="large">
+      <DialogActions
+        sx={{
+          p: { xs: 2, sm: 2.5 },
+          flexDirection: { xs: "column-reverse", sm: "row" },
+          borderTop: "1px solid",
+          borderColor: "divider",
+          "& > :not(style) ~ :not(style)": { ml: 0 },
+        }}
+      >
+        <Button
+          onClick={onClose}
+          sx={{ minHeight: 44, width: { xs: "100%", sm: "auto" } }}
+        >
           Cancel
         </Button>
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={processing || !member || netCashReleased < 0 || !eligibility?.eligible}
-          startIcon={processing ? <CircularProgress size={16} /> : <AccountBalance />}
-          size="large"
+          disabled={
+            processing ||
+            !member ||
+            netCashReleased < 0 ||
+            !eligibility?.eligible
+          }
+          startIcon={
+            processing ? <CircularProgress size={16} /> : <AccountBalance />
+          }
           sx={{
-            background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
-            "&:hover": {
-              background: "linear-gradient(135deg, #047857 0%, #059669 100%)",
-            },
+            minHeight: 44,
+            width: { xs: "100%", sm: "auto" },
           }}
         >
           {processing ? "Processing..." : "Confirm Reloan"}
         </Button>
       </DialogActions>
     </Dialog>
-  )
+  );
 }

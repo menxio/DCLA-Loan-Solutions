@@ -542,9 +542,8 @@ export default function CollectionDetailsModal({
         return sum + Number(metrics?.due || 0);
       }, 0);
 
-      const { exportCollectorPdf } = await import(
-        "../utils/exportCollectorPdf"
-      );
+      const { exportCollectorPdf } =
+        await import("../utils/exportCollectorPdf");
       await exportCollectorPdf({
         centerName: collectionGroup.centerName,
         collectionDate: collectionGroup.collectionDate,
@@ -704,11 +703,12 @@ export default function CollectionDetailsModal({
         onClose={onClose}
         maxWidth="xl"
         fullWidth
+        scroll="paper"
+        aria-labelledby="collection-details-title"
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-            maxHeight: "95vh",
+            borderRadius: 2,
+            maxHeight: "calc(100% - 32px)",
             overflow: "hidden",
           },
         }}
@@ -716,24 +716,23 @@ export default function CollectionDetailsModal({
         transitionDuration={300}
       >
         <DialogTitle
+          id="collection-details-title"
           sx={{
             fontWeight: 600,
-            color: "white",
             display: "flex",
             alignItems: { xs: "flex-start", sm: "center" },
             justifyContent: "space-between",
-            flexDirection: { xs: "column", sm: "row" },
             gap: 1,
-            pb: 2,
-            background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+            p: { xs: 2, sm: 2.5 },
+            borderBottom: "1px solid",
+            borderColor: "divider",
           }}
         >
           <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
               {collectionGroup.centerName}
             </Typography>
-            <Typography variant="subtitle1" sx={{ opacity: 0.9, mb: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Collection Details & Management
             </Typography>
             <Box
@@ -742,7 +741,7 @@ export default function CollectionDetailsModal({
                 alignItems: "center",
                 gap: { xs: 1, sm: 3 },
                 flexWrap: "wrap",
-                opacity: 0.9,
+                color: "text.secondary",
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -769,7 +768,7 @@ export default function CollectionDetailsModal({
             sx={{
               display: "flex",
               alignItems: "center",
-              alignSelf: { xs: "flex-end", sm: "center" },
+              alignSelf: "center",
               gap: 1,
               flexShrink: 0,
             }}
@@ -779,10 +778,10 @@ export default function CollectionDetailsModal({
                 aria-label="Export collection details to Excel"
                 onClick={handleExport}
                 disabled={exporting || loading}
-                size="small"
                 sx={{
-                  color: "white",
-                  "&:hover": { backgroundColor: "rgba(255,255,255,0.1)" },
+                  width: 44,
+                  height: 44,
+                  color: "text.secondary",
                 }}
               >
                 {exporting ? (
@@ -797,10 +796,10 @@ export default function CollectionDetailsModal({
                 aria-label="Export collector PDF"
                 onClick={handleExportPdf}
                 disabled={pdfExporting || loading}
-                size="small"
                 sx={{
-                  color: "white",
-                  "&:hover": { backgroundColor: "rgba(255,255,255,0.1)" },
+                  width: 44,
+                  height: 44,
+                  color: "text.secondary",
                 }}
               >
                 {pdfExporting ? (
@@ -813,10 +812,10 @@ export default function CollectionDetailsModal({
             <IconButton
               aria-label="Close collection details"
               onClick={onClose}
-              size="small"
               sx={{
-                color: "white",
-                "&:hover": { backgroundColor: "rgba(255,255,255,0.1)" },
+                width: 44,
+                height: 44,
+                color: "text.secondary",
               }}
             >
               <Close />
@@ -824,7 +823,7 @@ export default function CollectionDetailsModal({
           </Box>
         </DialogTitle>
 
-        <DialogContent sx={{ p: 0, overflow: "auto" }}>
+        <DialogContent sx={{ p: 0, overflowY: "auto" }}>
           {error && (
             <Alert
               severity="error"
@@ -935,23 +934,16 @@ export default function CollectionDetailsModal({
 
         <DialogActions
           sx={{
-            p: 3,
-            backgroundColor: "#f8fafc",
-            borderTop: "1px solid #e2e8f0",
+            p: { xs: 2, sm: 2.5 },
+            backgroundColor: "background.paper",
+            borderTop: "1px solid",
+            borderColor: "divider",
           }}
         >
           <Button
             onClick={onClose}
-            variant="contained"
-            size="large"
-            sx={{
-              background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-              "&:hover": {
-                background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-              },
-              borderRadius: 2,
-              px: 4,
-            }}
+            variant="outlined"
+            sx={{ minHeight: 44, width: { xs: "100%", sm: "auto" } }}
           >
             Close
           </Button>

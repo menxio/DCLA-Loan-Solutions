@@ -37,6 +37,68 @@ describe('CollectionsService', () => {
     expect(service).toBeDefined();
   });
 
+  it.each([
+    ['2026-09-07', 'Monday'],
+    ['2026-09-08', 'Tuesday'],
+  ])('uses the host-independent weekday for %s', async (date, weekday) => {
+    centerRepo.find.mockResolvedValue([]);
+
+    await service.getTodayCollections(date);
+
+    expect(centerRepo.find).toHaveBeenCalledWith({
+      where: { collectionDay: weekday },
+    });
+  });
+
+  it.each(['2026-02-29', '2026-09-31', '2026-13-01', 'invalid'])(
+    'rejects invalid collection date %s with a standard bad request',
+    async (date) => {
+      await expect(service.getTodayCollections(date)).rejects.toThrow(
+        'Invalid collection date. Expected a valid YYYY-MM-DD date.',
+      );
+      expect(centerRepo.find).not.toHaveBeenCalled();
+    },
+  );
+
+  it('queries Daily collections with the exact supplied database date', async () => {
+    const memberQuery = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+    const repaymentQuery = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+    centerRepo.find.mockResolvedValue([
+      { id: 'center-1', name: 'Alpha', collectionDay: 'Monday' },
+    ]);
+    collectionRepo.find.mockResolvedValue([]);
+    memberRepo.createQueryBuilder.mockReturnValue(memberQuery);
+    repaymentRepo.createQueryBuilder.mockReturnValue(repaymentQuery);
+
+    const groups = await service.getTodayCollections('2026-09-07');
+
+    expect(collectionRepo.find).toHaveBeenCalledWith({
+      where: expect.objectContaining({ collectionDate: '2026-09-07' }),
+      relations: ['member'],
+    });
+    expect(groups).toEqual([
+      expect.objectContaining({
+        collectionDate: '2026-09-07',
+        collectionDay: 'Monday',
+      }),
+    ]);
+  });
+
   it('builds dated groups with four fixed queries and count projections', async () => {
     const memberQuery = {
       select: jest.fn().mockReturnThis(),
@@ -78,6 +140,11 @@ describe('CollectionsService', () => {
 
     expect(centerRepo.find).toHaveBeenCalledTimes(1);
     expect(collectionRepo.find).toHaveBeenCalledTimes(1);
+    expect(collectionRepo.find).toHaveBeenCalledWith({
+      where: { collectionDate: '2026-09-04' },
+      relations: ['member'],
+      order: { collectionDate: 'ASC', createdAt: 'ASC' },
+    });
     expect(memberQuery.getRawMany).toHaveBeenCalledTimes(1);
     expect(repaymentQuery.getRawMany).toHaveBeenCalledTimes(1);
     expect(groups).toEqual([

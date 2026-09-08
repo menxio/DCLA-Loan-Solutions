@@ -34,11 +34,14 @@ import {
   hasLoanAmount,
 } from "../utils/memberStatus";
 import { withNetReleaseForDate } from "../utils/netRelease";
+import { formatCollectionDatasetDate } from "../utils/date";
 
 interface DailyCollectionsViewProps {
   data: DailyCollectionGroup[];
   onViewDetails: (group: DailyCollectionGroup) => void;
   loading?: boolean;
+  datasetDate: string;
+  isDaily?: boolean;
 }
 
 type MemberWithLoansExtended = MemberWithLoans & {
@@ -52,6 +55,8 @@ export default function DailyCollectionsView({
   data,
   onViewDetails,
   loading,
+  datasetDate,
+  isDaily = false,
 }: DailyCollectionsViewProps) {
   const [exportingAll, setExportingAll] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -65,11 +70,12 @@ export default function DailyCollectionsView({
     Record<string, string[]>
   >({});
   const [membersLoading, setMembersLoading] = useState(false);
-  const [search, setSearch] = useState("");
 
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString()}`;
   };
+
+  const formattedDatasetDate = formatCollectionDatasetDate(datasetDate);
 
   // Fetch members for each center so cards use the same basis as the modal
   useEffect(() => {
@@ -346,9 +352,8 @@ export default function DailyCollectionsView({
         "_",
       )}`;
 
-      const { exportAllCollectionsToExcel } = await import(
-        "../utils/exportUtils"
-      );
+      const { exportAllCollectionsToExcel } =
+        await import("../utils/exportUtils");
       await exportAllCollectionsToExcel(validBundles, fileName);
 
       // Show success feedback
@@ -368,34 +373,32 @@ export default function DailyCollectionsView({
   };
 
   const displayedData = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const filtered = q
-      ? data.filter((g) => (g.centerName || "").toLowerCase().includes(q))
-      : data;
-    return [...filtered].sort((a, b) =>
+    return [...data].sort((a, b) =>
       (a.centerName || "").localeCompare(b.centerName || ""),
     );
-  }, [data, search]);
+  }, [data]);
 
   if (data.length === 0) {
     return (
-      <Card
+      <Box
         sx={{
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-          border: "1px solid #e2e8f0",
           textAlign: "center",
-          py: 6,
+          py: { xs: 5, sm: 6 },
+          px: 2,
         }}
       >
-        <Schedule sx={{ fontSize: 64, color: "#94a3b8", mb: 2 }} />
-        <Typography variant="h6" color="text.secondary" gutterBottom>
-          No Collections Scheduled Today
+        <Schedule sx={{ fontSize: 40, color: "text.disabled", mb: 1.5 }} />
+        <Typography variant="h6" gutterBottom>
+          {isDaily
+            ? "No scheduled centers for this date"
+            : "No centers found for this date"}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          All collections for today have been completed or there are no
-          scheduled collections.
+          {isDaily
+            ? "No collections are scheduled for this date."
+            : "No collection groups are available for this date."}
         </Typography>
-      </Card>
+      </Box>
     );
   }
 
@@ -408,15 +411,14 @@ export default function DailyCollectionsView({
             justifyContent: "space-between",
             alignItems: "center",
             mb: 3,
-            p: 3,
-            backgroundColor: "#f8fafc",
-            borderRadius: 2,
-            border: "1px solid #e2e8f0",
+            pb: 3,
+            borderBottom: "1px solid",
+            borderColor: "divider",
             gap: 2,
             flexWrap: "wrap",
           }}
         >
-          <Box sx={{ flex: 1, minWidth: 280 }}>
+          <Box sx={{ flex: 1, minWidth: { xs: 0, sm: 280 } }}>
             <Skeleton variant="text" width="40%" height={36} />
             <Skeleton variant="text" width="30%" height={24} />
             <Skeleton
@@ -438,16 +440,19 @@ export default function DailyCollectionsView({
           (_, index) => (
             <Card
               key={index}
+              elevation={0}
               sx={{
-                mb: 4,
-                border: "1px solid #e2e8f0",
+                mb: 2,
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
                 overflow: "hidden",
               }}
             >
               <Box
                 sx={{
                   p: 3,
-                  backgroundColor: "#dbeafe",
+                  backgroundColor: "action.hover",
                 }}
               >
                 <Grid container spacing={2}>
@@ -492,52 +497,47 @@ export default function DailyCollectionsView({
 
   return (
     <Box>
-      {/* Export All Collections Header */}
+      {/* Current collection results header */}
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: { xs: "stretch", md: "flex-start" },
+          flexDirection: { xs: "column", md: "row" },
+          gap: 2,
           mb: 3,
-          p: 3,
-          backgroundColor: "#f8fafc",
-          borderRadius: 2,
-          border: "1px solid #e2e8f0",
+          pb: 3,
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
-        <Box>
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 600, color: "#1e293b", mb: 0.5 }}
-          >
-            Daily Collections Summary
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+            Collection Summary for {formattedDatasetDate}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {data.length} center{data.length !== 1 ? "s" : ""} scheduled for
-            collection today
+            {isDaily
+              ? `${data.length} scheduled center${data.length !== 1 ? "s" : ""} shown`
+              : `${data.length} center${data.length !== 1 ? "s" : ""} shown`}
           </Typography>
-          <Box sx={{ mt: 2 }}>
-            <input
-              placeholder="Search centers by name"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: "100%",
-                maxWidth: 420,
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #e2e8f0",
-                outline: "none",
-              }}
-            />
-          </Box>
-          <Box sx={{ display: "flex", gap: 2, mt: 1, flexWrap: "wrap" }}>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(3, minmax(0, 1fr))",
+              },
+              gap: 1.5,
+              mt: 2,
+              maxWidth: 680,
+            }}
+          >
             <Box
               sx={{
-                p: 1,
-                px: 1.5,
-                backgroundColor: "#ecfeff",
-                border: "1px solid #bae6fd",
+                p: 1.5,
+                backgroundColor: "background.paper",
+                border: "1px solid",
+                borderColor: "divider",
                 borderRadius: 1,
               }}
             >
@@ -550,10 +550,10 @@ export default function DailyCollectionsView({
             </Box>
             <Box
               sx={{
-                p: 1,
-                px: 1.5,
-                backgroundColor: "#f0fdf4",
-                border: "1px solid #bbf7d0",
+                p: 1.5,
+                backgroundColor: "background.paper",
+                border: "1px solid",
+                borderColor: "divider",
                 borderRadius: 1,
               }}
             >
@@ -566,10 +566,10 @@ export default function DailyCollectionsView({
             </Box>
             <Box
               sx={{
-                p: 1,
-                px: 1.5,
-                backgroundColor: "#fefce8",
-                border: "1px solid #fde68a",
+                p: 1.5,
+                backgroundColor: "background.paper",
+                border: "1px solid",
+                borderColor: "divider",
                 borderRadius: 1,
               }}
             >
@@ -583,29 +583,20 @@ export default function DailyCollectionsView({
           </Box>
         </Box>
         <Button
-          variant="contained"
+          variant="outlined"
           startIcon={
             exportingAll ? <CircularProgress size={16} /> : <FileDownload />
           }
           onClick={handleExportAllCollections}
           disabled={exportingAll || loading || data.length === 0}
           sx={{
-            background: "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
-            "&:hover": {
-              background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
-            },
-            "&:disabled": {
-              background: "#d1d5db",
-              color: "#9ca3af",
-            },
-            px: 3,
-            py: 1.5,
-            fontWeight: 600,
-            borderRadius: 2,
-            minWidth: 180,
+            minHeight: 44,
+            alignSelf: { xs: "stretch", md: "flex-start" },
           }}
         >
-          {exportingAll ? "Exporting All..." : "Export All Collections"}
+          {exportingAll
+            ? "Exporting Current Results..."
+            : "Export Current Results"}
         </Button>
       </Box>
 
@@ -630,24 +621,22 @@ export default function DailyCollectionsView({
       {displayedData.map((group) => (
         <Card
           key={group.centerId}
+          elevation={0}
           sx={{
-            mb: 4,
-            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-            border: "1px solid #e2e8f0",
+            mb: 2,
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
             overflow: "hidden",
-            transition: "all 0.3s ease-in-out",
-            "&:hover": {
-              transform: "translateY(-2px)",
-              boxShadow: "0 8px 25px rgba(0, 0, 0, 0.1)",
-            },
           }}
         >
           {/* Center Header */}
           <Box
             sx={{
-              p: 3,
-              background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-              color: "white",
+              p: { xs: 2, sm: 2.5 },
+              backgroundColor: "action.hover",
+              borderBottom: "1px solid",
+              borderColor: "divider",
             }}
           >
             <Grid container spacing={2} alignItems="center">
@@ -664,13 +653,17 @@ export default function DailyCollectionsView({
                   }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <CalendarToday sx={{ fontSize: 16 }} />
+                    <CalendarToday
+                      sx={{ fontSize: 16, color: "text.secondary" }}
+                    />
                     <Typography variant="body2">
                       {group.collectionDay}
                     </Typography>
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <LocationOn sx={{ fontSize: 16 }} />
+                    <LocationOn
+                      sx={{ fontSize: 16, color: "text.secondary" }}
+                    />
                     <Typography variant="body2">
                       {group.collectionDate}
                     </Typography>
@@ -679,16 +672,19 @@ export default function DailyCollectionsView({
               </Grid>
               <Grid item xs={12} md={4}>
                 <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  <Typography
+                    variant="h5"
+                    sx={{ fontWeight: 700, mb: 0.5, color: "primary.main" }}
+                  >
                     {formatCurrency(sumOverallAmount(group))}
                   </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  <Typography variant="body2" color="text.secondary">
                     Received:{" "}
                     {formatCurrency(
                       sumOverallAmount(group) - sumRemainingBalance(group),
                     )}
                   </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  <Typography variant="body2" color="text.secondary">
                     Remaining:{" "}
                     {formatCurrency(Math.max(0, sumRemainingBalance(group)))}
                   </Typography>
@@ -697,9 +693,9 @@ export default function DailyCollectionsView({
             </Grid>
           </Box>
 
-          <CardContent sx={{ p: 3 }}>
+          <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
             {/* Statistics Cards */}
-            <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
               <Grid item xs={6} md={2.4}>
                 <CollectionStatsCard
                   title="Total Members"
@@ -748,18 +744,7 @@ export default function DailyCollectionsView({
                 variant="contained"
                 startIcon={<Visibility />}
                 onClick={() => onViewDetails(group)}
-                sx={{
-                  background:
-                    "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                  "&:hover": {
-                    background:
-                      "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                  },
-                  px: 3,
-                  py: 1.5,
-                  fontWeight: 600,
-                  borderRadius: 2,
-                }}
+                sx={{ minHeight: 44 }}
               >
                 View Details
               </Button>

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import collectionsService from "../api.ts";
 import type { DailyCollectionGroup, CollectionFormData } from "../types.ts";
 import { getApiErrorMessage } from "@utils/apiError";
+import { getManilaBusinessDate } from "@utils/dateTime";
 
 export type CollectionsTab = 0 | 1;
 
@@ -13,14 +14,11 @@ export const collectionKeys = {
 };
 
 const EMPTY_GROUPS: DailyCollectionGroup[] = [];
-const getLocalISODate = (date: Date) => date.toLocaleDateString("en-CA");
 
 export function useCollections(activeTab: CollectionsTab = 0) {
   const queryClient = useQueryClient();
-  const [dailyDate] = useState<string>(() => getLocalISODate(new Date()));
-  const [allDate, setAllDate] = useState<string>(() =>
-    getLocalISODate(new Date()),
-  );
+  const [dailyDate, setDailyDate] = useState<string>(getManilaBusinessDate);
+  const [allDate, setAllDate] = useState<string>(getManilaBusinessDate);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
@@ -32,7 +30,11 @@ export function useCollections(activeTab: CollectionsTab = 0) {
   const dailyQuery = useQuery<DailyCollectionGroup[], Error>(
     collectionKeys.daily(dailyDate),
     ({ signal }) => collectionsService.getTodayCollections(dailyDate, signal),
-    { enabled: activeTab === 0, staleTime: 15_000 },
+    {
+      enabled: activeTab === 0,
+      staleTime: 15_000,
+      refetchOnWindowFocus: false,
+    },
   );
   const allQuery = useQuery<DailyCollectionGroup[], Error>(
     collectionKeys.grouped(allDate),
@@ -80,6 +82,26 @@ export function useCollections(activeTab: CollectionsTab = 0) {
     [filterGroups, unfilteredAll],
   );
 
+  const syncDailyDate = useCallback(() => {
+    const currentDate = getManilaBusinessDate();
+    if (currentDate === dailyDate) return false;
+
+    setDailyDate(currentDate);
+    return true;
+  }, [dailyDate]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      const dateChanged = syncDailyDate();
+      if (!dateChanged && activeTab === 0 && dailyQuery.isStale) {
+        void dailyQuery.refetch();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    return () => window.removeEventListener("focus", handleWindowFocus);
+  }, [activeTab, dailyQuery.isStale, dailyQuery.refetch, syncDailyDate]);
+
   return {
     dailyCollections,
     allCollections,
@@ -93,8 +115,10 @@ export function useCollections(activeTab: CollectionsTab = 0) {
     ),
     search,
     setSearch,
+    dailyDate,
     allDate,
     setAllDate,
+    syncDailyDate,
     loading:
       (activeTab === 0 ? dailyQuery.isFetching : allQuery.isFetching) ||
       updateMutation.isLoading,
@@ -117,6 +141,7 @@ export function useCollections(activeTab: CollectionsTab = 0) {
     updateCollection: (id: string, data: Partial<CollectionFormData>) =>
       updateMutation.mutateAsync({ id, data }),
     refetchDaily: async () => {
+      if (syncDailyDate()) return;
       await dailyQuery.refetch();
     },
     refetchAll: async () => {

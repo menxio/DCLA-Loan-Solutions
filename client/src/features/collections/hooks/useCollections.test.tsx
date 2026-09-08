@@ -4,8 +4,14 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import collectionsService from "../api";
-import { useCollections, type CollectionsTab } from "./useCollections";
+import {
+  collectionKeys,
+  useCollections,
+  type CollectionsTab,
+} from "./useCollections";
 import type { DailyCollectionGroup } from "../types";
+
+const getManilaBusinessDateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../api", () => ({
   default: {
@@ -13,6 +19,10 @@ vi.mock("../api", () => ({
     getAllCollectionGroups: vi.fn(),
     updateCollection: vi.fn(),
   },
+}));
+
+vi.mock("@utils/dateTime", () => ({
+  getManilaBusinessDate: getManilaBusinessDateMock,
 }));
 
 function forbiddenError() {
@@ -52,8 +62,37 @@ const group = (
 describe("useCollections", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getManilaBusinessDateMock.mockReturnValue("2026-09-07");
     vi.mocked(collectionsService.getTodayCollections).mockResolvedValue([]);
     vi.mocked(collectionsService.getAllCollectionGroups).mockResolvedValue([]);
+  });
+
+  it("initializes both query dates from the Manila business date", async () => {
+    const { result } = renderHook(() => useCollections(0), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.dailyDate).toBe("2026-09-07");
+    expect(result.current.allDate).toBe("2026-09-07");
+    await waitFor(() =>
+      expect(collectionsService.getTodayCollections).toHaveBeenCalledWith(
+        "2026-09-07",
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it("preserves the established collection query key shapes", () => {
+    expect(collectionKeys.daily("2026-09-07")).toEqual([
+      "collections",
+      "daily",
+      "2026-09-07",
+    ]);
+    expect(collectionKeys.grouped("2026-09-03")).toEqual([
+      "collections",
+      "grouped",
+      "2026-09-03",
+    ]);
   });
 
   it("fetches only the active tab and preserves its independent error", async () => {
@@ -127,6 +166,80 @@ describe("useCollections", () => {
       resolvers.get(oldDate)?.([group("Obsolete", oldDate)]);
     });
     expect(result.current.allCollections[0]?.centerName).toBe("Newest");
+    expect(result.current.allDate).toBe("2026-09-10");
+  });
+
+  it("switches to the new Manila date on refresh without refetching the old key", async () => {
+    const { result } = renderHook(() => useCollections(0), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() =>
+      expect(collectionsService.getTodayCollections).toHaveBeenCalledTimes(1),
+    );
+
+    getManilaBusinessDateMock.mockReturnValue("2026-09-08");
+    await act(async () => result.current.refetchDaily());
+
+    await waitFor(() => expect(result.current.dailyDate).toBe("2026-09-08"));
+    await waitFor(() =>
+      expect(collectionsService.getTodayCollections).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      vi
+        .mocked(collectionsService.getTodayCollections)
+        .mock.calls.map(([date]) => date),
+    ).toEqual(["2026-09-07", "2026-09-08"]);
+  });
+
+  it("refreshes the manually selected by-date query without changing its date", async () => {
+    const { result } = renderHook(() => useCollections(1), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() =>
+      expect(collectionsService.getAllCollectionGroups).toHaveBeenCalled(),
+    );
+
+    act(() => result.current.setAllDate("2026-09-03"));
+    await waitFor(() => expect(result.current.allDate).toBe("2026-09-03"));
+    await waitFor(() =>
+      expect(collectionsService.getAllCollectionGroups).toHaveBeenCalledWith(
+        "2026-09-03",
+        expect.any(AbortSignal),
+      ),
+    );
+
+    getManilaBusinessDateMock.mockReturnValue("2026-09-08");
+    await act(async () => result.current.refetchAll());
+
+    expect(result.current.allDate).toBe("2026-09-03");
+    expect(
+      vi
+        .mocked(collectionsService.getAllCollectionGroups)
+        .mock.calls.at(-1)?.[0],
+    ).toBe("2026-09-03");
+  });
+
+  it("synchronizes a stale Daily date when the window regains focus", async () => {
+    const { result } = renderHook(() => useCollections(0), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() =>
+      expect(collectionsService.getTodayCollections).toHaveBeenCalledTimes(1),
+    );
+
+    getManilaBusinessDateMock.mockReturnValue("2026-09-08");
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    await waitFor(() => expect(result.current.dailyDate).toBe("2026-09-08"));
+    await waitFor(() =>
+      expect(collectionsService.getTodayCollections).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      vi
+        .mocked(collectionsService.getTodayCollections)
+        .mock.calls.map(([date]) => date),
+    ).toEqual(["2026-09-07", "2026-09-08"]);
+    expect(result.current.allDate).toBe("2026-09-07");
   });
 
   it("keeps successful counts available when switching between cached tabs", async () => {
@@ -160,5 +273,28 @@ describe("useCollections", () => {
     expect(result.current.dailyCollections).toHaveLength(2);
     expect(result.current.allHasData).toBe(true);
     expect(result.current.allCollections).toHaveLength(1);
+  });
+
+  it("filters fetched center groups without adding a collection request", async () => {
+    vi.mocked(collectionsService.getTodayCollections).mockResolvedValue([
+      group("North Center", "2026-09-05"),
+      group("South Center", "2026-09-05"),
+    ]);
+
+    const { result } = renderHook(() => useCollections(0), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() =>
+      expect(result.current.dailyCollections).toHaveLength(2),
+    );
+
+    act(() => result.current.setSearch("north"));
+
+    await waitFor(() =>
+      expect(result.current.dailyCollections).toHaveLength(1),
+    );
+    expect(result.current.dailyCollections[0]?.centerName).toBe("North Center");
+    expect(collectionsService.getTodayCollections).toHaveBeenCalledTimes(1);
   });
 });
