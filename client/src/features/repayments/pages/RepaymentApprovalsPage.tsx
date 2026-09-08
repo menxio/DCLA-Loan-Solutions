@@ -27,8 +27,8 @@ import CheckCircle from "@mui/icons-material/CheckCircle";
 import Close from "@mui/icons-material/Close";
 import Refresh from "@mui/icons-material/Refresh";
 import Search from "@mui/icons-material/Search";
+import OperationalTableLoadingSkeleton from "@components/common/OperationalTableLoadingSkeleton";
 import PageHeader from "@components/common/PageHeader";
-import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import RequestErrorAlert from "@components/common/RequestErrorAlert";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import { smsNotificationsApi } from "@features/notifications/api";
@@ -38,7 +38,7 @@ import { useRepaymentApprovals } from "../hooks/useRepaymentApprovals";
 import type { PendingRepaymentCollectionGroup } from "../types";
 
 const formatCurrency = (value: number) =>
-  `PHP ${Number(value || 0).toLocaleString()}`;
+  `₱${Number(value || 0).toLocaleString()}`;
 
 const formatDate = (value?: string | null) => {
   if (!value) return "N/A";
@@ -173,7 +173,11 @@ export default function RepaymentApprovalsPage() {
   if (loading && pendingCollections.length === 0) {
     return (
       <DashboardLayout>
-        <PageLoadingSkeleton showStats={false} filterCount={1} rowCount={8} />
+        <OperationalTableLoadingSkeleton
+          actionWidth={110}
+          filterCount={1}
+          rowCount={8}
+        />
       </DashboardLayout>
     );
   }
@@ -261,9 +265,7 @@ export default function RepaymentApprovalsPage() {
               borderColor: "divider",
             }}
           >
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-              Pending collections
-            </Typography>
+            <Typography variant="h6">Pending collections</Typography>
             <Typography variant="body2" color="text.secondary">
               {filtered.length} collection{filtered.length === 1 ? "" : "s"}
               {" / "}
@@ -309,19 +311,50 @@ export default function RepaymentApprovalsPage() {
                           {item.centerName || "Unknown center"}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">{item.pendingCount}</TableCell>
-                      <TableCell align="right">{item.paymentCount}</TableCell>
-                      <TableCell align="right">{item.reversalCount}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      <TableCell
+                        align="right"
+                        sx={{ fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {item.pendingCount}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{ fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {item.paymentCount}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{ fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {item.reversalCount}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontWeight: 600,
+                          fontVariantNumeric: "tabular-nums",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {formatCurrency(item.paymentAmount)}
                       </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontWeight: 600,
+                          fontVariantNumeric: "tabular-nums",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {formatCurrency(item.reversalAmount)}
                       </TableCell>
                       <TableCell
                         align="right"
                         sx={{
                           fontWeight: 700,
+                          fontVariantNumeric: "tabular-nums",
+                          whiteSpace: "nowrap",
                           color:
                             item.netAmount < 0 ? "error.main" : "text.primary",
                         }}
@@ -334,6 +367,7 @@ export default function RepaymentApprovalsPage() {
                           color="warning"
                           variant="outlined"
                           size="small"
+                          sx={{ fontWeight: 600 }}
                         />
                       </TableCell>
                       <TableCell align="right">
@@ -380,10 +414,15 @@ export default function RepaymentApprovalsPage() {
                 {!error && !loading && filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography sx={{ fontWeight: 600 }}>
                         {search.trim()
                           ? "No pending approvals match your search."
                           : "No pending collection approvals."}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {search.trim()
+                          ? "Adjust the search and try again."
+                          : "New approval requests will appear here."}
                       </Typography>
                     </TableCell>
                   </TableRow>

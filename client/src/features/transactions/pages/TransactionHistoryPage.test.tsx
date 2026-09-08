@@ -191,6 +191,20 @@ describe("TransactionHistoryPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("uses the shared operational loading structure", () => {
+    useTransactionHistoryMock.mockReturnValue({
+      ...defaultState,
+      transactions: [],
+      loading: true,
+    });
+
+    renderPage();
+
+    expect(
+      screen.getByRole("status", { name: "Loading operational records" }),
+    ).toBeInTheDocument();
+  });
+
   it("separates request failures from successful empty states", () => {
     useTransactionHistoryMock.mockReturnValue({
       ...defaultState,

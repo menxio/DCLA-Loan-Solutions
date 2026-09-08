@@ -91,6 +91,7 @@ describe("RepaymentApprovalsPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("North Center")).toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("₱1,500")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Search approvals"), {
       target: { value: "missing" },
@@ -161,5 +162,19 @@ describe("RepaymentApprovalsPage", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(actions.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("uses the shared operational loading structure", () => {
+    useRepaymentApprovalsMock.mockReturnValue({
+      ...defaultState,
+      pendingCollections: [],
+      loading: true,
+    });
+
+    renderPage();
+
+    expect(
+      screen.getByRole("status", { name: "Loading operational records" }),
+    ).toBeInTheDocument();
   });
 });

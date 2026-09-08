@@ -11,6 +11,7 @@ import {
   DialogContentText,
   DialogTitle,
   FormControl,
+  IconButton,
   InputAdornment,
   InputLabel,
   MenuItem,
@@ -31,9 +32,10 @@ import {
   useTheme,
 } from "@mui/material";
 import Search from "@mui/icons-material/Search";
+import Close from "@mui/icons-material/Close";
 import type { SelectChangeEvent } from "@mui/material/Select";
+import OperationalTableLoadingSkeleton from "@components/common/OperationalTableLoadingSkeleton";
 import PageHeader from "@components/common/PageHeader";
-import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import RequestErrorAlert from "@components/common/RequestErrorAlert";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import { useAuthStore } from "@features/auth/authStore";
@@ -61,6 +63,11 @@ const formatCurrency = (value: number) =>
 const directionColors: Record<string, "success" | "error" | "default"> = {
   credit: "success",
   debit: "error",
+};
+
+const dialogPaperSx = {
+  m: { xs: 2, sm: 4 },
+  maxHeight: "calc(100dvh - 32px)",
 };
 
 export default function TransactionHistoryPage() {
@@ -166,12 +173,7 @@ export default function TransactionHistoryPage() {
   if (loading && transactions.length === 0) {
     return (
       <DashboardLayout>
-        <PageLoadingSkeleton
-          showStats
-          statCount={4}
-          filterCount={4}
-          rowCount={8}
-        />
+        <OperationalTableLoadingSkeleton filterCount={4} rowCount={8} />
       </DashboardLayout>
     );
   }
@@ -541,13 +543,32 @@ export default function TransactionHistoryPage() {
           onClose={handleCloseReversalDialog}
           fullWidth
           maxWidth="sm"
+          PaperProps={{ sx: dialogPaperSx }}
         >
-          <DialogTitle>
-            {isOperationalAdmin
-              ? "Reverse repayment"
-              : "Request repayment reversal"}
+          <DialogTitle
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 2,
+              pr: 1,
+            }}
+          >
+            <span>
+              {isOperationalAdmin
+                ? "Reverse repayment"
+                : "Request repayment reversal"}
+            </span>
+            <IconButton
+              aria-label="Close reversal dialog"
+              disabled={submittingReversal}
+              onClick={handleCloseReversalDialog}
+              sx={{ minWidth: 44, minHeight: 44 }}
+            >
+              <Close />
+            </IconButton>
           </DialogTitle>
-          <DialogContent>
+          <DialogContent dividers sx={{ overflowY: "auto" }}>
             <DialogContentText sx={{ mb: 2 }}>
               {isOperationalAdmin
                 ? "This payment will be reversed immediately."
