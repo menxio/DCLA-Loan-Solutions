@@ -10,6 +10,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  IconButton,
+  InputAdornment,
   Paper,
   Snackbar,
   Table,
@@ -21,14 +23,19 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { CheckCircle, FactCheck, Refresh } from "@mui/icons-material";
-import DashboardLayout from "@components/layout/PrivateLayout";
+import CheckCircle from "@mui/icons-material/CheckCircle";
+import Close from "@mui/icons-material/Close";
+import Refresh from "@mui/icons-material/Refresh";
+import Search from "@mui/icons-material/Search";
+import PageHeader from "@components/common/PageHeader";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
-import { useRepaymentApprovals } from "../hooks/useRepaymentApprovals";
-import type { PendingRepaymentCollectionGroup } from "../types";
+import RequestErrorAlert from "@components/common/RequestErrorAlert";
+import DashboardLayout from "@components/layout/PrivateLayout";
 import { smsNotificationsApi } from "@features/notifications/api";
 import SendSmsConfirmationDialog from "@features/notifications/components/SendSmsConfirmationDialog";
 import type { SmsEligibilityItem } from "@features/notifications/types";
+import { useRepaymentApprovals } from "../hooks/useRepaymentApprovals";
+import type { PendingRepaymentCollectionGroup } from "../types";
 
 const formatCurrency = (value: number) =>
   `PHP ${Number(value || 0).toLocaleString()}`;
@@ -38,6 +45,22 @@ const formatDate = (value?: string | null) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString();
+};
+
+const dialogPaperSx = {
+  m: { xs: 2, sm: 4 },
+  maxHeight: "calc(100dvh - 32px)",
+};
+
+const dialogActionsSx = {
+  p: 2,
+  gap: 1,
+  flexDirection: { xs: "column-reverse", sm: "row" },
+  "& > .MuiButton-root": {
+    minHeight: 44,
+    m: 0,
+    width: { xs: "100%", sm: "auto" },
+  },
 };
 
 export default function RepaymentApprovalsPage() {
@@ -81,16 +104,18 @@ export default function RepaymentApprovalsPage() {
   }, [pendingCollections, search]);
 
   const totalPendingEntries = useMemo(
-    () => pendingCollections.reduce((sum, item) => sum + Number(item.pendingCount || 0), 0),
-    [pendingCollections]
+    () =>
+      pendingCollections.reduce(
+        (sum, item) => sum + Number(item.pendingCount || 0),
+        0,
+      ),
+    [pendingCollections],
   );
 
   const showSnackbar = (
     message: string,
-    severity: "success" | "error" = "success"
-  ) => {
-    setSnackbar({ open: true, message, severity });
-  };
+    severity: "success" | "error" = "success",
+  ) => setSnackbar({ open: true, message, severity });
 
   const handleApprove = async () => {
     if (!approveTarget || approveSubmitting) return;
@@ -100,19 +125,19 @@ export default function RepaymentApprovalsPage() {
       const result = await approveCollection(
         approveTarget.centerId,
         approveTarget.collectionDate,
-        approveTarget.batchId
+        approveTarget.batchId,
       );
       showSnackbar("Collection approved successfully.");
       if (result.approvedPaymentIds.length > 0) {
         try {
           const eligibility = await smsNotificationsApi.getRepaymentEligibility(
-            result.approvedPaymentIds
+            result.approvedPaymentIds,
           );
           setSmsCandidates(eligibility);
           setSmsDialogOpen(true);
         } catch {
           showSnackbar(
-            "Collection approved successfully. SMS options are temporarily unavailable."
+            "Collection approved successfully. SMS options are temporarily unavailable.",
           );
         }
       }
@@ -124,6 +149,9 @@ export default function RepaymentApprovalsPage() {
     }
   };
 
+  const closeRejectDialog = () =>
+    setRejectState({ open: false, target: null, reason: "" });
+
   const handleReject = async () => {
     if (!rejectState.target) return;
 
@@ -132,294 +160,293 @@ export default function RepaymentApprovalsPage() {
         rejectState.target.centerId,
         rejectState.target.collectionDate,
         rejectState.reason,
-        rejectState.target.batchId
+        rejectState.target.batchId,
       );
       showSnackbar("Collection rejected.");
     } catch {
       showSnackbar("Failed to reject collection.", "error");
     } finally {
-      setRejectState({ open: false, target: null, reason: "" });
+      closeRejectDialog();
     }
   };
 
   if (loading && pendingCollections.length === 0) {
     return (
       <DashboardLayout>
-        <PageLoadingSkeleton showStats={false} filterCount={2} rowCount={8} />
+        <PageLoadingSkeleton showStats={false} filterCount={1} rowCount={8} />
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <Box sx={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
-        <Paper
+      <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+        <PageHeader
+          title="Approvals"
+          description="Review and manage pending collection approvals."
+          actions={
+            <Button
+              variant="contained"
+              startIcon={<Refresh />}
+              onClick={refresh}
+              sx={{ minHeight: 44 }}
+            >
+              Refresh
+            </Button>
+          }
+        />
+
+        <Box
+          role="group"
+          aria-label="Approval filters"
           sx={{
-            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-            border: "1px solid #e2e8f0",
-            borderRadius: 3,
-            p: 4,
+            display: "flex",
+            alignItems: { xs: "stretch", sm: "center" },
+            flexDirection: { xs: "column", sm: "row" },
+            gap: 2,
             mb: 3,
-            boxShadow:
-              "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            pb: 3,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            minWidth: 0,
+          }}
+        >
+          <TextField
+            size="small"
+            label="Search approvals"
+            placeholder="Search by center or date"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search color="action" fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              width: { xs: "100%", sm: 360 },
+              maxWidth: "100%",
+              "& .MuiOutlinedInput-root": {
+                minHeight: 44,
+                bgcolor: "background.paper",
+              },
+            }}
+          />
+        </Box>
+
+        {error && <RequestErrorAlert message={error} onRetry={refresh} />}
+
+        <Paper
+          elevation={0}
+          sx={{
+            minWidth: 0,
+            maxWidth: "100%",
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+            overflow: "hidden",
           }}
         >
           <Box
-            display="flex"
-            justifyContent="space-between"
-            alignItems="center"
-            gap={2}
-            flexWrap="wrap"
-          >
-            <Box display="flex" alignItems="center" gap={3}>
-              <Box
-                sx={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 2,
-                  background:
-                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
-                }}
-              >
-                <FactCheck sx={{ fontSize: 28, color: "white" }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight="bold" color="#1e293b">
-                  Collection Approvals
-                </Typography>
-                <Typography variant="body1" color="#64748b">
-                  Approve or reject pending collections by center and business date.
-                </Typography>
-              </Box>
-            </Box>
-
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-              <Chip
-                label={`${filtered.length} pending collections / ${totalPendingEntries} entries`}
-                color="warning"
-                sx={{ fontWeight: 600 }}
-              />
-              <TextField
-                size="small"
-                placeholder="Search center or date"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                sx={{
-                  minWidth: 240,
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: "white",
-                    borderRadius: 2,
-                  },
-                }}
-              />
-              <Button
-                variant="contained"
-                startIcon={<Refresh />}
-                onClick={refresh}
-                sx={{
-                  background:
-                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
-                  borderRadius: 2,
-                  px: 3,
-                  py: 1.5,
-                  textTransform: "none",
-                  fontWeight: 600,
-                  boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
-                  "&:hover": {
-                    background:
-                      "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                    boxShadow: "0 6px 20px 0 rgba(59, 130, 246, 0.4)",
-                  },
-                }}
-              >
-                Refresh
-              </Button>
-            </Box>
-          </Box>
-        </Paper>
-
-        {error && (
-          <Box px={3}>
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-              {error}
-            </Alert>
-          </Box>
-        )}
-
-        <Box px={3}>
-          <Paper
             sx={{
-              borderRadius: 3,
-              border: "1px solid #e2e8f0",
-              boxShadow:
-                "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-              overflow: "hidden",
+              display: "flex",
+              alignItems: { xs: "flex-start", sm: "center" },
+              justifyContent: "space-between",
+              flexDirection: { xs: "column", sm: "row" },
+              gap: 0.5,
+              px: { xs: 2, sm: 3 },
+              py: 2,
+              borderBottom: "1px solid",
+              borderColor: "divider",
             }}
           >
-            <TableContainer>
-              <Table stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Collection Date</TableCell>
-                    <TableCell>Center</TableCell>
-                    <TableCell align="right">Entries</TableCell>
-                    <TableCell align="right">Payments</TableCell>
-                    <TableCell align="right">Reversals</TableCell>
-                    <TableCell align="right">Payment Total</TableCell>
-                    <TableCell align="right">Reversal Total</TableCell>
-                    <TableCell align="right">Net Total</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtered.map((item) => {
-                    const isActing = actingIds.has(
-                      getActionKey(item.centerId, item.collectionDate, item.batchId)
-                    );
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Pending collections
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {filtered.length} collection{filtered.length === 1 ? "" : "s"}
+              {" / "}
+              {totalPendingEntries} pending entr
+              {totalPendingEntries === 1 ? "y" : "ies"}
+            </Typography>
+          </Box>
 
-                    return (
-                      <TableRow
-                        key={`${item.batchId ?? "legacy"}-${item.centerId}-${item.collectionDate}`}
-                        hover
-                      >
-                        <TableCell>{formatDate(item.collectionDate)}</TableCell>
-                        <TableCell>
-                          <Typography sx={{ fontWeight: 600 }}>
-                            {item.centerName || "Unknown center"}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">{item.pendingCount}</TableCell>
-                        <TableCell align="right">{item.paymentCount}</TableCell>
-                        <TableCell align="right">{item.reversalCount}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>
-                          {formatCurrency(item.paymentAmount)}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>
-                          {formatCurrency(item.reversalAmount)}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            fontWeight: 700,
-                            color: item.netAmount < 0 ? "error.main" : "text.primary",
-                          }}
-                        >
-                          {formatCurrency(item.netAmount)}
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label="Pending"
-                            color="warning"
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Box display="flex" gap={1} justifyContent="flex-end">
-                            <Button
-                              size="small"
-                              variant="contained"
-                              startIcon={<CheckCircle />}
-                              disabled={isActing}
-                              onClick={() => setApproveTarget(item)}
-                              sx={{
-                                background:
-                                  "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                                textTransform: "none",
-                                fontWeight: 600,
-                                "&:hover": {
-                                  background:
-                                    "linear-gradient(135deg, #059669 0%, #047857 100%)",
-                                },
-                              }}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="error"
-                              disabled={isActing}
-                              onClick={() =>
-                                setRejectState({
-                                  open: true,
-                                  target: item,
-                                  reason: "",
-                                })
-                              }
-                              sx={{ textTransform: "none", fontWeight: 600 }}
-                            >
-                              Reject
-                            </Button>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+          <TableContainer sx={{ maxWidth: "100%", overflowX: "auto" }}>
+            <Table stickyHeader sx={{ minWidth: 1120 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Collection Date</TableCell>
+                  <TableCell>Center</TableCell>
+                  <TableCell align="right">Entries</TableCell>
+                  <TableCell align="right">Payments</TableCell>
+                  <TableCell align="right">Reversals</TableCell>
+                  <TableCell align="right">Payment Total</TableCell>
+                  <TableCell align="right">Reversal Total</TableCell>
+                  <TableCell align="right">Net Total</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filtered.map((item) => {
+                  const isActing = actingIds.has(
+                    getActionKey(
+                      item.centerId,
+                      item.collectionDate,
+                      item.batchId,
+                    ),
+                  );
 
-                  {!loading && filtered.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={10} align="center">
-                        <Typography variant="body2" color="text.secondary">
-                          No pending collections found.
+                  return (
+                    <TableRow
+                      key={`${item.batchId ?? "legacy"}-${item.centerId}-${item.collectionDate}`}
+                      hover
+                    >
+                      <TableCell>{formatDate(item.collectionDate)}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {item.centerName || "Unknown center"}
                         </Typography>
                       </TableCell>
+                      <TableCell align="right">{item.pendingCount}</TableCell>
+                      <TableCell align="right">{item.paymentCount}</TableCell>
+                      <TableCell align="right">{item.reversalCount}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        {formatCurrency(item.paymentAmount)}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        {formatCurrency(item.reversalAmount)}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontWeight: 700,
+                          color:
+                            item.netAmount < 0 ? "error.main" : "text.primary",
+                        }}
+                      >
+                        {formatCurrency(item.netAmount)}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label="Pending"
+                          color="warning"
+                          variant="outlined"
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box
+                          sx={{
+                            display: "flex",
+                            gap: 1,
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            startIcon={<CheckCircle />}
+                            disabled={isActing}
+                            onClick={() => setApproveTarget(item)}
+                            sx={{ minHeight: 44 }}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            disabled={isActing}
+                            onClick={() =>
+                              setRejectState({
+                                open: true,
+                                target: item,
+                                reason: "",
+                              })
+                            }
+                            sx={{ minHeight: 44 }}
+                          >
+                            Reject
+                          </Button>
+                        </Box>
+                      </TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Box>
+                  );
+                })}
+
+                {!error && !loading && filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {search.trim()
+                          ? "No pending approvals match your search."
+                          : "No pending collection approvals."}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
       </Box>
 
       <Dialog
         open={Boolean(approveTarget)}
         onClose={() => {
-          if (!approveSubmitting) {
-            setApproveTarget(null);
-          }
+          if (!approveSubmitting) setApproveTarget(null);
         }}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: dialogPaperSx }}
       >
-        <DialogTitle>Approve collection</DialogTitle>
-        <DialogContent>
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+            pr: 1,
+          }}
+        >
+          Approve collection
+          <IconButton
+            aria-label="Close approve dialog"
+            disabled={approveSubmitting}
+            onClick={() => setApproveTarget(null)}
+            sx={{ minWidth: 44, minHeight: 44 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ overflowY: "auto" }}>
           <DialogContentText>
-            This will approve all pending repayments for
-            {" "}
-            <strong>{approveTarget?.centerName || "Unknown center"}</strong>
-            {" "}
-            on
-            {" "}
-            <strong>{formatDate(approveTarget?.collectionDate)}</strong>
-            .
+            This will approve all pending repayments for{" "}
+            <strong>{approveTarget?.centerName || "Unknown center"}</strong> on{" "}
+            <strong>{formatDate(approveTarget?.collectionDate)}</strong>.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button
             disabled={approveSubmitting}
             onClick={() => setApproveTarget(null)}
-            sx={{ color: "#64748b" }}
+            color="inherit"
           >
             Cancel
           </Button>
           <Button
             variant="contained"
+            color="success"
             onClick={handleApprove}
             disabled={approveSubmitting}
             startIcon={
-              approveSubmitting ? <CircularProgress size={16} color="inherit" /> : undefined
+              approveSubmitting ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : undefined
             }
-            sx={{
-              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-              "&:hover": {
-                background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
-              },
-            }}
           >
             {approveSubmitting ? "Approving..." : "Approve Collection"}
           </Button>
@@ -428,10 +455,30 @@ export default function RepaymentApprovalsPage() {
 
       <Dialog
         open={rejectState.open}
-        onClose={() => setRejectState({ open: false, target: null, reason: "" })}
+        onClose={closeRejectDialog}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: dialogPaperSx }}
       >
-        <DialogTitle>Reject collection</DialogTitle>
-        <DialogContent>
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+            pr: 1,
+          }}
+        >
+          Reject collection
+          <IconButton
+            aria-label="Close reject dialog"
+            onClick={closeRejectDialog}
+            sx={{ minWidth: 44, minHeight: 44 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ overflowY: "auto" }}>
           <DialogContentText sx={{ mb: 2 }}>
             This will reject all pending repayments in the selected collection.
             Add a reason to help cashier correction.
@@ -441,17 +488,17 @@ export default function RepaymentApprovalsPage() {
             label="Rejection reason (optional)"
             value={rejectState.reason}
             onChange={(event) =>
-              setRejectState((prev) => ({ ...prev, reason: event.target.value }))
+              setRejectState((previous) => ({
+                ...previous,
+                reason: event.target.value,
+              }))
             }
             multiline
-            minRows={2}
+            minRows={3}
           />
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button
-            onClick={() => setRejectState({ open: false, target: null, reason: "" })}
-            sx={{ color: "#64748b" }}
-          >
+        <DialogActions sx={dialogActionsSx}>
+          <Button onClick={closeRejectDialog} color="inherit">
             Cancel
           </Button>
           <Button variant="contained" color="error" onClick={handleReject}>
@@ -463,18 +510,22 @@ export default function RepaymentApprovalsPage() {
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        onClose={() =>
+          setSnackbar((previous) => ({ ...previous, open: false }))
+        }
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          onClose={() =>
+            setSnackbar((previous) => ({ ...previous, open: false }))
+          }
           severity={snackbar.severity}
-          icon={<CheckCircle fontSize="small" />}
           sx={{ width: "100%" }}
         >
           {snackbar.message}
         </Alert>
       </Snackbar>
+
       <SendSmsConfirmationDialog
         open={smsDialogOpen}
         eventType="repayment_posted"
