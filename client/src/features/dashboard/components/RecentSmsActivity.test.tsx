@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type {
   RecentSmsActivityItem,
   RecentSmsActivityResult,
@@ -14,7 +14,7 @@ import {
 const item = (
   notificationId: string,
   status: SmsNotificationStatus,
-  overrides: Partial<RecentSmsActivityItem> = {}
+  overrides: Partial<RecentSmsActivityItem> = {},
 ): RecentSmsActivityItem => ({
   notificationId,
   memberName: "Maria Santos",
@@ -44,12 +44,16 @@ describe("RecentSmsActivity", () => {
         ])}
         loading={false}
         error={null}
-      />
+      />,
     );
 
-    expect(screen.getByText("24 Sent Today")).toBeInTheDocument();
-    expect(screen.getByText("2 Pending")).toBeInTheDocument();
-    expect(screen.getByText("1 Failed Today")).toBeInTheDocument();
+    const summary = screen.getByLabelText("SMS notification summary");
+    expect(within(summary).getByText("Sent today")).toBeInTheDocument();
+    expect(within(summary).getByText("24")).toBeInTheDocument();
+    expect(within(summary).getByText("Pending")).toBeInTheDocument();
+    expect(within(summary).getByText("2")).toBeInTheDocument();
+    expect(within(summary).getByText("Failed today")).toBeInTheDocument();
+    expect(within(summary).getByText("1")).toBeInTheDocument();
     expect(screen.getByText("Loan Approval")).toBeInTheDocument();
     expect(screen.getByText("Repayment")).toBeInTheDocument();
     expect(screen.getByText("Unknown client")).toBeInTheDocument();
@@ -63,7 +67,7 @@ describe("RecentSmsActivity", () => {
       item("failed", "failed"),
     ];
     render(
-      <RecentSmsActivity data={result(rows)} loading={false} error={null} />
+      <RecentSmsActivity data={result(rows)} loading={false} error={null} />,
     );
 
     for (const status of ["sent", "pending", "processing", "failed"]) {
@@ -82,18 +86,20 @@ describe("RecentSmsActivity", () => {
 
   it("formats timestamps explicitly in Asia/Manila", () => {
     expect(formatSmsActivityTime("2026-08-31T16:00:00.000Z")).toBe(
-      "Sep 1, 2026, 12:00 AM"
+      "Sep 1, 2026, 12:00 AM",
     );
   });
 
   it("renders loading, empty, and focused error states", () => {
+    const onRetry = vi.fn();
     const { rerender } = render(
-      <RecentSmsActivity data={null} loading error={null} />
+      <RecentSmsActivity data={null} loading error={null} />,
     );
     expect(screen.getByTestId("recent-sms-loading")).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
 
     rerender(
-      <RecentSmsActivity data={result([])} loading={false} error={null} />
+      <RecentSmsActivity data={result([])} loading={false} error={null} />,
     );
     expect(screen.getByText("No SMS notifications yet.")).toBeInTheDocument();
 
@@ -102,10 +108,14 @@ describe("RecentSmsActivity", () => {
         data={null}
         loading={false}
         error="Unable to load recent SMS activity."
-      />
+        onRetry={onRetry}
+      />,
     );
     expect(
-      screen.getByText("Unable to load recent SMS activity.")
+      screen.getByText("Unable to load recent SMS activity."),
     ).toBeInTheDocument();
+    expect(screen.getAllByText("Unavailable")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 });

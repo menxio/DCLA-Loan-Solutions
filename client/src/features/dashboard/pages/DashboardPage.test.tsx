@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useRecentSmsActivity } from "../hooks/useRecentSmsActivity";
 import DashboardPage from "./DashboardPage";
@@ -32,29 +32,56 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("renders the simplified operational dashboard", () => {
+  const renderDashboard = () =>
     render(
-      <MemoryRouter>
-        <DashboardPage />
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Routes>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/approvals" element={<div>Approvals destination</div>} />
+        </Routes>
+      </MemoryRouter>,
     );
 
-    expect(screen.getByText("Manager Command Center")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Review Approvals" })).toBeInTheDocument();
+  it("renders the simplified operational dashboard", () => {
+    renderDashboard();
+
+    expect(
+      screen.getByRole("heading", { name: "Dashboard", level: 1 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Overview of lending operations and recent activity."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Manager Command Center"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Collection approvals")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Review Approvals" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("SMS Notifications")).toBeInTheDocument();
     expect(screen.queryByText("Total Portfolio")).not.toBeInTheDocument();
-    expect(screen.queryByText("Center Exposure Overview")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Center Exposure Overview"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Collection Pulse")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Open Portfolio" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "View All" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Open Portfolio" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "View All" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("preserves the approvals navigation action", () => {
+    renderDashboard();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review Approvals" }));
+
+    expect(screen.getByText("Approvals destination")).toBeInTheDocument();
   });
 
   it("refreshes recent SMS data through the read-only hook", () => {
-    render(
-      <MemoryRouter>
-        <DashboardPage />
-      </MemoryRouter>
-    );
+    renderDashboard();
 
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(refetch).toHaveBeenCalledTimes(1);

@@ -1,6 +1,7 @@
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { Box, Button, Paper, Stack, Typography } from "@mui/material";
+import PageHeader from "@components/common/PageHeader";
 import PrivateLayout from "@components/layout/PrivateLayout";
 import { useAuthStore } from "@features/auth/authStore";
 import { useNavigate } from "react-router-dom";
@@ -22,92 +23,90 @@ export default function DashboardPage() {
 
   return (
     <PrivateLayout>
-      <Box
-        sx={{
-          backgroundColor: "background.default",
-          minHeight: "100vh",
-          pb: 4,
-          px: { xs: 1.5, md: 0 },
-          overflowX: "hidden",
-        }}
-      >
+      <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+        <PageHeader
+          title="Dashboard"
+          description="Overview of lending operations and recent activity."
+          actions={
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={() => void refetch()}
+              disabled={loading}
+              sx={{ minHeight: 44 }}
+            >
+              Refresh
+            </Button>
+          }
+        />
+
         <Stack spacing={3}>
           <Paper
+            component="section"
+            aria-labelledby="dashboard-approvals-title"
+            elevation={0}
             sx={{
-              borderRadius: 1,
-              p: { xs: 2.5, md: 3 },
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: (theme) =>
-                `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-              color: "common.white",
+              borderRadius: 2,
+              p: { xs: 2, sm: 2.5 },
+              border: "1px solid",
+              borderColor: "divider",
+              bgcolor: "background.paper",
             }}
           >
             <Box
-              display="flex"
-              justifyContent="space-between"
-              alignItems={{ xs: "flex-start", md: "center" }}
-              gap={2}
-              flexDirection={{ xs: "column", md: "row" }}
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: { xs: "stretch", sm: "center" },
+                gap: 2,
+                flexDirection: { xs: "column", sm: "row" },
+              }}
             >
-              <Box>
-                <Typography variant="h4" fontWeight={800} color="common.white">
-                  Manager Command Center
+              <Box sx={{ minWidth: 0 }}>
+                <Typography id="dashboard-approvals-title" variant="h6">
+                  Collection approvals
                 </Typography>
-                <Typography variant="body1" sx={{ color: "#e2e8f0", mt: 0.75 }}>
-                  {nowLabel} | Signed in as {user?.email}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 0.5 }}
+                >
+                  Review pending collection decisions and monitor recent
+                  notifications.
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 1 }}
+                >
+                  {nowLabel} | Signed in as{" "}
+                  <Box component="span" sx={{ overflowWrap: "anywhere" }}>
+                    {user?.email}
+                  </Box>
                 </Typography>
               </Box>
 
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
-                <Button
-                  variant="contained"
-                  startIcon={<PendingActionsIcon />}
-                  onClick={() => navigate("/approvals")}
-                  sx={{
-                    textTransform: "none",
-                    fontWeight: 700,
-                    background: (theme) => theme.palette.common.white,
-                    color: "primary.main",
-                    "&:hover": {
-                      background: "#f1f5f9",
-                      color: "primary.dark",
-                    },
-                    "&.Mui-disabled": {
-                      background: (theme) => theme.palette.secondary.light,
-                      color: "common.white",
-                    },
-                  }}
-                >
-                  Review Approvals
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<RefreshIcon />}
-                  onClick={() => void refetch()}
-                  disabled={loading}
-                  sx={{
-                    textTransform: "none",
-                    fontWeight: 700,
-                    borderColor: "rgba(255,255,255,0.4)",
-                    color: "common.white",
-                    backgroundColor: "transparent",
-                    "&:hover": {
-                      borderColor: "rgba(255,255,255,0.7)",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                    },
-                    "&.Mui-disabled": {
-                      borderColor: "rgba(255,255,255,0.35)",
-                      color: "rgba(255,255,255,0.65)",
-                    },
-                  }}
-                >
-                  Refresh
-                </Button>
-              </Stack>
+              <Button
+                variant="contained"
+                startIcon={<PendingActionsIcon />}
+                onClick={() => navigate("/approvals")}
+                sx={{
+                  minHeight: 44,
+                  flexShrink: 0,
+                  width: { xs: "100%", sm: "auto" },
+                }}
+              >
+                Review Approvals
+              </Button>
             </Box>
           </Paper>
 
-          <RecentSmsActivity data={data} loading={loading} error={error} />
+          <RecentSmsActivity
+            data={data}
+            loading={loading}
+            error={error}
+            onRetry={refetch}
+          />
         </Stack>
       </Box>
     </PrivateLayout>

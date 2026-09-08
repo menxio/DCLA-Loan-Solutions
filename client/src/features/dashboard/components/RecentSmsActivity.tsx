@@ -1,8 +1,6 @@
 import {
-  Alert,
   Box,
   Chip,
-  Divider,
   Paper,
   Skeleton,
   Stack,
@@ -15,6 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { ChipProps } from "@mui/material";
+import RequestErrorAlert from "@components/common/RequestErrorAlert";
 import type {
   RecentSmsActivityResult,
   SmsEventType,
@@ -29,6 +28,7 @@ interface RecentSmsActivityProps {
   data: RecentSmsActivityResult | null;
   loading: boolean;
   error: string | null;
+  onRetry?: () => void | Promise<void>;
 }
 
 const eventLabels: Record<SmsEventType, string> = {
@@ -47,96 +47,193 @@ export default function RecentSmsActivity({
   data,
   loading,
   error,
+  onRetry,
 }: RecentSmsActivityProps) {
-  const summary = data?.summary ?? {
-    sentToday: 0,
-    pending: 0,
-    failedToday: 0,
-  };
+  const summaryMetrics = [
+    {
+      label: "Sent today",
+      value: data?.summary.sentToday,
+      color: "success.main",
+    },
+    {
+      label: "Pending",
+      value: data?.summary.pending,
+      color: "warning.dark",
+    },
+    {
+      label: "Failed today",
+      value: data?.summary.failedToday,
+      color: "error.main",
+    },
+  ];
 
   return (
     <Paper
-      variant="outlined"
-      sx={{ borderRadius: 1, overflow: "hidden", borderColor: "#dbe3ec" }}
+      component="section"
+      aria-labelledby="sms-notifications-title"
+      elevation={0}
+      sx={{
+        borderRadius: 2,
+        overflow: "hidden",
+        border: "1px solid",
+        borderColor: "divider",
+        bgcolor: "background.paper",
+      }}
     >
-      <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2 }}>
-        <Typography variant="h6" fontWeight={800} color="#172033">
+      <Box sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+        <Typography id="sms-notifications-title" variant="h6">
           SMS Notifications
         </Typography>
-        <Stack
-          direction="row"
-          spacing={{ xs: 1.5, sm: 2.5 }}
-          useFlexGap
-          flexWrap="wrap"
-          mt={1}
-          aria-label="SMS notification summary"
-        >
-          <Typography variant="body2" color="#18794e" fontWeight={700}>
-            {summary.sentToday} Sent Today
-          </Typography>
-          <Typography variant="body2" color="#9a6700" fontWeight={700}>
-            {summary.pending} Pending
-          </Typography>
-          <Typography variant="body2" color="#c62828" fontWeight={700}>
-            {summary.failedToday} Failed Today
-          </Typography>
-        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Delivery status for recent loan and repayment messages.
+        </Typography>
       </Box>
 
-      <Divider />
+      <Box
+        aria-label="SMS notification summary"
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "minmax(0, 1fr)",
+            sm: "repeat(3, minmax(0, 1fr))",
+          },
+          borderTop: "1px solid",
+          borderBottom: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        {summaryMetrics.map((metric, index) => (
+          <Box
+            key={metric.label}
+            sx={{
+              px: { xs: 2, sm: 3 },
+              py: 1.5,
+              borderRight: {
+                xs: "none",
+                sm: index === 2 ? "none" : "1px solid",
+              },
+              borderBottom: {
+                xs: index === 2 ? "none" : "1px solid",
+                sm: "none",
+              },
+              borderColor: "divider",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              {metric.label}
+            </Typography>
+            {metric.value !== undefined ? (
+              <Typography
+                variant="h6"
+                sx={{ color: metric.color, fontVariantNumeric: "tabular-nums" }}
+              >
+                {metric.value}
+              </Typography>
+            ) : loading ? (
+              <Skeleton variant="text" width={44} height={28} />
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Unavailable
+              </Typography>
+            )}
+          </Box>
+        ))}
+      </Box>
 
-      <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 2, pb: 1 }}>
-        <Typography variant="subtitle1" fontWeight={800} color="#172033">
-          Recent SMS Activity
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+          px: { xs: 2, sm: 3 },
+          py: 2,
+          borderBottom: data?.items.length ? "1px solid" : "none",
+          borderColor: "divider",
+        }}
+      >
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          Recent activity
         </Typography>
+        {data && (
+          <Typography variant="body2" color="text.secondary">
+            Latest {data.items.length}
+          </Typography>
+        )}
       </Box>
 
       {error && (
-        <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 2 }}>
-          <Alert severity="error">{error}</Alert>
+        <Box sx={{ px: { xs: 2, sm: 3 }, pb: 2 }}>
+          <RequestErrorAlert
+            message={error}
+            onRetry={onRetry ? () => void onRetry() : undefined}
+          />
         </Box>
       )}
 
       {loading && !data && (
         <Stack
-          spacing={1}
-          sx={{ px: { xs: 2, md: 2.5 }, pb: 2.5 }}
+          spacing={0}
+          sx={{ px: { xs: 2, sm: 3 }, pb: 2.5 }}
           data-testid="recent-sms-loading"
+          role="status"
+          aria-label="Loading recent SMS activity"
         >
           {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton key={index} variant="rounded" height={42} />
+            <Box
+              key={index}
+              sx={{
+                py: 1.25,
+                borderBottom: index === 4 ? "none" : "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Skeleton variant="text" height={32} />
+            </Box>
           ))}
         </Stack>
       )}
 
       {!loading && !error && data?.items.length === 0 && (
-        <Typography color="text.secondary" textAlign="center" py={4} px={2}>
-          No SMS notifications yet.
-        </Typography>
+        <Box sx={{ textAlign: "center", py: 6, px: 2 }}>
+          <Typography sx={{ fontWeight: 600 }}>
+            No SMS notifications yet.
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Recent loan and repayment notification activity will appear here.
+          </Typography>
+        </Box>
       )}
 
       {data && data.items.length > 0 && (
-        <TableContainer sx={{ overflowX: "auto" }}>
+        <TableContainer sx={{ maxWidth: "100%", overflowX: "auto" }}>
           <Table size="small" sx={{ minWidth: 680 }}>
             <TableHead>
-              <TableRow sx={{ backgroundColor: "#f7f9fc" }}>
-                <TableCell sx={{ fontWeight: 700 }}>Client</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Notification Type</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Time</TableCell>
+              <TableRow sx={{ backgroundColor: "action.hover" }}>
+                <TableCell>Client</TableCell>
+                <TableCell>Notification Type</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Time</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {data.items.map((item) => (
                 <TableRow key={item.notificationId} hover>
-                  <TableCell sx={{ fontWeight: 600 }}>{item.memberName}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    {item.memberName}
+                  </TableCell>
                   <TableCell>{eventLabels[item.eventType]}</TableCell>
                   <TableCell>
                     <Chip
                       size="small"
                       color={statusColors[item.status]}
                       label={item.status}
-                      sx={{ textTransform: "capitalize", minWidth: 82 }}
+                      variant="outlined"
+                      sx={{
+                        textTransform: "capitalize",
+                        minWidth: 82,
+                        fontWeight: 600,
+                      }}
                     />
                   </TableCell>
                   <TableCell sx={{ whiteSpace: "nowrap" }}>
