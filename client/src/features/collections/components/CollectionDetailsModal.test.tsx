@@ -1,16 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { theme } from "../../../theme/theme";
 import CollectionDetailsModal from "./CollectionDetailsModal";
 
-const getCenterMembers = vi.hoisted(() => vi.fn().mockResolvedValue([]));
-const getCenterCollectionsByDate = vi.hoisted(() =>
-  vi.fn().mockResolvedValue([]),
-);
-const getPendingRepaymentsForCollection = vi.hoisted(() =>
-  vi.fn().mockResolvedValue([]),
-);
+const getCenterMembers = vi.hoisted(() => vi.fn());
+const getCenterCollectionsByDate = vi.hoisted(() => vi.fn());
+const getPendingRepaymentsForCollection = vi.hoisted(() => vi.fn());
 
 vi.mock("../api", () => ({
   default: {
@@ -22,6 +18,16 @@ vi.mock("../api", () => ({
 vi.mock("@features/auth/authStore", () => ({
   useAuthStore: (selector: (state: { user: { role: string } }) => unknown) =>
     selector({ user: { role: "admin" } }),
+}));
+vi.mock("@mui/icons-material", () => ({
+  CalendarToday: () => <span aria-hidden="true" />,
+  CheckCircle: () => <span aria-hidden="true" />,
+  Close: () => <span aria-hidden="true" />,
+  Download: () => <span aria-hidden="true" />,
+  LocationOn: () => <span aria-hidden="true" />,
+  People: () => <span aria-hidden="true" />,
+  PictureAsPdf: () => <span aria-hidden="true" />,
+  Search: () => <span aria-hidden="true" />,
 }));
 vi.mock("./CollectionSummaryCards", () => ({
   CollectionSummaryCards: () => <div>Collection summary</div>,
@@ -36,6 +42,12 @@ vi.mock("@features/notifications/components/SendSmsConfirmationDialog", () => ({
 }));
 
 describe("CollectionDetailsModal", () => {
+  beforeEach(() => {
+    getCenterMembers.mockResolvedValue([]);
+    getCenterCollectionsByDate.mockResolvedValue([]);
+    getPendingRepaymentsForCollection.mockResolvedValue([]);
+  });
+
   it("uses the local collection workspace width", async () => {
     render(
       <ThemeProvider theme={theme}>

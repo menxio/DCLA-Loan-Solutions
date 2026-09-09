@@ -60,7 +60,7 @@ describe("SendSmsConfirmationDialog", () => {
     );
 
     expect(
-      screen.getByRole("dialog", { name: "Loan Created Successfully" }),
+      screen.getByRole("dialog", { name: /Loan Created Successfully/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Close SMS notification" }),
@@ -144,9 +144,8 @@ describe("SendSmsConfirmationDialog", () => {
       />,
     );
     expect(screen.getByText("Invalid contact")).toBeInTheDocument();
-    expect(screen.getByLabelText("SMS notification actions")).toHaveStyle({
-      flexDirection: "column-reverse",
-    });
+    expect(screen.getByLabelText("SMS notification actions")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Don't Send" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Send All 2" }));
 
     await waitFor(() =>

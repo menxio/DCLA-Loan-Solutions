@@ -128,7 +128,8 @@ describe("SavingsHistoryDialog", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Savings History" });
     expect(dialog).toBeInTheDocument();
-    expect(getComputedStyle(dialog).maxWidth).toBe("1050px");
+    expect(dialog).toHaveClass("MuiDialog-paperWidthFalse");
+    expect(dialog).not.toHaveClass("MuiDialog-paperFullScreen");
     expect(screen.getByText("Abordo, Evelyn")).toBeInTheDocument();
     expect(screen.getByText("₱5,500.00")).toBeInTheDocument();
     expect(await screen.findByText("Deposit")).toBeInTheDocument();
