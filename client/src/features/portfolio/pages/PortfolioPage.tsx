@@ -220,11 +220,17 @@ export default function PortfolioPage() {
                           </InputAdornment>
                         ),
                       }}
-                      sx={{ width: { xs: "100%", md: 280 } }}
+                      sx={{
+                        width: { xs: "100%", md: 280 },
+                        "& .MuiInputBase-root": { minHeight: 44 },
+                      }}
                     />
                     <FormControl
                       size="small"
-                      sx={{ width: { xs: "100%", md: 112 } }}
+                      sx={{
+                        width: { xs: "100%", md: 112 },
+                        "& .MuiInputBase-root": { minHeight: 44 },
+                      }}
                     >
                       <InputLabel id="portfolio-row-count-label">
                         Rows

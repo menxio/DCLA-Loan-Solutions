@@ -149,7 +149,13 @@ export default function ActualRevenueView() {
             alignItems: { xs: "stretch", sm: "center" },
           }}
         >
-          <FormControl size="small" sx={{ minWidth: { sm: 120 } }}>
+          <FormControl
+            size="small"
+            sx={{
+              minWidth: { sm: 120 },
+              "& .MuiInputBase-root": { minHeight: 44 },
+            }}
+          >
             <InputLabel id="actual-period-label">Period</InputLabel>
             <Select
               labelId="actual-period-label"
@@ -165,7 +171,13 @@ export default function ActualRevenueView() {
           </FormControl>
           {granularity === "weekly" && (
             <>
-              <FormControl size="small" sx={{ minWidth: { sm: 140 } }}>
+              <FormControl
+                size="small"
+                sx={{
+                  minWidth: { sm: 140 },
+                  "& .MuiInputBase-root": { minHeight: 44 },
+                }}
+              >
                 <InputLabel id="actual-month-label">Month</InputLabel>
                 <Select
                   labelId="actual-month-label"
@@ -186,7 +198,13 @@ export default function ActualRevenueView() {
                   ))}
                 </Select>
               </FormControl>
-              <FormControl size="small" sx={{ minWidth: { sm: 110 } }}>
+              <FormControl
+                size="small"
+                sx={{
+                  minWidth: { sm: 110 },
+                  "& .MuiInputBase-root": { minHeight: 44 },
+                }}
+              >
                 <InputLabel id="actual-year-label">Year</InputLabel>
                 <Select
                   labelId="actual-year-label"
@@ -217,7 +235,7 @@ export default function ActualRevenueView() {
             variant="outlined"
             startIcon={<Refresh />}
             onClick={() => void refetch()}
-            sx={{ minHeight: 40 }}
+            sx={{ minHeight: 44 }}
           >
             Refresh
           </Button>

@@ -149,7 +149,13 @@ export default function ExpectedRevenueView() {
             alignItems: { xs: "stretch", sm: "center" },
           }}
         >
-          <FormControl size="small" sx={{ minWidth: { sm: 120 } }}>
+          <FormControl
+            size="small"
+            sx={{
+              minWidth: { sm: 120 },
+              "& .MuiInputBase-root": { minHeight: 44 },
+            }}
+          >
             <InputLabel id="expected-period-label">Period</InputLabel>
             <Select
               labelId="expected-period-label"
@@ -165,7 +171,13 @@ export default function ExpectedRevenueView() {
           </FormControl>
           {granularity === "weekly" && (
             <>
-              <FormControl size="small" sx={{ minWidth: { sm: 140 } }}>
+              <FormControl
+                size="small"
+                sx={{
+                  minWidth: { sm: 140 },
+                  "& .MuiInputBase-root": { minHeight: 44 },
+                }}
+              >
                 <InputLabel id="expected-month-label">Month</InputLabel>
                 <Select
                   labelId="expected-month-label"
@@ -186,7 +198,13 @@ export default function ExpectedRevenueView() {
                   ))}
                 </Select>
               </FormControl>
-              <FormControl size="small" sx={{ minWidth: { sm: 110 } }}>
+              <FormControl
+                size="small"
+                sx={{
+                  minWidth: { sm: 110 },
+                  "& .MuiInputBase-root": { minHeight: 44 },
+                }}
+              >
                 <InputLabel id="expected-year-label">Year</InputLabel>
                 <Select
                   labelId="expected-year-label"
@@ -217,7 +235,7 @@ export default function ExpectedRevenueView() {
             variant="outlined"
             startIcon={<Refresh />}
             onClick={() => void refetch()}
-            sx={{ minHeight: 40 }}
+            sx={{ minHeight: 44 }}
           >
             Refresh
           </Button>

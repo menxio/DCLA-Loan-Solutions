@@ -127,8 +127,12 @@ export default function ProjectedIncomeView() {
                 </InputAdornment>
               ),
             }}
+            sx={{ "& .MuiInputBase-root": { minHeight: 44 } }}
           />
-          <FormControl size="small">
+          <FormControl
+            size="small"
+            sx={{ "& .MuiInputBase-root": { minHeight: 44 } }}
+          >
             <InputLabel id="projected-row-count-label">Rows</InputLabel>
             <Select labelId="projected-row-count-label" label="Rows" value={10}>
               <MenuItem value={10}>10</MenuItem>
@@ -140,7 +144,7 @@ export default function ProjectedIncomeView() {
             variant="outlined"
             startIcon={<Refresh />}
             onClick={() => void refetch()}
-            sx={{ minHeight: 40 }}
+            sx={{ minHeight: 44 }}
           >
             Refresh
           </Button>
