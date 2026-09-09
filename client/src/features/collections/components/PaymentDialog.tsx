@@ -162,12 +162,13 @@ export function PaymentDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="md"
-      fullWidth
+      maxWidth={false}
       scroll="paper"
       aria-labelledby="payment-dialog-title"
       PaperProps={{
         sx: {
+          width: "calc(100% - 32px)",
+          maxWidth: 720,
           borderRadius: 2,
           overflow: "hidden",
         },

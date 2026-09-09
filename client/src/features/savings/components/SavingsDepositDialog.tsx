@@ -12,11 +12,13 @@ import {
   Card,
   CardContent,
   Divider,
+  IconButton,
   Snackbar,
   ToggleButton,
   ToggleButtonGroup,
 } from "@mui/material";
 import ArrowForward from "@mui/icons-material/ArrowForward";
+import Close from "@mui/icons-material/Close";
 import History from "@mui/icons-material/History";
 import Savings from "@mui/icons-material/Savings";
 import { useEffect, useMemo, useState } from "react";
@@ -241,15 +243,48 @@ export function SavingsDepositDialog({
       <Dialog
         open={open && !historyOpen}
         onClose={onClose}
-        maxWidth="sm"
-        fullWidth
+        maxWidth={false}
+        scroll="paper"
+        aria-labelledby="manage-savings-dialog-title"
+        PaperProps={{
+          sx: {
+            width: "calc(100% - 32px)",
+            maxWidth: 640,
+            maxHeight: "calc(100dvh - 32px)",
+            bgcolor: "background.paper",
+            overflow: "hidden",
+          },
+        }}
       >
-        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Savings sx={{ color: "#f59e0b" }} />
-          Manage Savings
+        <DialogTitle
+          id="manage-savings-dialog-title"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Savings color="warning" />
+            <Typography component="span" variant="h5">
+              Manage Savings
+            </Typography>
+          </Box>
+          <IconButton
+            aria-label="Close savings form"
+            onClick={onClose}
+            sx={{ width: 44, height: 44 }}
+          >
+            <Close />
+          </IconButton>
         </DialogTitle>
 
-        <DialogContent dividers>
+        <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 3, overflowY: "auto" }}>
           {summaryError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {summaryError}
@@ -368,9 +403,18 @@ export function SavingsDepositDialog({
 
         <DialogActions
           sx={{
-            p: 3,
-            backgroundColor: "#f8fafc",
-            borderTop: "1px solid #e2e8f0",
+            flexDirection: { xs: "column-reverse", sm: "row" },
+            alignItems: "stretch",
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            gap: 1,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            "& > .MuiButton-root": {
+              minHeight: 44,
+              width: { xs: "100%", sm: "auto" },
+              m: 0,
+            },
           }}
         >
           <Button onClick={onClose} size="large">
@@ -379,18 +423,13 @@ export function SavingsDepositDialog({
           <Button
             onClick={handleSubmit}
             variant="contained"
+            color="warning"
             size="large"
             aria-label={isWithdraw ? "Record withdrawal" : "Record deposit"}
             disabled={disableSubmit}
             startIcon={
               processing ? <CircularProgress size={18} /> : <Savings />
             }
-            sx={{
-              background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-              "&:hover": {
-                background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
-              },
-            }}
           >
             {processing
               ? "Processing..."

@@ -69,7 +69,10 @@ describe("Application navigation", () => {
     ["cashier", ["Collections", "Transactions"]],
     ["loan processor", ["Members", "Centers", "Transactions"]],
   ])("preserves authorized desktop navigation for %s", (role, labels) => {
-    setup(role as string);
+    const { container } = setup(role as string);
+    const logo = container.querySelector<HTMLImageElement>('img[alt=""]');
+    expect(logo?.src).toContain("dcla-logo.png");
+    expect(logo).toHaveStyle({ objectFit: "contain" });
     expect(
       within(screen.getByRole("navigation"))
         .getAllByRole("link")

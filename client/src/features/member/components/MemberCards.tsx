@@ -32,6 +32,7 @@ import {
   Business as BusinessIcon,
   AccountBalance as AccountBalanceIcon,
   Savings as SavingsIcon,
+  Close,
 } from "@mui/icons-material";
 import type { MemberCardsProps, Member } from "../types";
 
@@ -337,12 +338,13 @@ export default function MemberCards({
                 >
                   {onAddSavings && (
                     <Button
-                      variant="text"
+                      variant="outlined"
                       startIcon={<SavingsIcon />}
                       onClick={() => onAddSavings(member)}
                       sx={{
-                        flex: 1,
+                        flex: "1 1 132px",
                         color: "primary.main",
+                        borderColor: "primary.main",
                         minHeight: 44,
                         px: 1.5,
                         fontWeight: 500,
@@ -356,7 +358,7 @@ export default function MemberCards({
                     startIcon={<AccountBalanceIcon />}
                     onClick={() => onViewLoan?.(member)}
                     sx={{
-                      flex: 1,
+                      flex: "1 1 132px",
                       color: "primary.main",
                       borderColor: "primary.main",
                       minHeight: 44,
@@ -439,24 +441,54 @@ export default function MemberCards({
       <Dialog
         open={deleteDialog.open}
         onClose={handleDeleteCancel}
-        maxWidth="sm"
+        maxWidth="xs"
         fullWidth
+        aria-labelledby="delete-member-card-title"
       >
-        <DialogTitle sx={{ fontWeight: 600, color: "#1e293b" }}>
-          Delete Member
+        <DialogTitle
+          id="delete-member-card-title"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <Typography component="span" variant="h5">
+            Delete Member
+          </Typography>
+          <IconButton
+            aria-label="Close delete member confirmation"
+            onClick={handleDeleteCancel}
+            disabled={deleting}
+            sx={{ width: 44, height: 44 }}
+          >
+            <Close />
+          </IconButton>
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
           <DialogContentText>
             Are you sure you want to delete "{deleteDialog.member?.firstName}{" "}
             {deleteDialog.member?.lastName}"? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button
-            onClick={handleDeleteCancel}
-            disabled={deleting}
-            sx={{ color: "#64748b" }}
-          >
+        <DialogActions
+          sx={{
+            flexDirection: { xs: "column-reverse", sm: "row" },
+            alignItems: "stretch",
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            gap: 1,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            "& > .MuiButton-root": { width: { xs: "100%", sm: "auto" } },
+          }}
+        >
+          <Button onClick={handleDeleteCancel} disabled={deleting}>
             Cancel
           </Button>
           <Button

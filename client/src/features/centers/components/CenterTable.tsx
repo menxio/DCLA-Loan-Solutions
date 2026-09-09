@@ -20,6 +20,7 @@ import {
   Typography,
 } from "@mui/material";
 import CalendarToday from "@mui/icons-material/CalendarToday";
+import Close from "@mui/icons-material/Close";
 import Delete from "@mui/icons-material/Delete";
 import Edit from "@mui/icons-material/Edit";
 import LocationOn from "@mui/icons-material/LocationOn";
@@ -186,20 +187,34 @@ export default function CenterTable({
       <Dialog
         open={deleteDialog.open}
         onClose={handleDeleteCancel}
-        maxWidth="sm"
+        maxWidth="xs"
         fullWidth
         aria-labelledby="delete-center-title"
       >
         <DialogTitle
           id="delete-center-title"
           sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
             px: { xs: 2, sm: 3 },
             py: 2,
             borderBottom: "1px solid",
             borderColor: "divider",
           }}
         >
-          Delete center
+          <Typography component="span" variant="h5">
+            Delete center
+          </Typography>
+          <IconButton
+            aria-label="Close delete center confirmation"
+            onClick={handleDeleteCancel}
+            disabled={deleting}
+            sx={{ width: 44, height: 44 }}
+          >
+            <Close />
+          </IconButton>
         </DialogTitle>
         <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
           <DialogContentText>
@@ -209,11 +224,14 @@ export default function CenterTable({
         </DialogContent>
         <DialogActions
           sx={{
+            flexDirection: { xs: "column-reverse", sm: "row" },
+            alignItems: "stretch",
             px: { xs: 2, sm: 3 },
             py: 2,
             gap: 1,
             borderTop: "1px solid",
             borderColor: "divider",
+            "& > .MuiButton-root": { width: { xs: "100%", sm: "auto" } },
           }}
         >
           <Button onClick={handleDeleteCancel} disabled={deleting}>

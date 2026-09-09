@@ -60,7 +60,13 @@ describe("CenterTable", () => {
       screen.getByRole("button", { name: `Delete ${center.name}` }),
     );
     const dialog = screen.getByRole("dialog", { name: "Delete center" });
+    expect(dialog).toHaveClass("MuiDialog-paperWidthXs");
     expect(dialog).toHaveTextContent(center.name);
+    expect(
+      screen.getByRole("button", {
+        name: "Close delete center confirmation",
+      }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(props.onDelete).toHaveBeenCalledWith(center.id));

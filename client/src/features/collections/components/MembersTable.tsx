@@ -88,10 +88,10 @@ const getActiveLoans = (member: MemberWithLoansRow): MemberLoan[] =>
   );
 
 const summaryGridColumns =
-  "minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) auto";
+  "minmax(220px, 2fr) minmax(140px, 1fr) minmax(110px, 0.75fr) minmax(212px, 228px)";
 
 const summaryHeaderGridColumns =
-  "minmax(220px, 2fr) minmax(140px, 1fr) minmax(130px, 1fr) 228px 40px";
+  "minmax(220px, 2fr) minmax(140px, 1fr) minmax(110px, 0.75fr) minmax(212px, 228px) 40px";
 
 export function MembersTable({
   members,

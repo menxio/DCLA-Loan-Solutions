@@ -11,11 +11,13 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import CheckCircle from "@mui/icons-material/CheckCircle";
+import Close from "@mui/icons-material/Close";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import MarkEmailRead from "@mui/icons-material/MarkEmailRead";
 import SmsOutlined from "@mui/icons-material/SmsOutlined";
@@ -36,7 +38,8 @@ interface SendSmsConfirmationDialogProps {
   onClose: () => void;
 }
 
-type DialogState = "idle" | "submitting" | "polling" | "sent" | "queued" | "failed";
+type DialogState =
+  "idle" | "submitting" | "polling" | "sent" | "queued" | "failed";
 
 const formatCurrency = (value: number) =>
   `PHP ${Number(value || 0).toLocaleString(undefined, {
@@ -64,7 +67,7 @@ export default function SendSmsConfirmationDialog({
 
   const selectable = useMemo(
     () => candidates.filter(isSelectable),
-    [candidates]
+    [candidates],
   );
   const isBulk = eventType === "repayment_posted" && candidates.length > 1;
 
@@ -92,7 +95,7 @@ export default function SendSmsConfirmationDialog({
         pollTimerRef.current = null;
       }
     },
-    []
+    [],
   );
 
   const close = () => {
@@ -135,7 +138,7 @@ export default function SendSmsConfirmationDialog({
       if (controller.signal.aborted) return;
       const current = await smsNotificationsApi.getStatus(
         notificationId,
-        controller.signal
+        controller.signal,
       );
       setStatus(current);
       if (current.status === "sent") {
@@ -143,7 +146,9 @@ export default function SendSmsConfirmationDialog({
         return;
       }
       if (current.status === "failed") {
-        setErrorMessage(current.errorMessage || "The SMS provider rejected the message.");
+        setErrorMessage(
+          current.errorMessage || "The SMS provider rejected the message.",
+        );
         setState("failed");
         return;
       }
@@ -195,7 +200,8 @@ export default function SendSmsConfirmationDialog({
       setErrorMessage(
         Array.isArray(responseMessage)
           ? responseMessage.join(" ")
-          : responseMessage || "SMS could not be queued. The financial transaction remains successful."
+          : responseMessage ||
+              "SMS could not be queued. The financial transaction remains successful.",
       );
       setState("failed");
     }
@@ -213,22 +219,48 @@ export default function SendSmsConfirmationDialog({
   const busy = state === "submitting" || state === "polling";
   const terminal = state === "sent" || state === "queued" || state === "failed";
   const queuedCount = results.filter((item) =>
-    ["pending", "processing"].includes(item.status)
+    ["pending", "processing"].includes(item.status),
   ).length;
   const alreadySentCount = results.filter(
-    (item) => item.status === "sent" && !item.created
+    (item) => item.status === "sent" && !item.created,
   ).length;
 
   return (
-    <Dialog open={open} onClose={busy ? undefined : close} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-        <CheckCircle color="success" />
-        <Box>
-          <Typography variant="h6" fontWeight={700}>{title}</Typography>
-          <Typography variant="body2" color="text.secondary">
-            The financial transaction is complete.
-          </Typography>
+    <Dialog
+      open={open}
+      onClose={busy ? undefined : close}
+      fullWidth
+      maxWidth="sm"
+      aria-labelledby="send-sms-dialog-title"
+    >
+      <DialogTitle
+        id="send-sms-dialog-title"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1.5,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <CheckCircle color="success" />
+          <Box>
+            <Typography variant="h6" fontWeight={700}>
+              {title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              The financial transaction is complete.
+            </Typography>
+          </Box>
         </Box>
+        <IconButton
+          aria-label="Close SMS notification"
+          onClick={close}
+          disabled={busy}
+          sx={{ width: 44, height: 44, flexShrink: 0 }}
+        >
+          <Close />
+        </IconButton>
       </DialogTitle>
       <DialogContent dividers>
         {state === "idle" && (
@@ -263,12 +295,22 @@ export default function SendSmsConfirmationDialog({
                         secondary={
                           <>
                             {eventType === "repayment_posted" && (
-                              <Typography component="span" variant="body2" display="block">
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                display="block"
+                              >
                                 {formatCurrency(candidate.amount)}
                               </Typography>
                             )}
-                            <Typography component="span" variant="body2" display="block">
-                              {candidate.recipientMasked || candidate.errorMessage || "No contact number"}
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              display="block"
+                            >
+                              {candidate.recipientMasked ||
+                                candidate.errorMessage ||
+                                "No contact number"}
                             </Typography>
                           </>
                         }
@@ -276,21 +318,35 @@ export default function SendSmsConfirmationDialog({
                       <Chip
                         size="small"
                         icon={
-                          selectableRow ? <SmsOutlined /> : candidate.notificationStatus === "sent" ? <MarkEmailRead /> : <WarningAmber />
+                          selectableRow ? (
+                            <SmsOutlined />
+                          ) : candidate.notificationStatus === "sent" ? (
+                            <MarkEmailRead />
+                          ) : (
+                            <WarningAmber />
+                          )
                         }
-                        color={selectableRow ? "success" : candidate.notificationStatus === "sent" ? "info" : "warning"}
+                        color={
+                          selectableRow
+                            ? "success"
+                            : candidate.notificationStatus === "sent"
+                              ? "info"
+                              : "warning"
+                        }
                         label={
                           candidate.notificationStatus === "sent"
                             ? "Already sent"
-                            : candidate.notificationStatus === "pending" || candidate.notificationStatus === "processing"
+                            : candidate.notificationStatus === "pending" ||
+                                candidate.notificationStatus === "processing"
                               ? "Already queued"
                               : candidate.notificationStatus === "failed"
                                 ? "Failed"
-                              : selectableRow
-                                ? "Ready"
-                                : candidate.errorCode === "MISSING_CONTACT_NUMBER"
-                                  ? "Missing contact"
-                                  : "Invalid contact"
+                                : selectableRow
+                                  ? "Ready"
+                                  : candidate.errorCode ===
+                                      "MISSING_CONTACT_NUMBER"
+                                    ? "Missing contact"
+                                    : "Invalid contact"
                         }
                         sx={{ mr: isBulk ? 5 : 0 }}
                       />
@@ -305,7 +361,9 @@ export default function SendSmsConfirmationDialog({
         {(state === "submitting" || state === "polling") && (
           <Box sx={{ py: 4, textAlign: "center" }}>
             <CircularProgress size={34} />
-            <Typography sx={{ mt: 2 }} fontWeight={600}>Sending SMS...</Typography>
+            <Typography sx={{ mt: 2 }} fontWeight={600}>
+              Sending SMS...
+            </Typography>
             <Typography variant="body2" color="text.secondary">
               The completed financial transaction is not affected.
             </Typography>
@@ -328,7 +386,7 @@ export default function SendSmsConfirmationDialog({
               <List dense sx={{ mt: 1 }}>
                 {candidates.map((candidate) => {
                   const result = results.find(
-                    (item) => item.resourceId === candidate.resourceId
+                    (item) => item.resourceId === candidate.resourceId,
                   );
                   const label = result
                     ? result.status === "sent"
@@ -349,7 +407,11 @@ export default function SendSmsConfirmationDialog({
                     <ListItem key={candidate.resourceId} disableGutters>
                       <ListItemText
                         primary={candidate.memberName}
-                        secondary={result?.errorMessage || candidate.errorMessage || candidate.recipientMasked}
+                        secondary={
+                          result?.errorMessage ||
+                          candidate.errorMessage ||
+                          candidate.recipientMasked
+                        }
                       />
                       <Chip
                         size="small"
@@ -373,7 +435,9 @@ export default function SendSmsConfirmationDialog({
           <Alert severity="error" icon={<ErrorOutline />}>
             <Typography fontWeight={700}>SMS could not be sent.</Typography>
             <Typography variant="body2">
-              {errorMessage || status?.errorMessage || "Please contact an administrator."}
+              {errorMessage ||
+                status?.errorMessage ||
+                "Please contact an administrator."}
             </Typography>
             <Typography variant="body2" sx={{ mt: 1 }}>
               The financial transaction remains successful.
@@ -381,7 +445,20 @@ export default function SendSmsConfirmationDialog({
           </Alert>
         )}
       </DialogContent>
-      <DialogActions sx={{ p: 2.5, gap: 1 }}>
+      <DialogActions
+        aria-label="SMS notification actions"
+        sx={{
+          p: 2.5,
+          gap: 1,
+          flexDirection: { xs: "column-reverse", sm: "row" },
+          alignItems: { xs: "stretch", sm: "center" },
+          "& > .MuiButton-root": {
+            minHeight: 44,
+            width: { xs: "100%", sm: "auto" },
+            m: 0,
+          },
+        }}
+      >
         <Button onClick={close} disabled={busy}>
           {terminal ? "Close" : "Don't Send"}
         </Button>
@@ -397,7 +474,13 @@ export default function SendSmsConfirmationDialog({
         {!terminal && (
           <Button
             variant="contained"
-            startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <SmsOutlined />}
+            startIcon={
+              busy ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <SmsOutlined />
+              )
+            }
             onClick={() => send(true)}
             disabled={busy || selectable.length === 0}
           >

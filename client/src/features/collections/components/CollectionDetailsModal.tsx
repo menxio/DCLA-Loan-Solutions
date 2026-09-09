@@ -701,12 +701,14 @@ export default function CollectionDetailsModal({
       <Dialog
         open={open}
         onClose={onClose}
-        maxWidth="xl"
+        maxWidth={false}
         fullWidth
         scroll="paper"
         aria-labelledby="collection-details-title"
         PaperProps={{
           sx: {
+            width: "calc(100% - 32px)",
+            maxWidth: 1100,
             borderRadius: 2,
             maxHeight: "calc(100% - 32px)",
             overflow: "hidden",

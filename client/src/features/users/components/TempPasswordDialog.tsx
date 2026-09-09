@@ -1,16 +1,18 @@
+import { useEffect, useState } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Typography,
-  TextField,
-  IconButton,
+  Alert,
   Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  TextField,
+  Typography,
 } from "@mui/material";
-import { ContentCopy, Close } from "@mui/icons-material";
-import { useState } from "react";
+import Close from "@mui/icons-material/Close";
+import ContentCopy from "@mui/icons-material/ContentCopy";
 
 interface TempPasswordDialogProps {
   open: boolean;
@@ -27,6 +29,10 @@ export default function TempPasswordDialog({
 }: TempPasswordDialogProps) {
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (!open) setCopied(false);
+  }, [open]);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(password);
@@ -41,70 +47,77 @@ export default function TempPasswordDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="sm"
+      maxWidth="xs"
       fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-        },
-      }}
+      aria-labelledby="temporary-password-dialog-title"
+      PaperProps={{ sx: { bgcolor: "background.paper" } }}
     >
       <DialogTitle
+        id="temporary-password-dialog-title"
         sx={{
-          fontWeight: 600,
-          color: "#1e293b",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 1,
-          pb: 1,
+          px: { xs: 2, sm: 3 },
+          py: 2,
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
-        {title}
-        <IconButton onClick={onClose} size="small">
+        <Typography component="span" variant="h5">
+          {title}
+        </Typography>
+        <IconButton
+          aria-label="Close temporary password"
+          onClick={onClose}
+          sx={{ width: 44, height: 44 }}
+        >
           <Close />
         </IconButton>
       </DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="#64748b" mb={2}>
+      <DialogContent
+        sx={{ px: { xs: 2, sm: 3 }, py: 3, "&:first-of-type": { pt: 3 } }}
+      >
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           This password is shown only once. Please copy it now.
         </Typography>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <TextField
             fullWidth
+            label="Temporary password"
             value={password}
             InputProps={{ readOnly: true }}
           />
           <IconButton
-            onClick={handleCopy}
+            aria-label="Copy temporary password"
+            onClick={() => void handleCopy()}
             sx={{
-              border: "1px solid #e2e8f0",
-              borderRadius: 2,
-              height: 40,
-              width: 40,
+              border: "1px solid",
+              borderColor: "divider",
+              width: 44,
+              height: 44,
+              flexShrink: 0,
             }}
           >
             <ContentCopy fontSize="small" />
           </IconButton>
         </Box>
         {copied && (
-          <Typography variant="caption" color="#22c55e" mt={1}>
+          <Alert severity="success" aria-live="polite" sx={{ mt: 2 }}>
             Copied to clipboard.
-          </Typography>
+          </Alert>
         )}
       </DialogContent>
-      <DialogActions sx={{ p: 3 }}>
-        <Button
-          variant="contained"
-          onClick={onClose}
-          sx={{
-            background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-            "&:hover": {
-              background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-            },
-          }}
-        >
+      <DialogActions
+        sx={{
+          px: { xs: 2, sm: 3 },
+          py: 2,
+          borderTop: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Button variant="contained" onClick={onClose}>
           Done
         </Button>
       </DialogActions>

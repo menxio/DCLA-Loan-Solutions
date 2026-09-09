@@ -561,6 +561,7 @@ export default function LoanModal({
         onClose={handleClose}
         fullWidth
         maxWidth="md"
+        aria-labelledby="loan-management-dialog-title"
         PaperProps={{
           sx: {
             borderRadius: 3,
@@ -569,6 +570,7 @@ export default function LoanModal({
         }}
       >
         <DialogTitle
+          id="loan-management-dialog-title"
           sx={{
             fontWeight: 600,
             color: "#1e293b",
@@ -589,7 +591,7 @@ export default function LoanModal({
             aria-label="Close loan management"
             onClick={handleClose}
             disabled={loading}
-            size="small"
+            sx={{ width: 44, height: 44, flexShrink: 0 }}
           >
             <Close />
           </IconButton>
@@ -1021,7 +1023,18 @@ export default function LoanModal({
           )}
         </DialogContent>
         {!creatingLoan && hasActiveLoan && (
-          <DialogActions>
+          <DialogActions
+            sx={{
+              gap: 1,
+              flexDirection: { xs: "column-reverse", sm: "row" },
+              alignItems: { xs: "stretch", sm: "center" },
+              "& > .MuiButton-root": {
+                minHeight: 44,
+                width: { xs: "100%", sm: "auto" },
+                m: 0,
+              },
+            }}
+          >
             <Button onClick={handleClose} sx={{ color: "#64748b" }}>
               Close
             </Button>
@@ -1051,9 +1064,11 @@ export default function LoanModal({
         open={historyDialogOpen}
         onClose={handleCloseHistoryDialog}
         fullWidth
-        maxWidth="lg"
+        maxWidth="md"
+        aria-labelledby="loan-history-dialog-title"
       >
         <DialogTitle
+          id="loan-history-dialog-title"
           sx={{
             display: "flex",
             alignItems: "center",
@@ -1081,7 +1096,7 @@ export default function LoanModal({
             aria-label="Close loan history"
             onClick={handleCloseHistoryDialog}
             disabled={historyLoading}
-            size="small"
+            sx={{ width: 44, height: 44 }}
           >
             <Close />
           </IconButton>
@@ -1346,8 +1361,28 @@ export default function LoanModal({
         onClose={handleCloseTermDialog}
         maxWidth="xs"
         fullWidth
+        aria-labelledby="adjust-term-dialog-title"
       >
-        <DialogTitle>Adjust Term Weeks</DialogTitle>
+        <DialogTitle
+          id="adjust-term-dialog-title"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+          }}
+        >
+          <Typography component="span" variant="h6">
+            Adjust Term Weeks
+          </Typography>
+          <IconButton
+            aria-label="Close adjust term dialog"
+            onClick={handleCloseTermDialog}
+            sx={{ width: 44, height: 44 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             This action is only available before the first repayment is

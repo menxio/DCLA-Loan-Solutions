@@ -108,12 +108,13 @@ export default function CollectionUpdateModal({
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="md"
-      fullWidth
+      maxWidth={false}
       scroll="paper"
       aria-labelledby="collection-update-title"
       PaperProps={{
         sx: {
+          width: "calc(100% - 32px)",
+          maxWidth: 720,
           borderRadius: 2,
           overflow: "hidden",
         },

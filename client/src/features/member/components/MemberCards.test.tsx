@@ -14,6 +14,7 @@ vi.mock("@mui/icons-material", () => ({
   Business: () => null,
   AccountBalance: () => null,
   Savings: () => null,
+  Close: () => null,
 }));
 
 const member = {
@@ -65,7 +66,9 @@ describe("MemberCards savings entry point", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Savings" }));
+    const savingsButton = screen.getByRole("button", { name: "Savings" });
+    expect(savingsButton).toHaveClass("MuiButton-outlined");
+    fireEvent.click(savingsButton);
     expect(onAddSavings).toHaveBeenCalledWith(member);
   });
 

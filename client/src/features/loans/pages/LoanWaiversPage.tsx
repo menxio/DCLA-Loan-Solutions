@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  IconButton,
   Paper,
   Snackbar,
   Table,
@@ -20,7 +21,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { History, Percent, Refresh } from "@mui/icons-material";
+import { Close, History, Percent, Refresh } from "@mui/icons-material";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
 import { LoansAPI } from "../api";
@@ -81,7 +82,7 @@ export default function LoanWaiversPage() {
     (message: string, severity: "success" | "error" = "success") => {
       setSnackbar({ open: true, message, severity });
     },
-    []
+    [],
   );
 
   const fetchCandidates = useCallback(async () => {
@@ -119,6 +120,10 @@ export default function LoanWaiversPage() {
     setForm({ pastDueInterestWaiver: "", penaltyWaiver: "", reason: "" });
   };
 
+  const closeHistoryDialog = () => {
+    setHistoryState({ open: false, loading: false, target: null, rows: [] });
+  };
+
   const openWaiverDialog = (entry: LoanWaiverCandidate) => {
     setSelected(entry);
     setForm({
@@ -140,7 +145,10 @@ export default function LoanWaiversPage() {
     }
 
     if (pastDueInterestWaiver > selected.pastDueInterestOutstanding) {
-      showSnackbar("Past due interest waiver exceeds outstanding amount.", "error");
+      showSnackbar(
+        "Past due interest waiver exceeds outstanding amount.",
+        "error",
+      );
       return;
     }
 
@@ -377,8 +385,8 @@ export default function LoanWaiversPage() {
                     <TableRow>
                       <TableCell colSpan={8} align="center">
                         <Typography variant="body2" color="text.secondary">
-                          No loans currently have outstanding penalties or past due
-                          interest to waive.
+                          No loans currently have outstanding penalties or past
+                          due interest to waive.
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -389,8 +397,33 @@ export default function LoanWaiversPage() {
           </Paper>
         </Box>
 
-        <Dialog open={Boolean(selected)} onClose={closeWaiverDialog} maxWidth="sm" fullWidth>
-          <DialogTitle>Apply Waiver</DialogTitle>
+        <Dialog
+          open={Boolean(selected)}
+          onClose={closeWaiverDialog}
+          maxWidth="sm"
+          fullWidth
+          aria-labelledby="apply-waiver-dialog-title"
+        >
+          <DialogTitle
+            id="apply-waiver-dialog-title"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 1,
+            }}
+          >
+            <Typography component="span" variant="h5">
+              Apply Waiver
+            </Typography>
+            <IconButton
+              aria-label="Close apply waiver dialog"
+              onClick={closeWaiverDialog}
+              sx={{ width: 44, height: 44 }}
+            >
+              <Close />
+            </IconButton>
+          </DialogTitle>
           <DialogContent>
             <DialogContentText sx={{ mb: 2 }}>
               Enter the waiver amounts for the selected loan.
@@ -417,7 +450,8 @@ export default function LoanWaiversPage() {
                   {formatCurrency(selected.pastDueInterestOutstanding)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Available Penalty: {formatCurrency(selected.penaltyOutstanding)}
+                  Available Penalty:{" "}
+                  {formatCurrency(selected.penaltyOutstanding)}
                 </Typography>
               </Box>
             )}
@@ -472,7 +506,8 @@ export default function LoanWaiversPage() {
               sx={{
                 background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                 "&:hover": {
-                  background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                  background:
+                    "linear-gradient(135deg, #059669 0%, #047857 100%)",
                 },
               }}
             >
@@ -483,13 +518,31 @@ export default function LoanWaiversPage() {
 
         <Dialog
           open={historyState.open}
-          onClose={() =>
-            setHistoryState({ open: false, loading: false, target: null, rows: [] })
-          }
+          onClose={closeHistoryDialog}
           maxWidth="md"
           fullWidth
+          aria-labelledby="waiver-history-dialog-title"
         >
-          <DialogTitle>Waiver History</DialogTitle>
+          <DialogTitle
+            id="waiver-history-dialog-title"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 1,
+            }}
+          >
+            <Typography component="span" variant="h5">
+              Waiver History
+            </Typography>
+            <IconButton
+              aria-label="Close waiver history"
+              onClick={closeHistoryDialog}
+              sx={{ width: 44, height: 44 }}
+            >
+              <Close />
+            </IconButton>
+          </DialogTitle>
           <DialogContent>
             <DialogContentText sx={{ mb: 2 }}>
               {historyState.target
@@ -528,32 +581,23 @@ export default function LoanWaiversPage() {
                         <TableCell>{row.reason || "N/A"}</TableCell>
                       </TableRow>
                     ))}
-                    {!historyState.loading && historyState.rows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={5} align="center">
-                          <Typography variant="body2" color="text.secondary">
-                            No waiver history found for this loan.
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    )}
+                    {!historyState.loading &&
+                      historyState.rows.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center">
+                            <Typography variant="body2" color="text.secondary">
+                              No waiver history found for this loan.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
                   </TableBody>
                 </Table>
               </TableContainer>
             )}
           </DialogContent>
           <DialogActions sx={{ p: 3 }}>
-            <Button
-              onClick={() =>
-                setHistoryState({
-                  open: false,
-                  loading: false,
-                  target: null,
-                  rows: [],
-                })
-              }
-              sx={{ color: "#64748b" }}
-            >
+            <Button onClick={closeHistoryDialog} sx={{ color: "#64748b" }}>
               Close
             </Button>
           </DialogActions>
@@ -577,4 +621,3 @@ export default function LoanWaiversPage() {
     </DashboardLayout>
   );
 }
-

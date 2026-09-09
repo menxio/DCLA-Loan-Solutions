@@ -82,7 +82,14 @@ describe("SavingsDepositDialog", () => {
 
   it("retains the transaction modal and opens history from the balance area", async () => {
     renderDialog();
-    expect(screen.getByText("Manage Savings")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Manage Savings" });
+    expect(dialog).toHaveStyle({
+      width: "calc(100% - 32px)",
+      maxWidth: "640px",
+    });
+    expect(
+      screen.getByRole("button", { name: "Close savings form" }),
+    ).toBeInTheDocument();
     expect(await screen.findByText("₱5000.00")).toBeInTheDocument();
 
     await openAndCloseHistory();

@@ -19,10 +19,10 @@ import {
 import Logout from "@mui/icons-material/Logout";
 import MenuIcon from "@mui/icons-material/Menu";
 import Close from "@mui/icons-material/Close";
-import AccountBalance from "@mui/icons-material/AccountBalance";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { authService } from "@features/auth/api";
 import { useAuthStore } from "@features/auth/authStore";
+import dclaLogo from "../../assets/dcla-logo.png";
 import {
   getNavigationItems,
   headerHeight,
@@ -124,7 +124,17 @@ export default function Header({ title }: HeaderProps) {
             gap: 1.5,
           }}
         >
-          <AccountBalance sx={{ color: "primary.main", fontSize: 28 }} />
+          <Box
+            component="img"
+            src={dclaLogo}
+            alt=""
+            sx={{
+              width: 44,
+              height: 40,
+              objectFit: "contain",
+              flexShrink: 0,
+            }}
+          />
           <Box sx={{ flexGrow: 1 }}>
             <Typography
               sx={{ fontWeight: 800, fontSize: 20, color: "primary.main" }}

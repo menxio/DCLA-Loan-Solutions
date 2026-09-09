@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SendSmsConfirmationDialog from "./SendSmsConfirmationDialog";
 import { smsNotificationsApi } from "../api";
@@ -26,7 +32,7 @@ const ready = (resourceId: string, memberName: string): SmsEligibilityItem => ({
 
 const requestResult = (
   item: SmsEligibilityItem,
-  overrides: Partial<SmsRequestResult> = {}
+  overrides: Partial<SmsRequestResult> = {},
 ): SmsRequestResult => ({
   ...item,
   notificationId: "notification-id",
@@ -50,10 +56,18 @@ describe("SendSmsConfirmationDialog", () => {
         title="Loan Created Successfully"
         candidates={[ready("loan-id", "Maria Santos")]}
         onClose={onClose}
-      />
+      />,
     );
 
-    expect(screen.getByText("The financial transaction is complete.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Loan Created Successfully" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Close SMS notification" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The financial transaction is complete."),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Don't Send" }));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(smsNotificationsApi.requestLoanSms).not.toHaveBeenCalled();
@@ -62,7 +76,7 @@ describe("SendSmsConfirmationDialog", () => {
   it("submits only the loan resource ID and polls to sent", async () => {
     const item = ready("loan-id", "Maria Santos");
     vi.mocked(smsNotificationsApi.requestLoanSms).mockResolvedValue(
-      requestResult(item)
+      requestResult(item),
     );
     vi.mocked(smsNotificationsApi.getStatus).mockResolvedValue({
       notificationId: "notification-id",
@@ -81,11 +95,13 @@ describe("SendSmsConfirmationDialog", () => {
         title="Loan Created Successfully"
         candidates={[item]}
         onClose={vi.fn()}
-      />
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Send SMS" }));
 
-    await screen.findByText("SMS sent successfully. UniSMS accepted the message.");
+    await screen.findByText(
+      "SMS sent successfully. UniSMS accepted the message.",
+    );
     expect(smsNotificationsApi.requestLoanSms).toHaveBeenCalledWith("loan-id");
     expect(smsNotificationsApi.requestLoanSms).toHaveBeenCalledTimes(1);
   });
@@ -125,18 +141,23 @@ describe("SendSmsConfirmationDialog", () => {
         title="3 Payments Successfully Approved"
         candidates={[first, second, invalid]}
         onClose={vi.fn()}
-      />
+      />,
     );
     expect(screen.getByText("Invalid contact")).toBeInTheDocument();
+    expect(screen.getByLabelText("SMS notification actions")).toHaveStyle({
+      flexDirection: "column-reverse",
+    });
     fireEvent.click(screen.getByRole("button", { name: "Send All 2" }));
 
     await waitFor(() =>
       expect(smsNotificationsApi.requestRepaymentBatch).toHaveBeenCalledWith([
         "repayment-1",
         "repayment-2",
-      ])
+      ]),
     );
-    expect(await screen.findByText(/2 SMS notifications queued/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/2 SMS notifications queued/),
+    ).toBeInTheDocument();
   });
 
   it("disables duplicate clicks while the request is in flight", async () => {
@@ -145,7 +166,7 @@ describe("SendSmsConfirmationDialog", () => {
     vi.mocked(smsNotificationsApi.requestLoanSms).mockReturnValue(
       new Promise((resolve) => {
         resolveRequest = resolve;
-      })
+      }),
     );
     vi.mocked(smsNotificationsApi.getStatus).mockResolvedValue({
       notificationId: "notification-id",
@@ -164,21 +185,26 @@ describe("SendSmsConfirmationDialog", () => {
         title="Loan Created Successfully"
         candidates={[item]}
         onClose={vi.fn()}
-      />
+      />,
     );
     const sendButton = screen.getByRole("button", { name: "Send SMS" });
     fireEvent.click(sendButton);
     fireEvent.click(sendButton);
     expect(smsNotificationsApi.requestLoanSms).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Close SMS notification" }),
+    ).toBeDisabled();
     resolveRequest(requestResult(item));
-    await screen.findByText("SMS sent successfully. UniSMS accepted the message.");
+    await screen.findByText(
+      "SMS sent successfully. UniSMS accepted the message.",
+    );
   });
 
   it("shows a deterministic delayed state after bounded polling", async () => {
     vi.useFakeTimers();
     const item = ready("loan-id", "Maria Santos");
     vi.mocked(smsNotificationsApi.requestLoanSms).mockResolvedValue(
-      requestResult(item)
+      requestResult(item),
     );
     vi.mocked(smsNotificationsApi.getStatus).mockResolvedValue({
       notificationId: "notification-id",
@@ -197,7 +223,7 @@ describe("SendSmsConfirmationDialog", () => {
         title="Loan Created Successfully"
         candidates={[item]}
         onClose={vi.fn()}
-      />
+      />,
     );
 
     await act(async () => {
@@ -208,8 +234,8 @@ describe("SendSmsConfirmationDialog", () => {
     expect(smsNotificationsApi.getStatus).toHaveBeenCalledTimes(8);
     expect(
       screen.getByText(
-        "SMS delivery is temporarily delayed. The system will retry automatically."
-      )
+        "SMS delivery is temporarily delayed. The system will retry automatically.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -217,7 +243,7 @@ describe("SendSmsConfirmationDialog", () => {
     vi.useFakeTimers();
     const item = ready("loan-id", "Maria Santos");
     vi.mocked(smsNotificationsApi.requestLoanSms).mockResolvedValue(
-      requestResult(item)
+      requestResult(item),
     );
     vi.mocked(smsNotificationsApi.getStatus).mockResolvedValue({
       notificationId: "notification-id",
@@ -236,7 +262,7 @@ describe("SendSmsConfirmationDialog", () => {
         title="Loan Created Successfully"
         candidates={[item]}
         onClose={vi.fn()}
-      />
+      />,
     );
 
     await act(async () => {
@@ -244,7 +270,9 @@ describe("SendSmsConfirmationDialog", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText("Unsupported message content.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Unsupported message content."),
+    ).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(10_000));
     expect(smsNotificationsApi.getStatus).toHaveBeenCalledTimes(1);
   });
@@ -254,7 +282,7 @@ describe("SendSmsConfirmationDialog", () => {
     const item = ready("loan-id", "Maria Santos");
     let statusSignal: AbortSignal | undefined;
     vi.mocked(smsNotificationsApi.requestLoanSms).mockResolvedValue(
-      requestResult(item)
+      requestResult(item),
     );
     vi.mocked(smsNotificationsApi.getStatus).mockImplementation(
       async (_notificationId, signal) => {
@@ -268,7 +296,7 @@ describe("SendSmsConfirmationDialog", () => {
           errorCode: null,
           errorMessage: null,
         };
-      }
+      },
     );
 
     const { rerender } = render(
@@ -278,7 +306,7 @@ describe("SendSmsConfirmationDialog", () => {
         title="Loan Created Successfully"
         candidates={[item]}
         onClose={vi.fn()}
-      />
+      />,
     );
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Send SMS" }));
@@ -294,7 +322,7 @@ describe("SendSmsConfirmationDialog", () => {
         title="Loan Created Successfully"
         candidates={[item]}
         onClose={vi.fn()}
-      />
+      />,
     );
     expect(statusSignal?.aborted).toBe(true);
     await act(async () => vi.advanceTimersByTimeAsync(10_000));
@@ -306,7 +334,7 @@ describe("SendSmsConfirmationDialog", () => {
     const item = ready("loan-id", "Maria Santos");
     let statusSignal: AbortSignal | undefined;
     vi.mocked(smsNotificationsApi.requestLoanSms).mockResolvedValue(
-      requestResult(item)
+      requestResult(item),
     );
     vi.mocked(smsNotificationsApi.getStatus).mockImplementation(
       async (_notificationId, signal) => {
@@ -320,7 +348,7 @@ describe("SendSmsConfirmationDialog", () => {
           errorCode: null,
           errorMessage: null,
         };
-      }
+      },
     );
 
     const { unmount } = render(
@@ -330,7 +358,7 @@ describe("SendSmsConfirmationDialog", () => {
         title="Loan Created Successfully"
         candidates={[item]}
         onClose={vi.fn()}
-      />
+      />,
     );
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Send SMS" }));

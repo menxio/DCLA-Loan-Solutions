@@ -281,7 +281,7 @@ export default function MemberModal({
       open={open}
       onClose={handleClose}
       fullWidth
-      maxWidth="md"
+      maxWidth="sm"
       aria-labelledby="member-dialog-title"
       PaperProps={{
         sx: {

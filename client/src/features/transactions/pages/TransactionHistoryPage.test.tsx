@@ -122,6 +122,7 @@ describe("TransactionHistoryPage", () => {
     expect(screen.getByText("Loan repayment")).toBeInTheDocument();
     expect(screen.getByText("Savings deposit")).toBeInTheDocument();
     expect(screen.getByText("2 shown of 52 records")).toBeInTheDocument();
+    expect(screen.queryByText("Loan #loan-1")).not.toBeInTheDocument();
   });
 
   it("preserves filter, pagination, and page-size actions", () => {

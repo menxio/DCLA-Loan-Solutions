@@ -439,10 +439,12 @@ export default function RepaymentApprovalsPage() {
           if (!approveSubmitting) setApproveTarget(null);
         }}
         fullWidth
-        maxWidth="sm"
+        maxWidth="xs"
         PaperProps={{ sx: dialogPaperSx }}
+        aria-labelledby="approve-collection-dialog-title"
       >
         <DialogTitle
+          id="approve-collection-dialog-title"
           sx={{
             display: "flex",
             alignItems: "center",
@@ -496,10 +498,12 @@ export default function RepaymentApprovalsPage() {
         open={rejectState.open}
         onClose={closeRejectDialog}
         fullWidth
-        maxWidth="sm"
+        maxWidth="xs"
         PaperProps={{ sx: dialogPaperSx }}
+        aria-labelledby="reject-collection-dialog-title"
       >
         <DialogTitle
+          id="reject-collection-dialog-title"
           sx={{
             display: "flex",
             alignItems: "center",

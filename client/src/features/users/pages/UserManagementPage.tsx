@@ -8,35 +8,54 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  Paper,
+  IconButton,
+  InputAdornment,
   Snackbar,
   TextField,
+  Typography,
 } from "@mui/material";
-import { Add, AdminPanelSettings } from "@mui/icons-material";
-import DashboardLayout from "@components/layout/PrivateLayout";
+import Add from "@mui/icons-material/Add";
+import Close from "@mui/icons-material/Close";
+import Search from "@mui/icons-material/Search";
+import PageHeader from "@components/common/PageHeader";
 import PageLoadingSkeleton from "@components/common/PageLoadingSkeleton";
-import { useUsers } from "../hooks/useUsers";
+import RequestErrorAlert from "@components/common/RequestErrorAlert";
+import DashboardLayout from "@components/layout/PrivateLayout";
+import { useAuthStore } from "@features/auth/authStore";
+import TempPasswordDialog from "../components/TempPasswordDialog";
 import UserModal from "../components/UserModal";
 import UserTable from "../components/UserTable";
-import TempPasswordDialog from "../components/TempPasswordDialog";
+import { useUsers } from "../hooks/useUsers";
 import type { AdminUser, CreateUserPayload, UpdateUserPayload } from "../types";
-import { useAuthStore } from "@features/auth/authStore";
 
-type PasswordDialogState = {
-  open: boolean;
-  title: string;
-  password: string;
-};
-
+type PasswordDialogState = { open: boolean; title: string; password: string };
 type StatusDialogState = {
   open: boolean;
   user: AdminUser | null;
   nextActive: boolean;
 };
+type ResetDialogState = { open: boolean; user: AdminUser | null };
 
-type ResetDialogState = {
-  open: boolean;
-  user: AdminUser | null;
+const dialogTitleSx = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 1,
+  px: { xs: 2, sm: 3 },
+  py: 2,
+  borderBottom: "1px solid",
+  borderColor: "divider",
+};
+
+const dialogActionsSx = {
+  flexDirection: { xs: "column-reverse", sm: "row" },
+  alignItems: "stretch",
+  px: { xs: 2, sm: 3 },
+  py: 2,
+  gap: 1,
+  borderTop: "1px solid",
+  borderColor: "divider",
+  "& > .MuiButton-root": { width: { xs: "100%", sm: "auto" } },
 };
 
 export default function UserManagementPage() {
@@ -49,11 +68,10 @@ export default function UserManagementPage() {
     updateUser,
     updateStatus,
     resetPassword,
+    refetch,
   } = useUsers();
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<AdminUser | undefined>(
-    undefined
-  );
+  const [editingUser, setEditingUser] = useState<AdminUser>();
   const [search, setSearch] = useState("");
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -93,23 +111,16 @@ export default function UserManagementPage() {
 
   const showSnackbar = (
     message: string,
-    severity: "success" | "error" = "success"
-  ) => {
-    setSnackbar({ open: true, message, severity });
-  };
+    severity: "success" | "error" = "success",
+  ) => setSnackbar({ open: true, message, severity });
 
-  const handleOpenModal = () => {
-    setEditingUser(undefined);
-    setModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
+  const closeUserModal = () => {
     setModalOpen(false);
     setEditingUser(undefined);
   };
 
   const handleCreateOrUpdate = async (
-    payload: CreateUserPayload | UpdateUserPayload
+    payload: CreateUserPayload | UpdateUserPayload,
   ) => {
     if (editingUser) {
       await updateUser(editingUser.id, payload as UpdateUserPayload);
@@ -126,17 +137,14 @@ export default function UserManagementPage() {
     });
   };
 
-  const handleEdit = (selected: AdminUser) => {
-    setEditingUser(selected);
-    setModalOpen(true);
+  const closeStatusDialog = () => {
+    if (!loading) {
+      setStatusDialog({ open: false, user: null, nextActive: false });
+    }
   };
 
-  const handleToggleStatus = (selected: AdminUser) => {
-    setStatusDialog({
-      open: true,
-      user: selected,
-      nextActive: !selected.isActive,
-    });
+  const closeResetDialog = () => {
+    if (!loading) setResetDialog({ open: false, user: null });
   };
 
   const handleConfirmStatus = async () => {
@@ -146,17 +154,14 @@ export default function UserManagementPage() {
       showSnackbar(
         statusDialog.nextActive
           ? "User reactivated successfully!"
-          : "User deactivated successfully!"
+          : "User deactivated successfully!",
       );
     } catch (err) {
+      console.error("Failed to update user status:", err);
       showSnackbar("Failed to update user status.", "error");
     } finally {
       setStatusDialog({ open: false, user: null, nextActive: false });
     }
-  };
-
-  const handleResetPassword = (selected: AdminUser) => {
-    setResetDialog({ open: true, user: selected });
   };
 
   const handleConfirmReset = async () => {
@@ -170,139 +175,111 @@ export default function UserManagementPage() {
         password: response.tempPassword,
       });
     } catch (err) {
+      console.error("Failed to reset password:", err);
       showSnackbar("Failed to reset password.", "error");
     } finally {
       setResetDialog({ open: false, user: null });
     }
   };
 
-  const handleCloseSnackbar = () => {
-    setSnackbar((prev) => ({ ...prev, open: false }));
-  };
-
   if (loading && users.length === 0) {
     return (
       <DashboardLayout>
-        <PageLoadingSkeleton showStats={false} filterCount={2} rowCount={6} />
+        <PageLoadingSkeleton showStats={false} filterCount={1} rowCount={6} />
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <Box sx={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
-        <Paper
+      <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+        <PageHeader
+          title="User Management"
+          description="Manage system users, roles, and account access."
+          actions={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => {
+                setEditingUser(undefined);
+                setModalOpen(true);
+              }}
+              sx={{ minHeight: 44 }}
+            >
+              Add User
+            </Button>
+          }
+        />
+
+        <Box
+          role="group"
+          aria-label="User filters"
           sx={{
-            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-            border: "1px solid #e2e8f0",
-            borderRadius: 3,
-            p: 4,
+            display: "flex",
+            alignItems: "stretch",
             mb: 3,
-            boxShadow:
-              "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            pb: 3,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            minWidth: 0,
           }}
         >
-          <Box
-            display="flex"
-            justifyContent="space-between"
-            alignItems="center"
-            mb={3}
-          >
-            <Box display="flex" alignItems="center" gap={3}>
-              <Box
-                sx={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 2,
-                  background:
-                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
-                }}
-              >
-                <AdminPanelSettings sx={{ fontSize: 28, color: "white" }} />
-              </Box>
-              <Box>
-                <Box
-                  component="span"
-                  sx={{ display: "block", fontSize: 28, fontWeight: 700 }}
-                >
-                  User Management
-                </Box>
-                <Box
-                  component="span"
-                  sx={{ display: "block", color: "#64748b" }}
-                >
-                  Create and manage system users
-                </Box>
-              </Box>
-            </Box>
-
-            <Box display="flex" alignItems="center" gap={2}>
-              <TextField
-                size="small"
-                placeholder="Search users..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                sx={{
-                  minWidth: 220,
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: "white",
-                    borderRadius: 2,
-                  },
-                }}
-              />
-              <Button
-                variant="contained"
-                startIcon={<Add />}
-                onClick={handleOpenModal}
-                sx={{
-                  background:
-                    "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)",
-                  borderRadius: 2,
-                  px: 3,
-                  py: 1.5,
-                  textTransform: "none",
-                  fontWeight: 600,
-                  boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.3)",
-                  "&:hover": {
-                    background:
-                      "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                    boxShadow: "0 6px 20px 0 rgba(59, 130, 246, 0.4)",
-                  },
-                }}
-              >
-                Add User
-              </Button>
-            </Box>
-          </Box>
-        </Paper>
+          <TextField
+            size="small"
+            label="Search users"
+            placeholder="Search by name, email, or role"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search color="action" fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              minWidth: 0,
+              width: "100%",
+              maxWidth: 480,
+              "& .MuiOutlinedInput-root": {
+                minHeight: 44,
+                bgcolor: "background.paper",
+              },
+            }}
+          />
+        </Box>
 
         {error && (
-          <Box px={3}>
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-              {error}
-            </Alert>
-          </Box>
+          <RequestErrorAlert message={error} onRetry={() => void refetch()} />
         )}
 
-        <Box px={3}>
+        {(!error || users.length > 0) && (
           <UserTable
             users={filteredUsers}
             loading={loading}
             currentUserId={user?.id}
-            onEdit={handleEdit}
-            onResetPassword={handleResetPassword}
-            onToggleStatus={handleToggleStatus}
+            filtered={Boolean(search.trim())}
+            onEdit={(selected) => {
+              setEditingUser(selected);
+              setModalOpen(true);
+            }}
+            onResetPassword={(selected) =>
+              setResetDialog({ open: true, user: selected })
+            }
+            onToggleStatus={(selected) =>
+              setStatusDialog({
+                open: true,
+                user: selected,
+                nextActive: !selected.isActive,
+              })
+            }
           />
-        </Box>
+        )}
 
         <UserModal
           open={modalOpen}
           user={editingUser}
-          onClose={handleCloseModal}
+          onClose={closeUserModal}
           onSubmit={handleCreateOrUpdate}
           loading={loading}
         />
@@ -318,40 +295,40 @@ export default function UserManagementPage() {
 
         <Dialog
           open={statusDialog.open}
-          onClose={() =>
-            setStatusDialog({ open: false, user: null, nextActive: false })
-          }
+          onClose={closeStatusDialog}
+          maxWidth="xs"
+          fullWidth
+          aria-labelledby="user-status-dialog-title"
         >
-          <DialogTitle>
-            {statusDialog.nextActive ? "Reactivate User" : "Deactivate User"}
+          <DialogTitle id="user-status-dialog-title" sx={dialogTitleSx}>
+            <Typography component="span" variant="h5">
+              {statusDialog.nextActive ? "Reactivate User" : "Deactivate User"}
+            </Typography>
+            <IconButton
+              aria-label="Close status confirmation"
+              onClick={closeStatusDialog}
+              disabled={loading}
+              sx={{ width: 44, height: 44 }}
+            >
+              <Close />
+            </IconButton>
           </DialogTitle>
-          <DialogContent>
+          <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
             <DialogContentText>
               {statusDialog.nextActive
                 ? "This user will regain access to the system."
                 : "This user will be unable to log in until reactivated."}
             </DialogContentText>
           </DialogContent>
-          <DialogActions sx={{ p: 3, gap: 1 }}>
-            <Button
-              onClick={() =>
-                setStatusDialog({ open: false, user: null, nextActive: false })
-              }
-              sx={{ color: "#64748b" }}
-            >
+          <DialogActions sx={dialogActionsSx}>
+            <Button onClick={closeStatusDialog} disabled={loading}>
               Cancel
             </Button>
             <Button
               variant="contained"
-              onClick={handleConfirmStatus}
-              sx={{
-                background:
-                  "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                "&:hover": {
-                  background:
-                    "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                },
-              }}
+              color={statusDialog.nextActive ? "primary" : "error"}
+              onClick={() => void handleConfirmStatus()}
+              disabled={loading}
             >
               {statusDialog.nextActive ? "Reactivate" : "Deactivate"}
             </Button>
@@ -360,32 +337,37 @@ export default function UserManagementPage() {
 
         <Dialog
           open={resetDialog.open}
-          onClose={() => setResetDialog({ open: false, user: null })}
+          onClose={closeResetDialog}
+          maxWidth="xs"
+          fullWidth
+          aria-labelledby="reset-password-dialog-title"
         >
-          <DialogTitle>Reset Password</DialogTitle>
-          <DialogContent>
+          <DialogTitle id="reset-password-dialog-title" sx={dialogTitleSx}>
+            <Typography component="span" variant="h5">
+              Reset Password
+            </Typography>
+            <IconButton
+              aria-label="Close password reset confirmation"
+              onClick={closeResetDialog}
+              disabled={loading}
+              sx={{ width: 44, height: 44 }}
+            >
+              <Close />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
             <DialogContentText>
               This will generate a new temporary password for the user.
             </DialogContentText>
           </DialogContent>
-          <DialogActions sx={{ p: 3, gap: 1 }}>
-            <Button
-              onClick={() => setResetDialog({ open: false, user: null })}
-              sx={{ color: "#64748b" }}
-            >
+          <DialogActions sx={dialogActionsSx}>
+            <Button onClick={closeResetDialog} disabled={loading}>
               Cancel
             </Button>
             <Button
               variant="contained"
-              onClick={handleConfirmReset}
-              sx={{
-                background:
-                  "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                "&:hover": {
-                  background:
-                    "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-                },
-              }}
+              onClick={() => void handleConfirmReset()}
+              disabled={loading}
             >
               Reset Password
             </Button>
@@ -395,11 +377,15 @@ export default function UserManagementPage() {
         <Snackbar
           open={snackbar.open}
           autoHideDuration={4000}
-          onClose={handleCloseSnackbar}
+          onClose={() =>
+            setSnackbar((current) => ({ ...current, open: false }))
+          }
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         >
           <Alert
-            onClose={handleCloseSnackbar}
+            onClose={() =>
+              setSnackbar((current) => ({ ...current, open: false }))
+            }
             severity={snackbar.severity}
             sx={{ width: "100%" }}
           >

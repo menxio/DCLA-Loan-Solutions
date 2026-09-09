@@ -126,9 +126,9 @@ describe("SavingsHistoryDialog", () => {
   it("renders the authoritative balance and readable ledger audit fields", async () => {
     renderHistory();
 
-    expect(
-      screen.getByRole("dialog", { name: "Savings History" }),
-    ).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Savings History" });
+    expect(dialog).toBeInTheDocument();
+    expect(getComputedStyle(dialog).maxWidth).toBe("1050px");
     expect(screen.getByText("Abordo, Evelyn")).toBeInTheDocument();
     expect(screen.getByText("₱5,500.00")).toBeInTheDocument();
     expect(await screen.findByText("Deposit")).toBeInTheDocument();
@@ -145,6 +145,18 @@ describe("SavingsHistoryDialog", () => {
     expect(await screen.findByText("Balance Before")).toBeInTheDocument();
     expect(screen.getByText("Sep 3, 2026, 10:35 AM")).toBeInTheDocument();
     expect(screen.getByText("manual_savings")).toBeInTheDocument();
+  });
+
+  it("preserves full-screen geometry on mobile", () => {
+    renderHistory(390);
+    const dialog = screen.getByRole("dialog", { name: "Savings History" });
+    const styles = getComputedStyle(dialog);
+
+    expect(dialog).toHaveClass("MuiDialog-paperFullScreen");
+    expect(styles.margin).toBe("0px");
+    expect(styles.width).toBe("100%");
+    expect(styles.maxWidth).toBe("100%");
+    expect(styles.height).toBe("100%");
   });
 
   it("keeps ledger and legacy page state independent and semantically separate", async () => {

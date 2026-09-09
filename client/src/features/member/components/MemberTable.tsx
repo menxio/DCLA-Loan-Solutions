@@ -26,6 +26,7 @@ import {
   Phone as PhoneIcon,
   LocationOn as LocationIcon,
   CalendarToday as CalendarIcon,
+  Close,
 } from "@mui/icons-material";
 import type { MemberTableProps, Member } from "../types";
 
@@ -198,18 +199,27 @@ export default function MemberTable({
                       </Avatar>
                       <Box>
                         <Typography variant="body1" fontWeight={500}>
-                          {member.firstName} {member.middleName} {member.lastName}
+                          {member.firstName} {member.middleName}{" "}
+                          {member.lastName}
                         </Typography>
                       </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box
+                      sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+                    >
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
                         <PhoneIcon sx={{ fontSize: 16, color: "#64748b" }} />
-                        <Typography variant="body2">{member.contactNumber}</Typography>
+                        <Typography variant="body2">
+                          {member.contactNumber}
+                        </Typography>
                       </Box>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
                         <LocationIcon sx={{ fontSize: 16, color: "#64748b" }} />
                         <Typography
                           variant="body2"
@@ -230,12 +240,16 @@ export default function MemberTable({
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <CalendarIcon sx={{ fontSize: 16, color: "#64748b" }} />
                       <Typography variant="body2">
-                        {member.birthDate ? formatDate(member.birthDate) : "N/A"}
+                        {member.birthDate
+                          ? formatDate(member.birthDate)
+                          : "N/A"}
                       </Typography>
                     </Box>
                   </TableCell>
                   <TableCell align="center">
-                    <Box sx={{ display: "flex", justifyContent: "center", gap: 1 }}>
+                    <Box
+                      sx={{ display: "flex", justifyContent: "center", gap: 1 }}
+                    >
                       <Tooltip title="Edit Member">
                         <IconButton
                           onClick={() => onEdit(member)}
@@ -277,19 +291,54 @@ export default function MemberTable({
       <Dialog
         open={deleteDialog.open}
         onClose={handleDeleteCancel}
-        maxWidth="sm"
+        maxWidth="xs"
         fullWidth
+        aria-labelledby="delete-member-table-title"
       >
-        <DialogTitle sx={{ fontWeight: 600, color: "#1e293b" }}>
-          Delete Member
+        <DialogTitle
+          id="delete-member-table-title"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <Typography component="span" variant="h5">
+            Delete Member
+          </Typography>
+          <IconButton
+            aria-label="Close delete member confirmation"
+            onClick={handleDeleteCancel}
+            disabled={deleting}
+            sx={{ width: 44, height: 44 }}
+          >
+            <Close />
+          </IconButton>
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
           <DialogContentText>
-            Are you sure you want to delete "{deleteDialog.member?.firstName} {deleteDialog.member?.lastName}"? This action cannot be undone.
+            Are you sure you want to delete "{deleteDialog.member?.firstName}{" "}
+            {deleteDialog.member?.lastName}"? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button onClick={handleDeleteCancel} disabled={deleting} sx={{ color: "#64748b" }}>
+        <DialogActions
+          sx={{
+            flexDirection: { xs: "column-reverse", sm: "row" },
+            alignItems: "stretch",
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            gap: 1,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            "& > .MuiButton-root": { width: { xs: "100%", sm: "auto" } },
+          }}
+        >
+          <Button onClick={handleDeleteCancel} disabled={deleting}>
             Cancel
           </Button>
           <Button

@@ -113,13 +113,28 @@ export const theme = createTheme({
     },
     MuiDialog: {
       styleOverrides: {
-        paper: {
-          borderRadius: 12,
-          margin: 16,
-          maxWidth: "calc(100% - 32px)",
-          maxHeight: "calc(100% - 32px)",
+        paper: ({ ownerState, theme }) => ({
           overflowWrap: "anywhere",
-        },
+          ...(ownerState.fullScreen
+            ? {
+                margin: 0,
+                width: "100%",
+                maxWidth: "100%",
+                height: "100%",
+                maxHeight: "none",
+                borderRadius: 0,
+              }
+            : {
+                borderRadius: 12,
+                margin: 16,
+                maxHeight: "calc(100% - 32px)",
+                [theme.breakpoints.down("sm")]: {
+                  ...(ownerState.fullWidth
+                    ? { width: "calc(100% - 32px)" }
+                    : {}),
+                },
+              }),
+        }),
       },
     },
     MuiDialogContent: {

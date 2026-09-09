@@ -116,9 +116,9 @@ export default function TransactionHistoryPage() {
 
   const hasActiveFilters = Boolean(
     filters.search ||
-      filters.type !== "all" ||
-      filters.startDate ||
-      filters.endDate,
+    filters.type !== "all" ||
+    filters.startDate ||
+    filters.endDate,
   );
   const isOperationalAdmin = role === "admin";
   const canRequestReversal = role === "cashier" || isOperationalAdmin;
@@ -384,15 +384,6 @@ export default function TransactionHistoryPage() {
                         <Typography sx={{ fontWeight: 600 }}>
                           {transaction.member.name}
                         </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ overflowWrap: "anywhere" }}
-                        >
-                          {transaction.loan?.id
-                            ? `Loan #${transaction.loan.id}`
-                            : "—"}
-                        </Typography>
                       </TableCell>
                       <TableCell>
                         {transaction.member.center?.name ?? "No center"}
@@ -542,10 +533,12 @@ export default function TransactionHistoryPage() {
           open={reversalDialog.open}
           onClose={handleCloseReversalDialog}
           fullWidth
-          maxWidth="sm"
+          maxWidth="xs"
           PaperProps={{ sx: dialogPaperSx }}
+          aria-labelledby="repayment-reversal-dialog-title"
         >
           <DialogTitle
+            id="repayment-reversal-dialog-title"
             sx={{
               display: "flex",
               alignItems: "center",

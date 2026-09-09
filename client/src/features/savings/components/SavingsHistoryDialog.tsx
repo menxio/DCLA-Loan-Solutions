@@ -550,12 +550,14 @@ export default function SavingsHistoryDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="lg"
+      maxWidth={false}
       fullWidth
       fullScreen={fullScreen}
       aria-labelledby="savings-history-title"
       PaperProps={{
         sx: {
+          width: { sm: "calc(100% - 32px)" },
+          maxWidth: { sm: 1050 },
           height: { xs: "100%", sm: "min(90vh, 820px)" },
           maxHeight: { xs: "100%", sm: "90vh" },
           borderRadius: { xs: 0, sm: 2 },
@@ -597,7 +599,7 @@ export default function SavingsHistoryDialog({
           <IconButton
             aria-label="Close savings history"
             onClick={onClose}
-            sx={{ color: "inherit" }}
+            sx={{ width: 44, height: 44, color: "inherit" }}
           >
             <Close />
           </IconButton>
