@@ -12,7 +12,7 @@ vi.mock("@mui/icons-material", () => ({
   Person: () => null,
   MoreVert: () => null,
   Business: () => null,
-  AccountBalance: () => null,
+  ReceiptLong: () => null,
   Savings: () => null,
   Close: () => null,
 }));

@@ -14,7 +14,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import Add from "@mui/icons-material/Add";
+import PersonAdd from "@mui/icons-material/PersonAdd";
 import Close from "@mui/icons-material/Close";
 import Search from "@mui/icons-material/Search";
 import PageHeader from "@components/common/PageHeader";
@@ -199,7 +199,7 @@ export default function UserManagementPage() {
           actions={
             <Button
               variant="contained"
-              startIcon={<Add />}
+              startIcon={<PersonAdd />}
               onClick={() => {
                 setEditingUser(undefined);
                 setModalOpen(true);

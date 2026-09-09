@@ -10,12 +10,11 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import {
-  AccountBalance,
-  KeyboardArrowDown,
-  KeyboardArrowRight,
-  Payment,
-} from "@mui/icons-material";
+import Autorenew from "@mui/icons-material/Autorenew";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import Payment from "@mui/icons-material/Payment";
+import People from "@mui/icons-material/People";
 import { useEffect, useState } from "react";
 import type { MemberWithLoans } from "../types";
 
@@ -87,11 +86,10 @@ const getActiveLoans = (member: MemberWithLoansRow): MemberLoan[] =>
     (loan) => (loan.status || "").toLowerCase() === "active",
   );
 
-const summaryGridColumns =
-  "minmax(220px, 2fr) minmax(140px, 1fr) minmax(110px, 0.75fr) minmax(212px, 228px)";
+const summaryDataGridColumns =
+  "minmax(220px, 1fr) minmax(140px, 1fr) minmax(110px, 0.75fr) minmax(260px, 280px)";
 
-const summaryHeaderGridColumns =
-  "minmax(220px, 2fr) minmax(140px, 1fr) minmax(110px, 0.75fr) minmax(212px, 228px) 40px";
+const summaryGridColumns = `${summaryDataGridColumns} 24px`;
 
 export function MembersTable({
   members,
@@ -132,7 +130,7 @@ export function MembersTable({
           gap: 1,
         }}
       >
-        <AccountBalance color="primary" />
+        <People color="primary" />
         Member Collection Status & Management
       </Typography>
 
@@ -148,7 +146,7 @@ export function MembersTable({
         <Box
           sx={{
             display: { xs: "none", md: "grid" },
-            gridTemplateColumns: summaryHeaderGridColumns,
+            gridTemplateColumns: summaryGridColumns,
             columnGap: 2,
             alignItems: "center",
             px: 3,
@@ -163,19 +161,28 @@ export function MembersTable({
           <Typography variant="body2" sx={{ fontWeight: 700 }}>
             Client Name
           </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 700, justifySelf: "end", textAlign: "right" }}
+          >
             Loan Amount
           </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 700, justifySelf: "center" }}
+          >
             Status
           </Typography>
           <Typography
             variant="body2"
-            sx={{ fontWeight: 700, justifySelf: "end" }}
+            sx={{
+              fontWeight: 700,
+              justifySelf: "center",
+              textAlign: "right",
+            }}
           >
             Actions
           </Typography>
-          <Box />
         </Box>
 
         {members.map((member, index) => {
@@ -254,11 +261,24 @@ export function MembersTable({
                   )
                 }
                 sx={{
+                  display: { xs: "flex", md: "grid" },
+                  gridTemplateColumns: { md: summaryGridColumns },
+                  columnGap: { md: 2 },
+                  alignItems: { md: "center" },
                   px: 3,
                   py: 1.5,
                   minHeight: 88,
                   "& .MuiAccordionSummary-content": {
                     m: 0,
+                    minWidth: 0,
+                    flexGrow: { md: 0 },
+                    gridColumn: { md: "1 / 5" },
+                    width: { md: "100%" },
+                  },
+                  "& .MuiAccordionSummary-expandIconWrapper": {
+                    gridColumn: { md: 5 },
+                    justifySelf: { md: "end" },
+                    alignSelf: { md: "center" },
                   },
                   "&:hover": {
                     backgroundColor: alpha("#3b82f6", 0.03),
@@ -270,7 +290,7 @@ export function MembersTable({
                     display: "grid",
                     gridTemplateColumns: {
                       xs: "1fr",
-                      md: summaryGridColumns,
+                      md: summaryDataGridColumns,
                     },
                     gap: { xs: 1.5, md: 2 },
                     alignItems: "center",
@@ -289,7 +309,7 @@ export function MembersTable({
                     </Typography>
                   </Box>
 
-                  <Box>
+                  <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
                     <Typography
                       variant="caption"
                       sx={{
@@ -311,7 +331,7 @@ export function MembersTable({
                     </Typography>
                   </Box>
 
-                  <Box>
+                  <Box sx={{ textAlign: { xs: "left", md: "center" } }}>
                     <Typography
                       variant="caption"
                       sx={{
@@ -325,28 +345,37 @@ export function MembersTable({
                     >
                       Status
                     </Typography>
-                    <Chip
-                      label={statusLabel}
-                      color={getStatusColor(member)}
-                      size="small"
+                    <Box
                       sx={{
-                        minWidth: 86,
-                        fontWeight: 700,
-                        backgroundColor: summaryStatusStyle.bg,
-                        color: summaryStatusStyle.color,
-                        "& .MuiChip-label": {
-                          px: 1.5,
-                        },
+                        display: "flex",
+                        justifyContent: { xs: "flex-start", md: "center" },
                       }}
-                    />
+                    >
+                      <Chip
+                        label={statusLabel}
+                        color={getStatusColor(member)}
+                        size="small"
+                        sx={{
+                          minWidth: 86,
+                          fontWeight: 700,
+                          backgroundColor: summaryStatusStyle.bg,
+                          color: summaryStatusStyle.color,
+                          "& .MuiChip-label": {
+                            px: 1.5,
+                          },
+                        }}
+                      />
+                    </Box>
                   </Box>
 
                   <Box
                     sx={{
                       display: "flex",
                       justifyContent: { xs: "flex-start", md: "flex-end" },
+                      alignItems: "center",
                       gap: 1,
-                      flexWrap: "wrap",
+                      flexWrap: "nowrap",
+                      whiteSpace: "nowrap",
                     }}
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -380,7 +409,7 @@ export function MembersTable({
                         <Button
                           variant="outlined"
                           size="small"
-                          startIcon={<AccountBalance />}
+                          startIcon={<Autorenew />}
                           onClick={() =>
                             onOpenReloanDialog({
                               ...member,

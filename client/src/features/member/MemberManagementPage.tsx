@@ -12,7 +12,7 @@ import {
   TextField,
   Pagination,
 } from "@mui/material";
-import { Add } from "@mui/icons-material";
+import PersonAdd from "@mui/icons-material/PersonAdd";
 import DashboardLayout from "@components/layout/PrivateLayout";
 import MemberCards from "./components/MemberCards";
 import { useMembers } from "./hooks/useMember";
@@ -212,7 +212,7 @@ export default function MembersPage() {
           actions={
             <Button
               variant="contained"
-              startIcon={<Add />}
+              startIcon={<PersonAdd />}
               onClick={handleOpenModal}
             >
               Add Member

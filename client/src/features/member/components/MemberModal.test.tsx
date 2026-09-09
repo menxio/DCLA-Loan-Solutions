@@ -4,7 +4,7 @@ import MemberModal from "./MemberModal";
 import type { Member } from "../types";
 
 vi.mock("@mui/icons-material", () => ({
-  Add: () => null,
+  PersonAdd: () => null,
   Edit: () => null,
   Close: () => null,
 }));

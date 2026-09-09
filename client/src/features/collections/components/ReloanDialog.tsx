@@ -20,12 +20,10 @@ import {
   Divider,
   IconButton,
 } from "@mui/material";
-import {
-  AccountBalance,
-  Calculate,
-  Close,
-  TrendingUp,
-} from "@mui/icons-material";
+import AccountBalanceWallet from "@mui/icons-material/AccountBalanceWallet";
+import Autorenew from "@mui/icons-material/Autorenew";
+import Calculate from "@mui/icons-material/Calculate";
+import Close from "@mui/icons-material/Close";
 import { useState, useEffect, useMemo } from "react";
 import { loansClient } from "../api";
 import type { MemberWithLoans } from "../types";
@@ -209,7 +207,7 @@ export function ReloanDialog({
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <AccountBalance color="primary" />
+          <Autorenew color="primary" />
           <Box>
             <Typography variant="h6">Process Reloan</Typography>
             <Typography variant="body2" color="text.secondary">
@@ -297,7 +295,7 @@ export function ReloanDialog({
                     gap: 1,
                   }}
                 >
-                  <TrendingUp sx={{ color: "#ef4444" }} />
+                  <AccountBalanceWallet sx={{ color: "#ef4444" }} />
                   Current Balance
                 </Typography>
                 <Typography
@@ -354,10 +352,6 @@ export function ReloanDialog({
                   }}
                 >
                   {formatCurrency(existingSavings)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  These savings stay with the member and are carried into the
-                  new loan automatically.
                 </Typography>
               </CardContent>
             </Card>
@@ -643,7 +637,7 @@ export function ReloanDialog({
             !eligibility?.eligible
           }
           startIcon={
-            processing ? <CircularProgress size={16} /> : <AccountBalance />
+            processing ? <CircularProgress size={16} /> : <Autorenew />
           }
           sx={{
             minHeight: 44,

@@ -14,13 +14,7 @@ import {
   Box,
   Typography,
 } from "@mui/material";
-import {
-  Edit,
-  Cancel,
-  Close,
-  Person,
-  AccountBalance,
-} from "@mui/icons-material";
+import { Edit, Cancel, Close, Person, LocationOn } from "@mui/icons-material";
 import type { Collection } from "../types";
 
 interface CollectionUpdateModalProps {
@@ -190,7 +184,7 @@ export default function CollectionUpdateModal({
                       mb: 1,
                     }}
                   >
-                    <AccountBalance sx={{ color: "#64748b", fontSize: 20 }} />
+                    <LocationOn sx={{ color: "#64748b", fontSize: 20 }} />
                     <Typography variant="body2" color="text.secondary">
                       Center
                     </Typography>

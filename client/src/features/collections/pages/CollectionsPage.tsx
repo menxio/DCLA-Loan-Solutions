@@ -12,7 +12,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import AccountBalance from "@mui/icons-material/AccountBalance";
+import CalendarMonth from "@mui/icons-material/CalendarMonth";
 import Groups from "@mui/icons-material/Groups";
 import Refresh from "@mui/icons-material/Refresh";
 import Search from "@mui/icons-material/Search";
@@ -336,7 +336,7 @@ export default function CollectionsPage() {
               aria-controls="collections-tabpanel-1"
               label={
                 <TabLabel
-                  icon={<AccountBalance fontSize="small" />}
+                  icon={<CalendarMonth fontSize="small" />}
                   label="Collections by Date"
                   count={allHasData ? allCollections.length : undefined}
                   countLabel="collection centers for selected date"

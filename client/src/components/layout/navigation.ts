@@ -5,6 +5,7 @@ import AccountBalance from "@mui/icons-material/AccountBalance";
 import History from "@mui/icons-material/History";
 import AdminPanelSettings from "@mui/icons-material/AdminPanelSettings";
 import FactCheck from "@mui/icons-material/FactCheck";
+import Payments from "@mui/icons-material/Payments";
 import { canAccessPath } from "@features/auth/access";
 
 export const navigationWidth = 240;
@@ -13,7 +14,7 @@ const navigationItems = [
   { label: "Dashboard", path: "/dashboard", icon: Dashboard },
   { label: "Members", path: "/member-management", icon: Person4 },
   { label: "Centers", path: "/centers", icon: Groups },
-  { label: "Collections", path: "/collections", icon: Groups },
+  { label: "Collections", path: "/collections", icon: Payments },
   { label: "Portfolio", path: "/portfolio", icon: AccountBalance },
   { label: "Transactions", path: "/transactions", icon: History },
   { label: "Approvals", path: "/approvals", icon: FactCheck },

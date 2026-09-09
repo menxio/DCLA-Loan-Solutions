@@ -30,7 +30,7 @@ import {
   Person as PersonIcon,
   MoreVert as MoreVertIcon,
   Business as BusinessIcon,
-  AccountBalance as AccountBalanceIcon,
+  ReceiptLong as ReceiptLongIcon,
   Savings as SavingsIcon,
   Close,
 } from "@mui/icons-material";
@@ -355,7 +355,7 @@ export default function MemberCards({
                   )}
                   <Button
                     variant="outlined"
-                    startIcon={<AccountBalanceIcon />}
+                    startIcon={<ReceiptLongIcon />}
                     onClick={() => onViewLoan?.(member)}
                     sx={{
                       flex: "1 1 132px",

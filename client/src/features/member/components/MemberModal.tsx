@@ -17,7 +17,7 @@ import {
 } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { Add, Edit, Close } from "@mui/icons-material";
+import { PersonAdd, Edit, Close } from "@mui/icons-material";
 import type { Member, MemberFormData } from "../types";
 import type { Center } from "@features/centers/types";
 import { CentersAPI } from "@features/centers/api";
@@ -305,7 +305,11 @@ export default function MemberModal({
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          {isEditing ? <Edit fontSize="small" /> : <Add fontSize="small" />}
+          {isEditing ? (
+            <Edit fontSize="small" />
+          ) : (
+            <PersonAdd fontSize="small" />
+          )}
           <Typography component="span" variant="h5" fontWeight={600}>
             {isEditing ? "Edit Member" : "Add New Member"}
           </Typography>
@@ -482,7 +486,7 @@ export default function MemberModal({
             ) : isEditing ? (
               <Edit />
             ) : (
-              <Add />
+              <PersonAdd />
             )
           }
         >

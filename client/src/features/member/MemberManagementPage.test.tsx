@@ -14,7 +14,7 @@ import { useMembers } from "./hooks/useMember";
 import MemberManagementPage from "./MemberManagementPage";
 
 vi.mock("@mui/icons-material", () => ({
-  Add: () => <span aria-hidden="true" />,
+  PersonAdd: () => <span aria-hidden="true" />,
   Close: () => <span aria-hidden="true" />,
   Edit: () => <span aria-hidden="true" />,
   Group: () => <span aria-hidden="true" />,

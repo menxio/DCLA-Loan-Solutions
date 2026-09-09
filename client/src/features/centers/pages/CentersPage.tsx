@@ -14,7 +14,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import Add from "@mui/icons-material/Add";
+import AddLocationAlt from "@mui/icons-material/AddLocationAlt";
 import Search from "@mui/icons-material/Search";
 import PageHeader from "@components/common/PageHeader";
 import RequestErrorAlert from "@components/common/RequestErrorAlert";
@@ -115,7 +115,7 @@ export default function CentersPage() {
           actions={
             <Button
               variant="contained"
-              startIcon={<Add />}
+              startIcon={<AddLocationAlt />}
               onClick={handleOpenModal}
             >
               Add Center

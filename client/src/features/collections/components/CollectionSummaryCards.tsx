@@ -12,9 +12,9 @@ import {
   Schedule,
   Warning,
   HourglassEmpty,
-  AccountBalance,
-  TrendingUp,
-  AttachMoney,
+  AccountBalanceWallet,
+  Payments,
+  RequestQuote,
 } from "@mui/icons-material";
 import type { DailyCollectionGroup } from "../types";
 
@@ -97,7 +97,7 @@ export function CollectionSummaryCards({
       value: formatCurrency(
         computedStats?.totalOverallAmount || totalAmount || 0,
       ),
-      icon: AccountBalance,
+      icon: RequestQuote,
       color: "#8b5cf6",
       bgColor: "#faf5ff",
     },
@@ -105,7 +105,7 @@ export function CollectionSummaryCards({
       title: "Payment Received",
       subtitle: "Today's Collections",
       value: formatCurrency(Number(totalReceived || 0)),
-      icon: AttachMoney,
+      icon: Payments,
       color: "#10b981",
       bgColor: "#f0fdf4",
     },
@@ -113,7 +113,7 @@ export function CollectionSummaryCards({
       title: "Remaining Balance",
       subtitle: "Outstanding Amount",
       value: formatCurrency(computedStats?.totalRemainingBalance || 0),
-      icon: TrendingUp,
+      icon: AccountBalanceWallet,
       color: "#ef4444",
       bgColor: "#fef2f2",
     },

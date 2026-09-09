@@ -15,7 +15,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import Add from "@mui/icons-material/Add";
+import PersonAdd from "@mui/icons-material/PersonAdd";
 import Close from "@mui/icons-material/Close";
 import Edit from "@mui/icons-material/Edit";
 import type { AdminUser, CreateUserPayload, UpdateUserPayload } from "../types";
@@ -143,7 +143,11 @@ export default function UserModal({
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          {isEditing ? <Edit fontSize="small" /> : <Add fontSize="small" />}
+          {isEditing ? (
+            <Edit fontSize="small" />
+          ) : (
+            <PersonAdd fontSize="small" />
+          )}
           <Typography component="span" variant="h5">
             {isEditing ? "Edit User" : "Add User"}
           </Typography>
@@ -271,7 +275,7 @@ export default function UserModal({
             ) : isEditing ? (
               <Edit />
             ) : (
-              <Add />
+              <PersonAdd />
             )
           }
         >

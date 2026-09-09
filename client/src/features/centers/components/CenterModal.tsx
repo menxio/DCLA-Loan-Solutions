@@ -15,7 +15,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import Add from "@mui/icons-material/Add";
+import AddLocationAlt from "@mui/icons-material/AddLocationAlt";
 import Close from "@mui/icons-material/Close";
 import Edit from "@mui/icons-material/Edit";
 import type { Center, CenterFormData } from "../types";
@@ -134,7 +134,11 @@ export default function CenterModal({
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          {isEditing ? <Edit fontSize="small" /> : <Add fontSize="small" />}
+          {isEditing ? (
+            <Edit fontSize="small" />
+          ) : (
+            <AddLocationAlt fontSize="small" />
+          )}
           <Typography component="span" variant="h5">
             {isEditing ? "Edit Center" : "Add Center"}
           </Typography>
@@ -247,7 +251,7 @@ export default function CenterModal({
             ) : isEditing ? (
               <Edit />
             ) : (
-              <Add />
+              <AddLocationAlt />
             )
           }
         >

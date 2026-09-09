@@ -11,9 +11,10 @@ import {
   InputAdornment,
   IconButton,
 } from "@mui/material";
-import { Visibility, VisibilityOff, AccountBalance } from "@mui/icons-material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import dclaLogo from "../../../assets/dcla-logo.png";
 import { authService } from "../api";
 import { useAuthStore } from "../authStore";
 import { getDefaultRouteForRole } from "../access";
@@ -139,8 +140,26 @@ export default function LoginPage() {
             color: "common.white",
           }}
         >
-          <AccountBalance sx={{ fontSize: 32 }} />
-          <Typography component="div" sx={{ fontSize: 22, fontWeight: 700 }}>
+          <Box
+            component="img"
+            src={dclaLogo}
+            alt=""
+            sx={{
+              width: { xs: 48, sm: 52 },
+              height: { xs: 48, sm: 52 },
+              objectFit: "contain",
+              flexShrink: 0,
+            }}
+          />
+          <Typography
+            component="div"
+            sx={{
+              minWidth: 0,
+              fontSize: { xs: 20, sm: 22 },
+              fontWeight: 700,
+              textAlign: "center",
+            }}
+          >
             DCLA Loan Solutions
           </Typography>
         </Box>
