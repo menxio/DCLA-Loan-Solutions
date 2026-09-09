@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Box, Paper, Tab, Tabs, Typography } from "@mui/material";
-import { Assessment, Savings } from "@mui/icons-material";
+import { Box, Tab, Tabs, Typography } from "@mui/material";
+import Assessment from "@mui/icons-material/Assessment";
+import Savings from "@mui/icons-material/Savings";
 import ExpectedRevenueView from "./ExpectedRevenueView";
 import ActualRevenueView from "./ActualRevenueView";
 
@@ -11,40 +12,32 @@ export default function RevenueView() {
 
   return (
     <Box>
-      <Paper
+      <Box
         sx={{
           mb: 3,
-          borderRadius: 3,
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-          overflow: "hidden",
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
-        <Box sx={{ px: 3, pt: 3, pb: 1 }}>
-          <Typography variant="h6" sx={{ color: "#1e293b", fontWeight: 700, mb: 1 }}>
+        <Box sx={{ pb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
             Revenue
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Switch between expected collected revenue and actual collected revenue.
+            Switch between expected collected revenue and actual collected
+            revenue.
           </Typography>
         </Box>
         <Tabs
           value={mode}
           onChange={(_event, nextValue: RevenueMode) => setMode(nextValue)}
+          aria-label="Revenue views"
+          variant="scrollable"
+          scrollButtons="auto"
           sx={{
-            px: 2,
             "& .MuiTab-root": {
-              textTransform: "none",
-              fontWeight: 600,
-              color: "#64748b",
-              minHeight: 54,
-            },
-            "& .Mui-selected": {
-              color: "#2563eb !important",
-            },
-            "& .MuiTabs-indicator": {
-              backgroundColor: "#2563eb",
-              height: 3,
+              minHeight: 48,
+              minWidth: 120,
             },
           }}
         >
@@ -67,7 +60,7 @@ export default function RevenueView() {
             }
           />
         </Tabs>
-      </Paper>
+      </Box>
 
       {mode === "expected" ? <ExpectedRevenueView /> : <ActualRevenueView />}
     </Box>

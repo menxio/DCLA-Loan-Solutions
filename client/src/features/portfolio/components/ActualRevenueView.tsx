@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
+import Assessment from "@mui/icons-material/Assessment";
+import Paid from "@mui/icons-material/Paid";
+import ReceiptLong from "@mui/icons-material/ReceiptLong";
+import Refresh from "@mui/icons-material/Refresh";
+import Savings from "@mui/icons-material/Savings";
 import {
-  Alert,
   Box,
   Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Grid,
+  FormControl,
+  InputLabel,
   MenuItem,
   Select,
+  Skeleton,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -17,15 +21,10 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import {
-  Assessment,
-  Paid,
-  ReceiptLong,
-  Refresh,
-  Savings,
-} from "@mui/icons-material";
+import RequestErrorAlert from "@components/common/RequestErrorAlert";
 import { useActualRevenue } from "../hooks/useActualRevenue";
 import type { RevenueGranularity } from "../types";
+import PortfolioMetricGrid from "./PortfolioMetricGrid";
 
 const formatCurrency = (amount: number): string =>
   `\u20B1${amount.toLocaleString("en-US", {
@@ -45,6 +44,12 @@ const formatWeeklyCollectionDay = (periodKey: string): string => {
   });
 
   return `${startLabel} (Day ${endDate.getUTCDate()})`;
+};
+
+const numericCellSx = {
+  fontWeight: 600,
+  fontVariantNumeric: "tabular-nums",
+  whiteSpace: "nowrap",
 };
 
 export default function ActualRevenueView() {
@@ -73,9 +78,7 @@ export default function ActualRevenueView() {
   );
 
   useEffect(() => {
-    if (granularity !== "weekly" || availableMonths.length === 0) {
-      return;
-    }
+    if (granularity !== "weekly" || availableMonths.length === 0) return;
 
     const hasSelection = availableMonths.some(
       (option) =>
@@ -91,427 +94,270 @@ export default function ActualRevenueView() {
 
   if (loading) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="400px"
-      >
-        <CircularProgress sx={{ color: "#2563eb" }} />
-      </Box>
+      <Stack spacing={2} role="status" aria-label="Loading actual revenue">
+        <Skeleton variant="rounded" height={96} />
+        <Skeleton variant="rounded" height={112} />
+        <Skeleton variant="rounded" height={280} />
+      </Stack>
     );
   }
 
   if (error) {
-    return (
-      <Box>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-        <Button variant="outlined" onClick={refetch} startIcon={<Refresh />}>
-          Retry
-        </Button>
-      </Box>
-    );
+    return <RequestErrorAlert message={error} onRetry={refetch} />;
   }
 
   if (!data) {
     return (
-      <Alert severity="info">No actual collected revenue data available</Alert>
+      <Box sx={{ py: 6, textAlign: "center" }}>
+        <Typography sx={{ fontWeight: 600 }}>
+          No actual collected revenue data available.
+        </Typography>
+      </Box>
     );
   }
 
   return (
-    <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+    <Stack spacing={3} sx={{ minWidth: 0, maxWidth: "100%" }}>
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
-          flexDirection: { xs: "column", md: "row" },
+          alignItems: { xs: "stretch", lg: "flex-end" },
+          flexDirection: { xs: "column", lg: "row" },
           gap: 2,
-          mb: 4,
-          p: 3,
-          backgroundColor: "#f8fafc",
-          borderRadius: 3,
-          border: "1px solid #e2e8f0",
+          p: 2,
+          bgcolor: "action.hover",
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 2,
         }}
       >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h6">Actual Collected Revenue</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {granularity === "weekly"
+              ? "Weekly revenue shown by start day and end day"
+              : "Interest collected by repayment date plus fees collected on loan release"}
+          </Typography>
+        </Box>
         <Box
           sx={{
             display: "flex",
-            alignItems: "center",
+            flexDirection: { xs: "column", sm: "row" },
             flexWrap: "wrap",
-            gap: 2,
-            width: { xs: "100%", md: "auto" },
+            gap: 1.5,
+            alignItems: { xs: "stretch", sm: "center" },
           }}
         >
-          <Box
-            sx={{
-              backgroundColor: "#0f766e",
-              borderRadius: 2,
-              p: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Savings sx={{ color: "white", fontSize: 24 }} />
-          </Box>
-          <Box>
-            <Typography variant="h6" sx={{ color: "#1e293b", fontWeight: 700 }}>
-              Actual Collected Revenue
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {granularity === "weekly"
-                ? "Weekly revenue shown by start day and end day"
-                : "Interest collected by repayment date plus fees collected on loan release"}
-            </Typography>
-          </Box>
-        </Box>
-        <Box display="flex" alignItems="center" gap={2}>
-          <Select
-            size="small"
-            value={granularity}
-            onChange={(event) =>
-              setGranularity(event.target.value as RevenueGranularity)
-            }
-            sx={{
-              minWidth: 140,
-              borderRadius: 2,
-              backgroundColor: "white",
-            }}
-          >
-            <MenuItem value="monthly">Monthly</MenuItem>
-            <MenuItem value="weekly">Weekly</MenuItem>
-          </Select>
+          <FormControl size="small" sx={{ minWidth: { sm: 120 } }}>
+            <InputLabel id="actual-period-label">Period</InputLabel>
+            <Select
+              labelId="actual-period-label"
+              label="Period"
+              value={granularity}
+              onChange={(event) =>
+                setGranularity(event.target.value as RevenueGranularity)
+              }
+            >
+              <MenuItem value="monthly">Monthly</MenuItem>
+              <MenuItem value="weekly">Weekly</MenuItem>
+            </Select>
+          </FormControl>
           {granularity === "weekly" && (
             <>
-              <Select
-                size="small"
-                value={selectedMonth}
-                onChange={(event) =>
-                  setSelectedMonth(Number(event.target.value))
-                }
-                disabled={availableMonthsForYear.length === 0}
-                sx={{
-                  minWidth: 150,
-                  borderRadius: 2,
-                  backgroundColor: "white",
-                }}
-              >
-                {availableMonthsForYear.map((option) => (
-                  <MenuItem
-                    key={`${option.year}-${option.month}`}
-                    value={option.month}
-                  >
-                    {option.label.replace(` ${option.year}`, "")}
-                  </MenuItem>
-                ))}
-              </Select>
-              <Select
-                size="small"
-                value={selectedYear}
-                onChange={(event) => {
-                  const nextYear = Number(event.target.value);
-                  const firstMonthForYear = availableMonths.find(
-                    (option) => option.year === nextYear,
-                  );
-                  setSelectedYear(nextYear);
-                  if (firstMonthForYear) {
-                    setSelectedMonth(firstMonthForYear.month);
+              <FormControl size="small" sx={{ minWidth: { sm: 140 } }}>
+                <InputLabel id="actual-month-label">Month</InputLabel>
+                <Select
+                  labelId="actual-month-label"
+                  label="Month"
+                  value={selectedMonth}
+                  onChange={(event) =>
+                    setSelectedMonth(Number(event.target.value))
                   }
-                }}
-                disabled={availableYears.length === 0}
-                sx={{
-                  minWidth: 110,
-                  borderRadius: 2,
-                  backgroundColor: "white",
-                }}
-              >
-                {availableYears.map((year) => (
-                  <MenuItem key={year} value={year}>
-                    {year}
-                  </MenuItem>
-                ))}
-              </Select>
+                  disabled={availableMonthsForYear.length === 0}
+                >
+                  {availableMonthsForYear.map((option) => (
+                    <MenuItem
+                      key={`${option.year}-${option.month}`}
+                      value={option.month}
+                    >
+                      {option.label.replace(` ${option.year}`, "")}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: { sm: 110 } }}>
+                <InputLabel id="actual-year-label">Year</InputLabel>
+                <Select
+                  labelId="actual-year-label"
+                  label="Year"
+                  value={selectedYear}
+                  onChange={(event) => {
+                    const nextYear = Number(event.target.value);
+                    const firstMonthForYear = availableMonths.find(
+                      (option) => option.year === nextYear,
+                    );
+                    setSelectedYear(nextYear);
+                    if (firstMonthForYear) {
+                      setSelectedMonth(firstMonthForYear.month);
+                    }
+                  }}
+                  disabled={availableYears.length === 0}
+                >
+                  {availableYears.map((year) => (
+                    <MenuItem key={year} value={year}>
+                      {year}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </>
           )}
           <Button
             variant="outlined"
             startIcon={<Refresh />}
-            onClick={refetch}
-            sx={{
-              textTransform: "none",
-              fontWeight: 600,
-              borderColor: "#2563eb",
-              color: "#2563eb",
-              borderRadius: 2,
-              px: 3,
-              "&:hover": {
-                backgroundColor: "#2563eb",
-                color: "white",
-              },
-            }}
+            onClick={() => void refetch()}
+            sx={{ minHeight: 40 }}
           >
-            Refresh Data
+            Refresh
           </Button>
         </Box>
       </Box>
 
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
-          <Card
-            sx={{
-              borderRadius: 3,
-              border: "1px solid #e2e8f0",
-              borderLeft: "4px solid #0f766e",
-              background: "linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)",
-            }}
-          >
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <Savings sx={{ color: "#0f766e" }} />
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  fontWeight={600}
-                >
-                  Actual Collected Interest
-                </Typography>
-              </Box>
-              <Typography variant="h5" fontWeight="bold" color="#1e293b">
-                {formatCurrency(data.totalActualCollectedInterest)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card
-            sx={{
-              borderRadius: 3,
-              border: "1px solid #e2e8f0",
-              borderLeft: "4px solid #2563eb",
-              background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-            }}
-          >
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <Paid sx={{ color: "#2563eb" }} />
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  fontWeight={600}
-                >
-                  Service Charge
-                </Typography>
-              </Box>
-              <Typography variant="h5" fontWeight="bold" color="#1e293b">
-                {formatCurrency(data.totalServiceCharge)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card
-            sx={{
-              borderRadius: 3,
-              border: "1px solid #e2e8f0",
-              borderLeft: "4px solid #d97706",
-              background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
-            }}
-          >
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <ReceiptLong sx={{ color: "#d97706" }} />
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  fontWeight={600}
-                >
-                  Notarial Fee
-                </Typography>
-              </Box>
-              <Typography variant="h5" fontWeight="bold" color="#1e293b">
-                {formatCurrency(data.totalNotarialFee)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card
-            sx={{
-              borderRadius: 3,
-              border: "1px solid #e2e8f0",
-              borderLeft: "4px solid #7c3aed",
-              background: "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)",
-            }}
-          >
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <Assessment sx={{ color: "#7c3aed" }} />
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  fontWeight={600}
-                >
-                  Total Revenue
-                </Typography>
-              </Box>
-              <Typography variant="h5" fontWeight="bold" color="#1e293b">
-                {formatCurrency(data.totalRevenue)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <PortfolioMetricGrid
+        metrics={[
+          {
+            label: "Actual Collected Interest",
+            value: formatCurrency(data.totalActualCollectedInterest),
+            icon: <Savings fontSize="small" />,
+            color: "success.dark",
+          },
+          {
+            label: "Service Charge",
+            value: formatCurrency(data.totalServiceCharge),
+            icon: <Paid fontSize="small" />,
+            color: "primary.main",
+          },
+          {
+            label: "Notarial Fee",
+            value: formatCurrency(data.totalNotarialFee),
+            icon: <ReceiptLong fontSize="small" />,
+            color: "warning.dark",
+          },
+          {
+            label: "Total Revenue",
+            value: formatCurrency(data.totalRevenue),
+            icon: <Assessment fontSize="small" />,
+            color: "info.main",
+          },
+        ]}
+      />
 
-      <TableContainer
-        sx={{
-          borderRadius: 3,
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-          overflowX: "auto",
-          maxWidth: "100%",
-        }}
-      >
-        <Table sx={{ minWidth: 720 }}>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: "#f8fafc" }}>
-              {granularity === "weekly" ? (
-                <>
-                  <TableCell sx={{ fontWeight: 700, color: "#374151" }}>
-                    Collection Week
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: "#374151" }}>
-                    Collection Day
-                  </TableCell>
-                </>
-              ) : (
-                <TableCell sx={{ fontWeight: 700, color: "#374151" }}>
-                  Period
-                </TableCell>
-              )}
-              <TableCell
-                align="right"
-                sx={{ fontWeight: 700, color: "#374151" }}
-              >
-                Actual Collected Interest
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{ fontWeight: 700, color: "#374151" }}
-              >
-                Service Charge
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{ fontWeight: 700, color: "#374151" }}
-              >
-                Notarial Fee
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{ fontWeight: 700, color: "#374151" }}
-              >
-                Total Revenue
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {data.periods.map((period, index) => (
-              <TableRow
-                key={period.periodKey}
-                hover
-                sx={{
-                  "&:hover": {
-                    backgroundColor: "#f8fafc",
-                  },
-                  "&:nth-of-type(even)": {
-                    backgroundColor: "#fafbfc",
-                  },
-                }}
-              >
+      {data.periods.length === 0 ? (
+        <Box sx={{ py: 6, textAlign: "center" }}>
+          <Typography sx={{ fontWeight: 600 }}>
+            No actual revenue records for this period.
+          </Typography>
+        </Box>
+      ) : (
+        <TableContainer
+          sx={{
+            maxWidth: "100%",
+            overflowX: "auto",
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+          }}
+        >
+          <Table size="small" sx={{ minWidth: 720 }}>
+            <TableHead>
+              <TableRow sx={{ bgcolor: "action.hover" }}>
                 {granularity === "weekly" ? (
                   <>
-                    <TableCell sx={{ color: "#374151", fontWeight: 700 }}>
-                      Week {index + 1}
-                    </TableCell>
-                    <TableCell sx={{ color: "#374151", fontWeight: 600 }}>
-                      {formatWeeklyCollectionDay(period.periodKey)}
-                    </TableCell>
+                    <TableCell>Collection Week</TableCell>
+                    <TableCell>Collection Day</TableCell>
                   </>
                 ) : (
-                  <TableCell sx={{ color: "#374151", fontWeight: 600 }}>
-                    {period.periodLabel}
-                  </TableCell>
+                  <TableCell>Period</TableCell>
                 )}
+                <TableCell align="right">Actual Collected Interest</TableCell>
+                <TableCell align="right">Service Charge</TableCell>
+                <TableCell align="right">Notarial Fee</TableCell>
+                <TableCell align="right">Total Revenue</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {data.periods.map((period, index) => (
+                <TableRow key={period.periodKey} hover>
+                  {granularity === "weekly" ? (
+                    <>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        Week {index + 1}
+                      </TableCell>
+                      <TableCell>
+                        {formatWeeklyCollectionDay(period.periodKey)}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      {period.periodLabel}
+                    </TableCell>
+                  )}
+                  <TableCell align="right" sx={numericCellSx}>
+                    {formatCurrency(period.actualCollectedInterest)}
+                  </TableCell>
+                  <TableCell align="right" sx={numericCellSx}>
+                    {formatCurrency(period.serviceCharge)}
+                  </TableCell>
+                  <TableCell align="right" sx={numericCellSx}>
+                    {formatCurrency(period.notarialFee)}
+                  </TableCell>
+                  <TableCell align="right" sx={numericCellSx}>
+                    {formatCurrency(period.totalRevenue)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow
+                sx={{
+                  bgcolor: "action.hover",
+                  "& td": { borderTop: "2px solid", borderColor: "divider" },
+                }}
+              >
                 <TableCell
-                  align="right"
-                  sx={{ color: "#0f766e", fontWeight: 700 }}
+                  colSpan={granularity === "weekly" ? 2 : 1}
+                  sx={{ fontWeight: 700 }}
                 >
-                  {formatCurrency(period.actualCollectedInterest)}
+                  Total
                 </TableCell>
                 <TableCell
                   align="right"
-                  sx={{ color: "#2563eb", fontWeight: 700 }}
+                  sx={{ ...numericCellSx, fontWeight: 700 }}
                 >
-                  {formatCurrency(period.serviceCharge)}
+                  {formatCurrency(data.totalActualCollectedInterest)}
                 </TableCell>
                 <TableCell
                   align="right"
-                  sx={{ color: "#d97706", fontWeight: 700 }}
+                  sx={{ ...numericCellSx, fontWeight: 700 }}
                 >
-                  {formatCurrency(period.notarialFee)}
+                  {formatCurrency(data.totalServiceCharge)}
                 </TableCell>
                 <TableCell
                   align="right"
-                  sx={{ color: "#7c3aed", fontWeight: 700 }}
+                  sx={{ ...numericCellSx, fontWeight: 700 }}
                 >
-                  {formatCurrency(period.totalRevenue)}
+                  {formatCurrency(data.totalNotarialFee)}
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{ ...numericCellSx, fontWeight: 700 }}
+                >
+                  {formatCurrency(data.totalRevenue)}
                 </TableCell>
               </TableRow>
-            ))}
-            <TableRow
-              sx={{
-                backgroundColor: "#f1f5f9",
-                borderTop: "2px solid #e2e8f0",
-              }}
-            >
-              <TableCell
-                colSpan={granularity === "weekly" ? 2 : 1}
-                sx={{ fontWeight: "bold", color: "#1e293b" }}
-              >
-                Total
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{ fontWeight: "bold", color: "#0f766e" }}
-              >
-                {formatCurrency(data.totalActualCollectedInterest)}
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{ fontWeight: "bold", color: "#2563eb" }}
-              >
-                {formatCurrency(data.totalServiceCharge)}
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{ fontWeight: "bold", color: "#d97706" }}
-              >
-                {formatCurrency(data.totalNotarialFee)}
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{ fontWeight: "bold", color: "#7c3aed" }}
-              >
-                {formatCurrency(data.totalRevenue)}
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Stack>
   );
 }
