@@ -23,6 +23,7 @@ const item = (
   loan: { id: 'loan-1', status: 'active' },
   createdAt,
   source,
+  canReverse: source === 'repayment',
 });
 
 function createQueryBuilder(rows: unknown[], total: number) {
@@ -101,6 +102,7 @@ describe('TransactionsService', () => {
       collectionDate: '2026-09-05',
       paymentDate: '2026-09-05',
       operationType: 'payment',
+      canReverse: true,
       createdAt: new Date('2026-09-03T15:14:29.683Z'),
       memberId: 'member-1',
       memberFirstName: 'Test',
@@ -134,6 +136,7 @@ describe('TransactionsService', () => {
       amount: 125.5,
       createdAt: '2026-09-03T15:14:29.683Z',
       collectionDate: '2026-09-05',
+      canReverse: true,
       member: {
         id: 'member-1',
         name: 'Member, Test',
@@ -156,6 +159,16 @@ describe('TransactionsService', () => {
         'repayment."paymentDate"::text AS "paymentDate"',
         `repayment."createdAt" AT TIME ZONE 'Asia/Manila' AS "createdAt"`,
       ]),
+    );
+    expect(repayment.builder.select).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /repayment\."operationType" = 'payment'[\s\S]*NOT EXISTS[\s\S]*"blockingReversal"\."relatedRepaymentId" = repayment\.id[\s\S]*"blockingReversal"\."operationType" = 'reversal'[\s\S]*"blockingReversal"\."status" IN \('pending', 'approved'\)[\s\S]*AS "canReverse"/,
+        ),
+      ]),
+    );
+    expect(repayment.builder.select).not.toHaveBeenCalledWith(
+      expect.arrayContaining([expect.stringContaining('rejected')]),
     );
     expect(repayment.countQuery.getCount).toHaveBeenCalledTimes(1);
     expect(repayment.builder.andWhere).toHaveBeenCalledWith(
@@ -188,6 +201,7 @@ describe('TransactionsService', () => {
           collectionDate: '2026-09-05',
           paymentDate: '2026-09-05',
           operationType: 'payment',
+          canReverse: true,
         },
         {
           ...baseRow,
@@ -195,6 +209,7 @@ describe('TransactionsService', () => {
           collectionDate: '2026-09-05',
           paymentDate: '2026-09-05',
           operationType: 'reversal',
+          canReverse: true,
         },
         {
           ...baseRow,
@@ -202,6 +217,7 @@ describe('TransactionsService', () => {
           collectionDate: null,
           paymentDate: '2026-09-06',
           operationType: 'payment',
+          canReverse: false,
         },
       ],
       3,
@@ -222,19 +238,83 @@ describe('TransactionsService', () => {
     expect(result.items.find(({ id }) => id === 'payment-1')).toMatchObject({
       collectionDate: '2026-09-05',
       repaymentOperationType: 'payment',
+      canReverse: true,
     });
     expect(result.items.find(({ id }) => id === 'reversal-1')).toMatchObject({
       collectionDate: '2026-09-05',
       repaymentOperationType: 'reversal',
+      canReverse: false,
     });
     expect(result.items.find(({ id }) => id === 'fallback-1')).toMatchObject({
       collectionDate: '2026-09-06',
       repaymentOperationType: 'payment',
+      canReverse: false,
     });
     for (const transaction of result.items) {
       expect(transaction.collectionDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(transaction.collectionDate).not.toContain('T');
     }
+  });
+
+  it('marks savings deposits and withdrawals as ineligible for reversal', async () => {
+    const savings = createQueryBuilder(
+      [
+        {
+          id: 'deposit-1',
+          amount: '500.00',
+          remarks: 'Deposit',
+          createdAt: new Date('2026-09-03T15:14:29.683Z'),
+          memberId: 'member-1',
+          memberFirstName: 'Test',
+          memberLastName: 'Member',
+          centerId: 'center-1',
+          centerName: 'Center One',
+          loanId: null,
+          loanStatus: null,
+        },
+        {
+          id: 'withdrawal-1',
+          amount: '-250.00',
+          remarks: 'Withdrawal',
+          createdAt: new Date('2026-09-03T15:15:29.683Z'),
+          memberId: 'member-1',
+          memberFirstName: 'Test',
+          memberLastName: 'Member',
+          centerId: 'center-1',
+          centerName: 'Center One',
+          loanId: null,
+          loanStatus: null,
+        },
+      ],
+      2,
+    );
+    const service = new TransactionsService(
+      {} as Repository<Repayment>,
+      {
+        createQueryBuilder: jest.fn(() => savings.builder),
+      } as unknown as Repository<Savings>,
+    );
+
+    const result = await service.getHistory({
+      type: 'savings',
+      page: 1,
+      limit: 10,
+    } as TransactionsQueryDto);
+
+    expect(result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'deposit-1',
+          type: 'savings_deposit',
+          canReverse: false,
+        }),
+        expect.objectContaining({
+          id: 'withdrawal-1',
+          type: 'savings_withdrawal',
+          canReverse: false,
+        }),
+      ]),
+    );
   });
 
   it('rejects page sizes above the UI and API maximum', async () => {

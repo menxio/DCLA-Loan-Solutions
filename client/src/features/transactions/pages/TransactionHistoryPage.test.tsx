@@ -45,6 +45,25 @@ const transactions = [
     collectionDate: "2026-09-03",
     source: "repayment" as const,
     repaymentOperationType: "payment" as const,
+    canReverse: true,
+  },
+  {
+    id: "repayment-blocked-1",
+    type: "repayment" as const,
+    amount: 1000,
+    direction: "credit" as const,
+    member: {
+      id: "member-3",
+      name: "Member, Blocked",
+      center: { id: "center-1", name: "North Center" },
+    },
+    loan: { id: "loan-2", status: "active" },
+    notes: "Pending reversal",
+    createdAt: "2026-09-03T15:16:29.683Z",
+    collectionDate: "2026-09-03",
+    source: "repayment" as const,
+    repaymentOperationType: "payment" as const,
+    canReverse: false,
   },
   {
     id: "repayment-reversal-1",
@@ -62,6 +81,7 @@ const transactions = [
     collectionDate: "2026-09-03",
     source: "repayment" as const,
     repaymentOperationType: "reversal" as const,
+    canReverse: false,
   },
   {
     id: "savings-1",
@@ -77,6 +97,7 @@ const transactions = [
     notes: "Deposit",
     createdAt: "2026-09-03T16:30:00.000Z",
     source: "savings" as const,
+    canReverse: false,
   },
   {
     id: "savings-2",
@@ -92,6 +113,7 @@ const transactions = [
     notes: "Withdrawal",
     createdAt: "2026-09-03T16:31:00.000Z",
     source: "savings" as const,
+    canReverse: false,
   },
 ];
 
@@ -151,7 +173,7 @@ describe("TransactionHistoryPage", () => {
     expect(screen.getByText("Sep 3, 2026, 11:14 PM")).toBeInTheDocument();
     expect(screen.getByText("Sep 4, 2026, 12:30 AM")).toBeInTheDocument();
     expect(screen.getByText("₱1,500")).toBeInTheDocument();
-    expect(screen.getByText("Loan Repayment")).toBeInTheDocument();
+    expect(screen.getAllByText("Loan Repayment")).toHaveLength(2);
     expect(screen.getByText("Repayment Reversal")).toBeInTheDocument();
     expect(screen.getByText("Savings Deposit")).toBeInTheDocument();
     expect(screen.getByText("Savings Withdrawal")).toBeInTheDocument();
@@ -168,10 +190,10 @@ describe("TransactionHistoryPage", () => {
       screen.queryByRole("columnheader", { name: "Notes" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Weekly payment")).not.toBeInTheDocument();
-    expect(screen.getByText("4 shown of 52 records")).toBeInTheDocument();
+    expect(screen.getByText("5 shown of 52 records")).toBeInTheDocument();
     const summary = screen.getByLabelText("Current page transaction summary");
     expect(within(summary).getByText("Current page:")).toBeInTheDocument();
-    expect(summary).toHaveTextContent("Repayments: 1");
+    expect(summary).toHaveTextContent("Repayments: 2");
     expect(summary).toHaveTextContent("Reversals: 1");
     expect(screen.queryByText("Loan #loan-1")).not.toBeInTheDocument();
   });

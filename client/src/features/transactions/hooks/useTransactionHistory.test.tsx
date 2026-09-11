@@ -26,6 +26,7 @@ const response = (page: number): TransactionHistoryResponse => ({
       createdAt: "2026-09-05T00:00:00.000Z",
       source: "repayment",
       repaymentOperationType: "payment",
+      canReverse: true,
     },
   ],
   total: 50,

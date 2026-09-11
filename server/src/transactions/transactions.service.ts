@@ -36,6 +36,7 @@ export interface TransactionHistoryItem {
   collectionDate?: string | null;
   source: 'repayment' | 'savings';
   repaymentOperationType?: 'payment' | 'reversal' | null;
+  canReverse: boolean;
 }
 
 interface TransactionSourceResult {
@@ -50,6 +51,7 @@ interface RepaymentHistoryRow {
   collectionDate: string | null;
   paymentDate: string | null;
   operationType: RepaymentOperationType;
+  canReverse: boolean;
   createdAt: Date | string;
   memberId: string | null;
   memberFirstName: string | null;
@@ -238,6 +240,16 @@ export class TransactionsService {
           'repayment."collectionDate"::text AS "collectionDate"',
           'repayment."paymentDate"::text AS "paymentDate"',
           'repayment.operationType AS "operationType"',
+          `(
+            repayment."operationType" = 'payment'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM "repayment" "blockingReversal"
+              WHERE "blockingReversal"."relatedRepaymentId" = repayment.id
+                AND "blockingReversal"."operationType" = 'reversal'
+                AND "blockingReversal"."status" IN ('pending', 'approved')
+            )
+          ) AS "canReverse"`,
           `repayment."createdAt" AT TIME ZONE 'Asia/Manila' AS "createdAt"`,
           'member.id AS "memberId"',
           'member.firstName AS "memberFirstName"',
@@ -395,6 +407,7 @@ export class TransactionsService {
       collectionDate,
       source: 'repayment',
       repaymentOperationType: operationType,
+      canReverse: operationType === 'payment' && repayment.canReverse === true,
     };
   }
 
@@ -427,6 +440,7 @@ export class TransactionsService {
       notes: savings.remarks ?? null,
       createdAt: this.toIsoString(savings.createdAt),
       source: 'savings',
+      canReverse: false,
     };
   }
 

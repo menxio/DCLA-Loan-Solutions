@@ -403,7 +403,9 @@ export default function TransactionHistoryPage() {
                     (transaction.repaymentOperationType ?? "payment") ===
                       "payment";
                   const showReversalAction =
-                    canRequestReversal && isRepaymentPayment;
+                    canRequestReversal &&
+                    isRepaymentPayment &&
+                    transaction.canReverse === true;
 
                   return (
                     <TableRow key={transaction.id} hover>

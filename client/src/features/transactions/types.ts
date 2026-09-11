@@ -1,7 +1,5 @@
 export type TransactionType =
-  | "repayment"
-  | "savings_deposit"
-  | "savings_withdrawal";
+  "repayment" | "savings_deposit" | "savings_withdrawal";
 
 export interface TransactionHistoryItem {
   id: string;
@@ -25,6 +23,7 @@ export interface TransactionHistoryItem {
   collectionDate?: string | null;
   source: "repayment" | "savings";
   repaymentOperationType?: "payment" | "reversal" | null;
+  canReverse: boolean;
 }
 
 export interface TransactionHistoryResponse {
@@ -36,8 +35,4 @@ export interface TransactionHistoryResponse {
 }
 
 export type TransactionFilterType =
-  | "all"
-  | "repayment"
-  | "savings"
-  | "savings_deposit"
-  | "savings_withdrawal";
+  "all" | "repayment" | "savings" | "savings_deposit" | "savings_withdrawal";
