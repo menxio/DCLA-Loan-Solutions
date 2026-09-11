@@ -42,28 +42,35 @@ import { useAuthStore } from "@features/auth/authStore";
 import { repaymentsService } from "@features/repayments/api";
 import { formatRecordedTimestamp } from "@utils/dateTime";
 import { useTransactionHistory } from "../hooks/useTransactionHistory";
-import type { TransactionFilterType, TransactionType } from "../types";
+import type {
+  TransactionFilterType,
+  TransactionHistoryItem,
+  TransactionType,
+} from "../types";
 
 const typeOptions = [
   { value: "all", label: "All Transactions" },
-  { value: "repayment", label: "Loan Repayments" },
-  { value: "savings_deposit", label: "Savings Deposits" },
-  { value: "savings_withdrawal", label: "Savings Withdrawals" },
+  { value: "repayment", label: "Loan Repayments & Reversals" },
+  { value: "savings_deposit", label: "Savings Deposit" },
+  { value: "savings_withdrawal", label: "Savings Withdrawal" },
 ];
 
 const typeLabels: Record<TransactionType, string> = {
-  repayment: "Loan repayment",
-  savings_deposit: "Savings deposit",
-  savings_withdrawal: "Savings withdrawal",
+  repayment: "Loan Repayment",
+  savings_deposit: "Savings Deposit",
+  savings_withdrawal: "Savings Withdrawal",
 };
+
+const getTransactionLabel = (
+  transaction: Pick<TransactionHistoryItem, "type" | "repaymentOperationType">,
+) =>
+  transaction.type === "repayment" &&
+  transaction.repaymentOperationType === "reversal"
+    ? "Repayment Reversal"
+    : typeLabels[transaction.type];
 
 const formatCurrency = (value: number) =>
   `₱${Number(value || 0).toLocaleString()}`;
-
-const directionColors: Record<string, "success" | "error" | "default"> = {
-  credit: "success",
-  debit: "error",
-};
 
 const dialogPaperSx = {
   m: { xs: 2, sm: 4 },
@@ -104,12 +111,18 @@ export default function TransactionHistoryPage() {
     () =>
       transactions.reduce(
         (acc, transaction) => {
-          if (transaction.type === "repayment") acc.repayments += 1;
+          if (transaction.type === "repayment") {
+            if (transaction.repaymentOperationType === "reversal") {
+              acc.reversals += 1;
+            } else {
+              acc.repayments += 1;
+            }
+          }
           if (transaction.type === "savings_deposit") acc.deposits += 1;
           if (transaction.type === "savings_withdrawal") acc.withdrawals += 1;
           return acc;
         },
-        { repayments: 0, deposits: 0, withdrawals: 0 },
+        { repayments: 0, reversals: 0, deposits: 0, withdrawals: 0 },
       ),
     [transactions],
   );
@@ -338,6 +351,9 @@ export default function TransactionHistoryPage() {
                 Repayments: <strong>{stats.repayments}</strong>
               </Typography>
               <Typography variant="body2" color="text.secondary">
+                Reversals: <strong>{stats.reversals}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
                 Deposits: <strong>{stats.deposits}</strong>
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -347,17 +363,24 @@ export default function TransactionHistoryPage() {
           </Box>
 
           <TableContainer sx={{ maxWidth: "100%", overflowX: "auto" }}>
-            <Table stickyHeader sx={{ minWidth: 1040 }}>
+            <Table
+              stickyHeader
+              sx={{ minWidth: canRequestReversal ? 1040 : 870 }}
+            >
               <TableHead>
                 <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Member</TableCell>
-                  <TableCell>Center</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Direction</TableCell>
-                  <TableCell align="right">Amount</TableCell>
-                  <TableCell>Notes</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell sx={{ width: 180 }}>Date &amp; Time</TableCell>
+                  <TableCell sx={{ minWidth: 190 }}>Member</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>Center</TableCell>
+                  <TableCell sx={{ width: 190 }}>Transaction</TableCell>
+                  <TableCell align="right" sx={{ width: 130 }}>
+                    Amount
+                  </TableCell>
+                  {canRequestReversal && (
+                    <TableCell align="right" sx={{ width: 170 }}>
+                      Actions
+                    </TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -377,29 +400,20 @@ export default function TransactionHistoryPage() {
 
                   return (
                     <TableRow key={transaction.id} hover>
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
+                      <TableCell sx={{ width: 180, whiteSpace: "nowrap" }}>
                         {formatRecordedTimestamp(transaction.createdAt)}
                       </TableCell>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 600 }}>
+                      <TableCell sx={{ minWidth: 190 }}>
+                        <Typography noWrap sx={{ fontWeight: 600 }}>
                           {transaction.member.name}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>
                         {transaction.member.center?.name ?? "No center"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ width: 190 }}>
                         <Chip
-                          label={typeLabels[transaction.type]}
-                          size="small"
-                          variant="outlined"
-                          sx={{ fontWeight: 600 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={transaction.direction.toUpperCase()}
-                          color={directionColors[transaction.direction]}
+                          label={getTransactionLabel(transaction)}
                           size="small"
                           variant="outlined"
                           sx={{ fontWeight: 600 }}
@@ -408,6 +422,7 @@ export default function TransactionHistoryPage() {
                       <TableCell
                         align="right"
                         sx={{
+                          width: 130,
                           fontWeight: 700,
                           whiteSpace: "nowrap",
                           fontVariantNumeric: "tabular-nums",
@@ -420,35 +435,38 @@ export default function TransactionHistoryPage() {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell sx={{ minWidth: 180 }}>
-                        {transaction.notes || "—"}
-                      </TableCell>
-                      <TableCell align="right">
-                        {showReversalAction ? (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            onClick={() =>
-                              handleOpenReversalDialog(transaction.id)
-                            }
-                            sx={{ minHeight: 44, whiteSpace: "nowrap" }}
-                          >
-                            {isOperationalAdmin
-                              ? "Reverse Payment"
-                              : "Request Reversal"}
-                          </Button>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
+                      {canRequestReversal && (
+                        <TableCell align="right" sx={{ width: 170 }}>
+                          {showReversalAction ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="error"
+                              onClick={() =>
+                                handleOpenReversalDialog(transaction.id)
+                              }
+                              sx={{ minHeight: 44, whiteSpace: "nowrap" }}
+                            >
+                              {isOperationalAdmin
+                                ? "Reverse Payment"
+                                : "Request Reversal"}
+                            </Button>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
 
                 {!loading && !error && transactions.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                    <TableCell
+                      colSpan={canRequestReversal ? 6 : 5}
+                      align="center"
+                      sx={{ py: 8 }}
+                    >
                       <Typography sx={{ fontWeight: 600 }}>
                         {hasActiveFilters
                           ? "No transactions match the selected filters."

@@ -47,6 +47,23 @@ const transactions = [
     repaymentOperationType: "payment" as const,
   },
   {
+    id: "repayment-reversal-1",
+    type: "repayment" as const,
+    amount: 750,
+    direction: "debit" as const,
+    member: {
+      id: "member-1",
+      name: "Member, Maria",
+      center: { id: "center-1", name: "North Center" },
+    },
+    loan: { id: "loan-1", status: "active" },
+    notes: "Duplicate payment reversal",
+    createdAt: "2026-09-03T15:15:29.683Z",
+    collectionDate: "2026-09-03",
+    source: "repayment" as const,
+    repaymentOperationType: "reversal" as const,
+  },
+  {
     id: "savings-1",
     type: "savings_deposit" as const,
     amount: 500,
@@ -59,6 +76,21 @@ const transactions = [
     loan: { id: null, status: null },
     notes: "Deposit",
     createdAt: "2026-09-03T16:30:00.000Z",
+    source: "savings" as const,
+  },
+  {
+    id: "savings-2",
+    type: "savings_withdrawal" as const,
+    amount: 250,
+    direction: "debit" as const,
+    member: {
+      id: "member-2",
+      name: "Member, Ana",
+      center: { id: "center-2", name: "South Center" },
+    },
+    loan: { id: null, status: null },
+    notes: "Withdrawal",
+    createdAt: "2026-09-03T16:31:00.000Z",
     source: "savings" as const,
   },
 ];
@@ -119,9 +151,27 @@ describe("TransactionHistoryPage", () => {
     expect(screen.getByText("Sep 3, 2026, 11:14 PM")).toBeInTheDocument();
     expect(screen.getByText("Sep 4, 2026, 12:30 AM")).toBeInTheDocument();
     expect(screen.getByText("₱1,500")).toBeInTheDocument();
-    expect(screen.getByText("Loan repayment")).toBeInTheDocument();
-    expect(screen.getByText("Savings deposit")).toBeInTheDocument();
-    expect(screen.getByText("2 shown of 52 records")).toBeInTheDocument();
+    expect(screen.getByText("Loan Repayment")).toBeInTheDocument();
+    expect(screen.getByText("Repayment Reversal")).toBeInTheDocument();
+    expect(screen.getByText("Savings Deposit")).toBeInTheDocument();
+    expect(screen.getByText("Savings Withdrawal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Date & Time" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Transaction" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Direction" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Notes" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Weekly payment")).not.toBeInTheDocument();
+    expect(screen.getByText("4 shown of 52 records")).toBeInTheDocument();
+    const summary = screen.getByLabelText("Current page transaction summary");
+    expect(summary).toHaveTextContent("Repayments: 1");
+    expect(summary).toHaveTextContent("Reversals: 1");
     expect(screen.queryByText("Loan #loan-1")).not.toBeInTheDocument();
   });
 
@@ -138,7 +188,7 @@ describe("TransactionHistoryPage", () => {
       target: { value: "2026-09-03" },
     });
     fireEvent.mouseDown(screen.getByLabelText("Transaction type"));
-    fireEvent.click(screen.getByRole("option", { name: "Savings Deposits" }));
+    fireEvent.click(screen.getByRole("option", { name: "Savings Deposit" }));
 
     expect(actions.updateFilters).toHaveBeenCalledWith({ search: "Maria" });
     expect(actions.updateFilters).toHaveBeenCalledWith({
@@ -163,6 +213,12 @@ describe("TransactionHistoryPage", () => {
   it("preserves the cashier reversal request workflow", async () => {
     renderPage();
 
+    expect(
+      screen.getByRole("columnheader", { name: "Actions" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Request Reversal" }),
+    ).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Request Reversal" }));
     const dialog = screen.getByRole("dialog", {
       name: "Request repayment reversal",
@@ -183,13 +239,45 @@ describe("TransactionHistoryPage", () => {
     await waitFor(() => expect(actions.refresh).toHaveBeenCalledOnce());
   });
 
-  it("keeps read-only roles from seeing reversal actions", () => {
-    currentRole = "manager";
+  it.each(["manager", "loan processor"])(
+    "omits the Actions column for the read-only %s role",
+    (readOnlyRole) => {
+      currentRole = readOnlyRole;
+      renderPage();
+
+      expect(
+        screen.queryByRole("columnheader", { name: "Actions" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /reversal|reverse payment/i }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("runs the immediate reversal action only for eligible admin rows", async () => {
+    currentRole = "admin";
     renderPage();
 
     expect(
-      screen.queryByRole("button", { name: /reversal|reverse payment/i }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("columnheader", { name: "Actions" }),
+    ).toBeInTheDocument();
+    const reversePayment = screen.getByRole("button", {
+      name: "Reverse Payment",
+    });
+    fireEvent.click(reversePayment);
+
+    const dialog = screen.getByRole("dialog", { name: "Reverse repayment" });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Reverse Payment" }),
+    );
+
+    await waitFor(() =>
+      expect(requestReversalMock).toHaveBeenCalledWith(
+        "repayment-1",
+        undefined,
+      ),
+    );
+    await waitFor(() => expect(actions.refresh).toHaveBeenCalledOnce());
   });
 
   it("uses the shared operational loading structure", () => {
