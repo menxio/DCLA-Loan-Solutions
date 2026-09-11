@@ -347,6 +347,13 @@ export default function TransactionHistoryPage() {
               flexWrap="wrap"
               aria-label="Current page transaction summary"
             >
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontWeight: 600 }}
+              >
+                Current page:
+              </Typography>
               <Typography variant="body2" color="text.secondary">
                 Repayments: <strong>{stats.repayments}</strong>
               </Typography>

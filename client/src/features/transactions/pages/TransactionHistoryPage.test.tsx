@@ -170,6 +170,7 @@ describe("TransactionHistoryPage", () => {
     expect(screen.queryByText("Weekly payment")).not.toBeInTheDocument();
     expect(screen.getByText("4 shown of 52 records")).toBeInTheDocument();
     const summary = screen.getByLabelText("Current page transaction summary");
+    expect(within(summary).getByText("Current page:")).toBeInTheDocument();
     expect(summary).toHaveTextContent("Repayments: 1");
     expect(summary).toHaveTextContent("Reversals: 1");
     expect(screen.queryByText("Loan #loan-1")).not.toBeInTheDocument();
