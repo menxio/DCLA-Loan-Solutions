@@ -133,6 +133,7 @@ describe('TransactionsService', () => {
       id: 'repayment-1',
       amount: 125.5,
       createdAt: '2026-09-03T15:14:29.683Z',
+      collectionDate: '2026-09-05',
       member: {
         id: 'member-1',
         name: 'Member, Test',
@@ -151,6 +152,8 @@ describe('TransactionsService', () => {
     expect(repayment.builder.getRawMany).toHaveBeenCalledTimes(1);
     expect(repayment.builder.select).toHaveBeenCalledWith(
       expect.arrayContaining([
+        'repayment."collectionDate"::text AS "collectionDate"',
+        'repayment."paymentDate"::text AS "paymentDate"',
         `repayment."createdAt" AT TIME ZONE 'Asia/Manila' AS "createdAt"`,
       ]),
     );
@@ -160,6 +163,78 @@ describe('TransactionsService', () => {
       { search: '%member\\%\\_%' },
     );
     expect(createSavingsQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('returns date-only collection dates for payments, reversals, and payment-date fallback', async () => {
+    const baseRow = {
+      amount: '125.50',
+      notes: null,
+      createdAt: new Date('2026-09-03T15:14:29.683Z'),
+      memberId: 'member-1',
+      memberFirstName: 'Test',
+      memberLastName: 'Member',
+      memberCenterId: 'center-1',
+      memberCenterName: 'Center One',
+      repaymentCenterId: null,
+      repaymentCenterName: null,
+      loanId: 'loan-1',
+      loanStatus: 'active',
+    };
+    const repayment = createQueryBuilder(
+      [
+        {
+          ...baseRow,
+          id: 'payment-1',
+          collectionDate: '2026-09-05',
+          paymentDate: '2026-09-05',
+          operationType: 'payment',
+        },
+        {
+          ...baseRow,
+          id: 'reversal-1',
+          collectionDate: '2026-09-05',
+          paymentDate: '2026-09-05',
+          operationType: 'reversal',
+        },
+        {
+          ...baseRow,
+          id: 'fallback-1',
+          collectionDate: null,
+          paymentDate: '2026-09-06',
+          operationType: 'payment',
+        },
+      ],
+      3,
+    );
+    const service = new TransactionsService(
+      {
+        createQueryBuilder: jest.fn(() => repayment.builder),
+      } as unknown as Repository<Repayment>,
+      {} as Repository<Savings>,
+    );
+
+    const result = await service.getHistory({
+      type: 'repayment',
+      page: 1,
+      limit: 10,
+    } as TransactionsQueryDto);
+
+    expect(result.items.find(({ id }) => id === 'payment-1')).toMatchObject({
+      collectionDate: '2026-09-05',
+      repaymentOperationType: 'payment',
+    });
+    expect(result.items.find(({ id }) => id === 'reversal-1')).toMatchObject({
+      collectionDate: '2026-09-05',
+      repaymentOperationType: 'reversal',
+    });
+    expect(result.items.find(({ id }) => id === 'fallback-1')).toMatchObject({
+      collectionDate: '2026-09-06',
+      repaymentOperationType: 'payment',
+    });
+    for (const transaction of result.items) {
+      expect(transaction.collectionDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(transaction.collectionDate).not.toContain('T');
+    }
   });
 
   it('rejects page sizes above the UI and API maximum', async () => {

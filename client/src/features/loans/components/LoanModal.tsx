@@ -49,6 +49,7 @@ import {
   calculateLoanDetails,
   formatCurrency,
 } from "../utils/loanCalculations";
+import { formatCollectionDate } from "../utils/date";
 import { generateLoanPassbookPDF } from "@components/export/loanPassbookPDF";
 import {
   transactionHistoryQueryKey,
@@ -1280,18 +1281,16 @@ export default function LoanModal({
                                     transaction.createdAt,
                                   )}
                                 </Typography>
-                                {transaction.collectionDate && (
-                                  <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                    display="block"
-                                  >
-                                    Collection date:{" "}
-                                    {new Date(
-                                      `${transaction.collectionDate}T00:00:00`,
-                                    ).toLocaleDateString()}
-                                  </Typography>
-                                )}
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  display="block"
+                                >
+                                  Collection date:{" "}
+                                  {formatCollectionDate(
+                                    transaction.collectionDate,
+                                  )}
+                                </Typography>
                                 <Typography
                                   variant="body2"
                                   color="text.secondary"
